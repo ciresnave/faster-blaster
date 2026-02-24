@@ -21,6 +21,7 @@
 #include "judge_direct.h"
 #include "judge_index.h"
 #include "judge_factorization.h"
+#include "judge_solve.h"
 #include "judge_profile.h"
 #include "judge_store.h"
 #include "../backends/backend_interface.h"
@@ -318,6 +319,55 @@ fb_judge_status_t fb_judge_run(
 
         profile_out->archetype        = (uint8_t)FB_JUDGE_FACTORIZATION;
         profile_out->limiting_metric  = FB_JUDGE_LIMIT_RECONSTRUCTION;
+        profile_out->oracle_max_certifiable =
+            fb_judge_meta_oracle_ceiling(op_id, (fb_dtype_t)dtype);
+
+    } else if (meta->archetype == FB_JUDGE_SOLVE) {
+
+        /* Accumulator for residual and kappa_estimate tracking. */
+        fb_metric_accum_t  residual_accum;
+        fb_timing_accum_t  timing_accum;
+        fb_metric_accum_init(&residual_accum);
+        fb_timing_accum_init(&timing_accum);
+
+        for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
+            fb_judge_solve_result_t solve_res;
+            uint64_t ns = 0;
+
+            fb_judge_status_t rs = fb_judge_run_solve_case(
+                oracle, candidate, &cases[ci], &solve_res, &ns);
+
+            if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                continue;
+            }
+            if (rs != FB_JUDGE_OK) {
+                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                return rs;
+            }
+
+            /* Oracle fatal on residual → halt. */
+            if (solve_res.residual.is_oracle_fatal) {
+                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                for (int fi = 0; fi < ci; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                return FB_JUDGE_ERR_ORACLE_FAILURE;
+            }
+
+            fb_metric_accum_add(&residual_accum, &solve_res.residual);
+
+            if (!cases[ci].meta.is_edge_case && ns > 0)
+                fb_timing_accum_add(&timing_accum, ns);
+
+            fb_corpus_case_free(&cases[ci]);
+        }
+
+        fb_metric_accum_finish(&residual_accum, &profile_out->residual);
+        fb_timing_accum_finish(&timing_accum, &profile_out->timing);
+
+        profile_out->archetype        = (uint8_t)FB_JUDGE_SOLVE;
+        profile_out->limiting_metric  = FB_JUDGE_LIMIT_RESIDUAL;
         profile_out->oracle_max_certifiable =
             fb_judge_meta_oracle_ceiling(op_id, (fb_dtype_t)dtype);
 

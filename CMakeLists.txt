@@ -534,6 +534,7 @@ set(JUDGE_SOURCES
     src/judge/judge_direct.c
     src/judge/judge_index.c
     src/judge/judge_factorization.c
+    src/judge/judge_solve.c
     src/judge/judge_profile.c
     src/judge/judge_store.c
 )
