@@ -1,0 +1,2 @@
+/* ztrord */
+void ztrord_() { }

@@ -1,0 +1,2 @@
+/* clll */
+void clll_() { }

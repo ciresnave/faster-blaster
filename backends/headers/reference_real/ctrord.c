@@ -1,0 +1,2 @@
+/* ctrord */
+void ctrord_() { }

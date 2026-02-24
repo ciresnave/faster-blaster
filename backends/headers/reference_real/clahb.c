@@ -1,0 +1,2 @@
+/* clahb */
+void clahb_() { }

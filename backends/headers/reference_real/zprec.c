@@ -1,0 +1,2 @@
+/* zprec */
+void zprec_() { }

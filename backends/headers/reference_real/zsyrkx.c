@@ -1,0 +1,2 @@
+/* zsyrkx */
+void zsyrkx_() { }

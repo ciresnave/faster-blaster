@@ -1,0 +1,2 @@
+/* zlacon */
+void zlacon_() { }

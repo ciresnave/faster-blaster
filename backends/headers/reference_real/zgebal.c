@@ -1,0 +1,2 @@
+/* zgebal */
+void zgebal_() { }

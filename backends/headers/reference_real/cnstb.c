@@ -1,0 +1,2 @@
+/* cnstb */
+void cnstb_() { }

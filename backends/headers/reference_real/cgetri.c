@@ -1,0 +1,2 @@
+/* cgetri */
+void cgetri_() { }

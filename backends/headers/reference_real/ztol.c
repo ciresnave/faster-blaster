@@ -1,0 +1,2 @@
+/* ztol */
+void ztol_() { }

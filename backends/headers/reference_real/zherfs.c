@@ -1,0 +1,2 @@
+/* zherfs */
+void zherfs_() { }

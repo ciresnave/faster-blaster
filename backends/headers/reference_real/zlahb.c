@@ -1,0 +1,2 @@
+/* zlahb */
+void zlahb_() { }

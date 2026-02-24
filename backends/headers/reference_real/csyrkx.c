@@ -1,0 +1,2 @@
+/* csyrkx */
+void csyrkx_() { }

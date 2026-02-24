@@ -22,6 +22,7 @@
 #include "judge_index.h"
 #include "judge_factorization.h"
 #include "judge_solve.h"
+#include "judge_spectral.h"
 #include "judge_profile.h"
 #include "judge_store.h"
 #include "../backends/backend_interface.h"
@@ -368,6 +369,75 @@ fb_judge_status_t fb_judge_run(
 
         profile_out->archetype        = (uint8_t)FB_JUDGE_SOLVE;
         profile_out->limiting_metric  = FB_JUDGE_LIMIT_RESIDUAL;
+        profile_out->oracle_max_certifiable =
+            fb_judge_meta_oracle_ceiling(op_id, (fb_dtype_t)dtype);
+
+    } else if (meta->archetype == FB_JUDGE_SPECTRAL) {
+
+        /* Five accumulators for spectral metrics. */
+        fb_metric_accum_t  values_accum;
+        fb_metric_accum_t  reconstruction_accum;
+        fb_metric_accum_t  orthogonality_accum;
+        fb_metric_accum_t  subspace_accum;
+        fb_metric_accum_t  pairs_accum;
+        fb_timing_accum_t  timing_accum;
+        fb_metric_accum_init(&values_accum);
+        fb_metric_accum_init(&reconstruction_accum);
+        fb_metric_accum_init(&orthogonality_accum);
+        fb_metric_accum_init(&subspace_accum);
+        fb_metric_accum_init(&pairs_accum);
+        fb_timing_accum_init(&timing_accum);
+
+        for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
+            fb_judge_spectral_result_t spectral_res;
+            uint64_t ns = 0;
+
+            fb_judge_status_t rs = fb_judge_run_spectral_case(
+                oracle, candidate, &cases[ci], &spectral_res, &ns);
+
+            if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                continue;
+            }
+            if (rs != FB_JUDGE_OK) {
+                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                return rs;
+            }
+
+            /* Oracle fatal on any metric → halt. */
+            if (spectral_res.values.is_oracle_fatal ||
+                spectral_res.reconstruction.is_oracle_fatal ||
+                spectral_res.orthogonality.is_oracle_fatal) {
+                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                for (int fi = 0; fi < ci; fi++)
+                    fb_corpus_case_free(&cases[fi]);
+                return FB_JUDGE_ERR_ORACLE_FAILURE;
+            }
+
+            /* Accumulate all five metrics. */
+            fb_metric_accum_add(&values_accum, &spectral_res.values);
+            fb_metric_accum_add(&reconstruction_accum, &spectral_res.reconstruction);
+            fb_metric_accum_add(&orthogonality_accum, &spectral_res.orthogonality);
+            fb_metric_accum_add(&subspace_accum, &spectral_res.subspace);
+            fb_metric_accum_add(&pairs_accum, &spectral_res.pairs);
+
+            if (!cases[ci].meta.is_edge_case && ns > 0)
+                fb_timing_accum_add(&timing_accum, ns);
+
+            fb_corpus_case_free(&cases[ci]);
+        }
+
+        /* Finish all metrics into profile slots. */
+        fb_metric_accum_finish(&values_accum, &profile_out->values);
+        fb_metric_accum_finish(&reconstruction_accum, &profile_out->reconstruction);
+        fb_metric_accum_finish(&orthogonality_accum, &profile_out->orthogonality);
+        fb_metric_accum_finish(&subspace_accum, &profile_out->subspace);
+        fb_metric_accum_finish(&pairs_accum, &profile_out->pairs);
+        fb_timing_accum_finish(&timing_accum, &profile_out->timing);
+
+        profile_out->archetype        = (uint8_t)FB_JUDGE_SPECTRAL;
+        profile_out->limiting_metric  = FB_JUDGE_LIMIT_VALUES;  /* Values primary for spectral */
         profile_out->oracle_max_certifiable =
             fb_judge_meta_oracle_ceiling(op_id, (fb_dtype_t)dtype);
 

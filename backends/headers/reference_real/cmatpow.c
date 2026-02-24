@@ -1,0 +1,2 @@
+/* cmatpow */
+void cmatpow_() { }

@@ -1,0 +1,2 @@
+/* zdetnrm */
+void zdetnrm_() { }

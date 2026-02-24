@@ -1,0 +1,2 @@
+/* ctrcon */
+void ctrcon_() { }

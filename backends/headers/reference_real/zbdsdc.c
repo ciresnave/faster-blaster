@@ -1,0 +1,2 @@
+/* zbdsdc */
+void zbdsdc_() { }

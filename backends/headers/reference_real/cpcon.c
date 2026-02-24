@@ -1,0 +1,2 @@
+/* cpcon */
+void cpcon_() { }

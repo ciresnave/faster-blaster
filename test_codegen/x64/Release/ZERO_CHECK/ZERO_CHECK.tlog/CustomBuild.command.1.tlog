@@ -1,0 +1,10 @@
+^C:\USERS\CIRES\ONEDRIVE\DOCUMENTS\PROJECTS\FASTER-BLASTER\TEST_CODEGEN\CMAKEFILES\5B307F064A55E6765FF716E90AB50C76\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/cires/OneDrive/Documents/projects/faster-blaster/codegen -BC:/Users/cires/OneDrive/Documents/projects/faster-blaster/test_codegen --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/cires/OneDrive/Documents/projects/faster-blaster/test_codegen/Project.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

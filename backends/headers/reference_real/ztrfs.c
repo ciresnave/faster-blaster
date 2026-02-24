@@ -1,0 +1,2 @@
+/* ztrfs */
+void ztrfs_() { }

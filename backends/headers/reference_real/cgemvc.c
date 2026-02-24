@@ -1,0 +1,2 @@
+/* cgemvc */
+void cgemvc_() { }

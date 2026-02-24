@@ -1,0 +1,2 @@
+/* zrange */
+void zrange_() { }

@@ -1,0 +1,2 @@
+/* ckry */
+void ckry_() { }

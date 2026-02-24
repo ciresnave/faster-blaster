@@ -1,0 +1,181 @@
+================================================================================
+AUTOMATED BLAS OPERATION ADDITION TOOL
+================================================================================
+
+Generating PHASE3: 14 operations
+
+
+================================================================================
+BACKEND: AOCL - PHASE3
+================================================================================
+
+--- TYPEDEFS (add after existing cblas_*_t typedefs, around line 107) ---
+
+/* Level 2 BLAS typedefs */
+typedef void (*cblas_dspr2_t)(CBLAS_LAYOUT, CBLAS_UPLO, const int, const double, const double*, const int, const double*, const int, double*);
+typedef void (*cblas_dtpmv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, double*, const double*, const int);
+typedef void (*cblas_dtpsv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, double*, const double*, const int);
+typedef void (*cblas_sspr2_t)(CBLAS_LAYOUT, CBLAS_UPLO, const int, const float, const float*, const int, const float*, const int, float*);
+typedef void (*cblas_stpmv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, float*, const float*, const int);
+typedef void (*cblas_stpsv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, float*, const float*, const int);
+
+--- STRUCT FIELDS (add to g_aocl struct, around line 153) ---
+
+    /* Level 2 BLAS */
+    cblas_dspr2_t dspr2;
+    cblas_dtpmv_t dtpmv;
+    cblas_dtpsv_t dtpsv;
+    cblas_sspr2_t sspr2;
+    cblas_stpmv_t stpmv;
+    cblas_stpsv_t stpsv;
+
+    /* Level 3 BLAS */
+
+--- FUNCTION LOADERS (add in load_aocl_library, around line 265) ---
+
+    /* Level 2 BLAS */
+    g_aocl.dspr2 = (cblas_dspr2_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dspr2");
+    g_aocl.dtpmv = (cblas_dtpmv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtpmv");
+    g_aocl.dtpsv = (cblas_dtpsv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtpsv");
+    g_aocl.sspr2 = (cblas_sspr2_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_sspr2");
+    g_aocl.stpmv = (cblas_stpmv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_stpmv");
+    g_aocl.stpsv = (cblas_stpsv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_stpsv");
+
+    /* Level 3 BLAS */
+
+--- WRAPPER FUNCTIONS (add after aocl_dgemm, around line 798) ---
+
+/* ============================================================================
+ * BLAS Level 2 Operations - NEW
+ * ========================================================================== */
+
+/* Symmetric packed rank-2 update: A = alpha*x*y' + alpha*y*x' + A */
+static void aocl_dspr2(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       const double* x,
+                       const int64_t incx,
+                       const double* y,
+                       const int64_t incy,
+                       double* Ap) {
+    if (g_aocl.dspr2) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dspr2(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, y, (int)incy, Ap);
+    }
+}
+
+/* Triangular packed matrix-vector multiply: x = A*x */
+static void aocl_dtpmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       double* Ap,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtpmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtpmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, Ap, x, (int)incx);
+    }
+}
+
+/* Triangular packed system solve: A*x = b */
+static void aocl_dtpsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       double* Ap,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtpsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtpsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, Ap, x, (int)incx);
+    }
+}
+
+/* Symmetric packed rank-2 update: A = alpha*x*y' + alpha*y*x' + A */
+static void aocl_sspr2(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       const float* x,
+                       const int64_t incx,
+                       const float* y,
+                       const int64_t incy,
+                       float* Ap) {
+    if (g_aocl.sspr2) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.sspr2(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, y, (int)incy, Ap);
+    }
+}
+
+/* Triangular packed matrix-vector multiply: x = A*x */
+static void aocl_stpmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       float* Ap,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.stpmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.stpmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, Ap, x, (int)incx);
+    }
+}
+
+/* Triangular packed system solve: A*x = b */
+static void aocl_stpsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       float* Ap,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.stpsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.stpsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, Ap, x, (int)incx);
+    }
+}
+
+
+--- VTABLE ENTRIES (add in g_aocl_vtable, after .dgemm line) ---
+    .dspr2 = aocl_dspr2,
+    .dtpmv = aocl_dtpmv,
+    .dtpsv = aocl_dtpsv,
+    .sspr2 = aocl_sspr2,
+    .stpmv = aocl_stpmv,
+    .stpsv = aocl_stpsv,
+
+
+================================================================================
+GENERATION COMPLETE
+================================================================================
+
+Generated 14 operations for PHASE3
+
+Next steps:
+1. Copy TYPEDEFS after existing cblas_*_t typedefs (line ~107)
+2. Copy STRUCT FIELDS to g_aocl struct (line ~153)
+3. Copy FUNCTION LOADERS to load_aocl_library() (line ~265)
+4. Copy WRAPPER FUNCTIONS after aocl_dgemm (line ~798)
+5. Copy VTABLE ENTRIES to g_aocl_vtable (line ~1830)
+6. Rebuild and test
+7. Repeat for other backends (cuBLAS, CLBlast, oneMKL)

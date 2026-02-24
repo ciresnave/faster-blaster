@@ -1,0 +1,2 @@
+/* zggbak */
+void zggbak_() { }

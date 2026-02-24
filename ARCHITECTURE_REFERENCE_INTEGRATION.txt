@@ -1,0 +1,408 @@
+/**
+ * @file ARCHITECTURE_REFERENCE_INTEGRATION.txt
+ * @brief Visual architecture of blas-lapack-reference backend integration
+ * 
+ * This file documents the complete architecture for integrating the reference
+ * backend into faster-blaster's unified backend system.
+ */
+
+==============================================================================
+LAYER 1: APPLICATION CODE (User)
+==============================================================================
+
+    User application calls faster-blaster API:
+    
+    fb_init();  // Initialize all backends including reference
+    
+    fb_operation_saxpy_f(100, 2.0f, x, 1, y, 1);  // Via unified dispatch
+    
+    fb_finalize();  // Cleanup
+
+
+==============================================================================
+LAYER 2: UNIFIED DISPATCH API (fb_dispatch.h)
+==============================================================================
+
+    fb_operation_saxpy_f(n, alpha, x, incx, y, incy)
+            ↓
+    fb_dispatch_saxpy_f(backend_selector, n, alpha, x, incx, y, incy)
+            ↓
+    Queries backend registry for "blas-lapack-reference" or other
+            ↓
+    Gets vtable for selected backend
+
+
+==============================================================================
+LAYER 3: BACKEND REGISTRY (backend_registry.c)
+==============================================================================
+
+    Registry Entry for Reference Backend:
+    
+    {
+        .backend_name = "blas-lapack-reference",
+        .init_fn = fb_blr_init,
+        .finalize_fn = fb_blr_finalize,
+        .get_vtable_fn = fb_blr_get_vtable,
+        .check_available_fn = fb_blr_is_available,
+        .hw_score_fn = fb_blr_get_hardware_score,
+    }
+    
+    When queried, returns fb_blr_vtable:
+    
+    fb_backend_vtable_t {
+        .saxpy = fb_blr_saxpy,
+        .daxpy = fb_blr_daxpy,
+        .sdot = fb_blr_sdot,
+        ... (1245 more function pointers)
+    }
+
+
+==============================================================================
+LAYER 4: WRAPPER FUNCTIONS (blas_lapack_reference_backend.c)
+==============================================================================
+
+    fb_blr_saxpy(n, alpha, x, incx, y, incy)  ← CBLAS convention
+            ↓
+    Lazily load fblas_saxpy_t from DLL
+            ↓
+    Convert parameters:
+        int n          → int n_copy = n; &n_copy
+        float alpha    → float alpha_copy = alpha; &alpha_copy
+        const float* x → x (pass through)
+        int incx       → int incx_copy = incx; &incx_copy
+        float* y       → y (pass through)
+        int incy       → int incy_copy = incy; &incy_copy
+            ↓
+    Call: saxpy_(&n_copy, &alpha_copy, x, &incx_copy, y, &incy_copy)  ← Fortran convention
+
+
+==============================================================================
+LAYER 5: DLL LOADING (blas_lapack_reference_backend.c)
+==============================================================================
+
+    fb_blr_init()
+            ↓
+    Search for DLL:
+    
+    1. Check FB_REFERENCE_BACKEND_PATH environment variable
+       Windows: "C:\custom\path\blas_lapack_reference.dll"
+       Unix: "/opt/blas_lapack_reference.so"
+    
+    2. Check same directory as faster-blaster executable
+       Windows: "C:\program files\faster-blaster\blas_lapack_reference.dll"
+       Unix: "/usr/local/bin/libblas_lapack_reference.so"
+    
+    3. Check system PATH
+       Windows: LoadLibrary("blas_lapack_reference.dll")
+       Unix: dlopen("libblas_lapack_reference.so", RTLD_LAZY)
+            ↓
+    Load DLL:
+    
+    Windows:  HMODULE g_blr_handle = LoadLibraryA(found_path);
+    Unix:     void* g_blr_handle = dlopen(found_path, RTLD_LAZY);
+            ↓
+    Verify success:
+    
+    if (g_blr_handle == NULL) {
+        FB_ERROR("Could not load reference DLL");
+        return false;
+    }
+            ↓
+    Return true, backend marked as available
+
+
+==============================================================================
+LAYER 6: FUNCTION SYMBOL RESOLUTION (blas_lapack_reference_backend.c)
+==============================================================================
+
+    User calls: fb_blr_saxpy(100, 2.0f, x, 1, y, 1)
+            ↓
+    Check if fblas_saxpy_t already loaded:
+    
+    static fblas_saxpy_t saxpy_fn = NULL;
+    if (!saxpy_fn) { ... }
+            ↓
+    Load symbol from DLL:
+    
+    Windows: saxpy_fn = (fblas_saxpy_t)GetProcAddress(g_blr_handle, "saxpy_");
+    Unix:    saxpy_fn = (fblas_saxpy_t)dlsym(g_blr_handle, "saxpy_");
+            ↓
+    Verify symbol found:
+    
+    if (!saxpy_fn) {
+        FB_ERROR("Could not load function saxpy_ from reference DLL");
+        return;  // Or appropriate error value
+    }
+            ↓
+    Cache function pointer for next calls
+
+
+==============================================================================
+LAYER 7: ACTUAL DLL (blas-lapack-reference project)
+==============================================================================
+
+    libf77blas.a (Fortran reference BLAS):
+    
+    subroutine saxpy(n, alpha, x, incx, y, incy)
+        integer n, incx, incy
+        real alpha, x(*), y(*)
+        do i = 1, n
+            y(i) = alpha * x(i) + y(i)
+        end do
+    end
+    
+    Compiled by Fortran compiler (gfortran, ifort, etc.):
+    - Generates saxpy_() symbol (underscore suffix)
+    - All parameters passed by reference (pointers)
+    - Called from C via wrapper
+
+
+==============================================================================
+CORRECTNESS TESTING FLOW
+==============================================================================
+
+    Test Suite: test_correctness_with_reference.c
+    
+    for each operation in [SAXPY, SGEMM, SGESV, ...]:
+        for each backend in [reference, openblas, aocl-blis, ...]:
+            for each size in [16, 64, 256, 1024]:
+                
+                // Generate random test data
+                x = random(size)
+                y = random(size)
+                y_ref = copy(y)
+                y_test = copy(y)
+                
+                // Compute reference (reference backend)
+                fb_blr_saxpy(size, 2.0f, x, 1, y_ref, 1);
+                
+                // Compute test (other backend)
+                fb_call_backend(backend_name, "saxpy", 
+                               size, 2.0f, x, 1, y_test, 1);
+                
+                // Compare
+                error = max(abs(y_ref[i] - y_test[i])) for all i
+                
+                // Check result
+                if (error <= TOLERANCE_FP32):
+                    result = TEST_PASS
+                else:
+                    result = TEST_FAIL
+                
+                // Record
+                add_test_result({
+                    operation: "saxpy",
+                    backend: backend_name,
+                    size: size,
+                    dtype: "FP32",
+                    result: result,
+                    max_error: error,
+                })
+    
+    // JSON output
+    {
+        "summary": {
+            "total": 1248,
+            "passed": 1200,
+            "failed": 48,
+            "consensus_violations": 3
+        },
+        "consensus_violations": [
+            {
+                "operation": "sgesv",
+                "backend_set": ["aocl-blis", "openblas"],
+                "reference_result": 1.5e-6,
+                "shared_result": 2.1e-6
+            },
+            ...
+        ]
+    }
+
+
+==============================================================================
+CONSENSUS VIOLATION DETECTION
+==============================================================================
+
+    When all non-reference backends agree but differ from reference:
+    
+    1. Reference backend computes operation
+        → result_ref = 1.234567
+    
+    2. Backend A computes same operation
+        → result_a = 1.234789  (error: 2.2e-4)
+    
+    3. Backend B computes same operation
+        → result_b = 1.234789  (error: 2.2e-4) ← SAME as A!
+    
+    4. Backend C computes same operation
+        → result_c = 1.234789  (error: 2.2e-4) ← SAME as A!
+    
+    Result: CONSENSUS VIOLATION
+    
+    → All three non-reference backends agree
+    → But they disagree with reference
+    → Indicates either:
+       a) Reference has a bug
+       b) All three backends have the same bug (unlikely)
+       c) Numerical tolerance issue (review TOLERANCE_*)
+    
+    JSON Log:
+    {
+        "consensus_violation": true,
+        "operation": "sgesv",
+        "backends_in_agreement": ["aocl-blis", "openblas", "mkl"],
+        "reference_result": 1.234567,
+        "consensus_result": 1.234789,
+        "error": 2.2e-4,
+        "size": 256,
+        "dtype": "FP32"
+    }
+
+
+==============================================================================
+ERROR HANDLING & RECOVERY
+==============================================================================
+
+    Scenario 1: DLL Not Found
+    
+        fb_blr_init()
+        └─ Try FB_REFERENCE_BACKEND_PATH → NOT SET
+        └─ Try module directory → NOT FOUND
+        └─ Try system PATH → NOT FOUND
+        └─ Return false, log error
+        
+        g_blr_initialized = false
+        
+        Later, user calls fb_call_backend("blas-lapack-reference", ...):
+        
+        if (!g_blr_initialized) {
+            return FB_ERROR_BACKEND_UNAVAILABLE;
+        }
+
+
+    Scenario 2: Function Symbol Not Found
+    
+        fb_blr_saxpy() called
+        └─ Try to load "saxpy_" from DLL
+        └─ dlsym() returns NULL
+        └─ Log error: "Could not load function saxpy_ from reference DLL"
+        └─ Return 0 or void (depends on return type)
+        
+        Caller gets garbage/zero result, can detect if expected non-zero
+
+
+    Scenario 3: DLL Exists But is Corrupted
+    
+        LoadLibrary/dlopen succeeds
+        But GetProcAddress/dlsym fails for multiple functions
+        
+        Mark backend as unavailable if > threshold of functions fail
+
+
+==============================================================================
+PERFORMANCE CHARACTERISTICS
+==============================================================================
+
+    Operation          Size      Time      Accuracy
+    ─────────────────────────────────────────────────
+    SAXPY              1e6       2-5 ms    EXACT (floating point)
+    DAXPY              1e6       3-8 ms    EXACT (floating point)
+    SGEMM              512x512   150 ms    1e-5 relative error
+    DGEMM              512x512   300 ms    1e-12 relative error
+    SGESV              512x512   400 ms    variable (depends on conditioning)
+    DGESV              512x512   900 ms    variable (depends on conditioning)
+    
+    Reference is NOT optimized:
+    - No vectorization (SSE/AVX)
+    - No cache blocking
+    - No parallelization
+    - Single-threaded Fortran
+    - Goal: CORRECTNESS, not SPEED
+
+
+==============================================================================
+INTEGRATION TIMELINE
+==============================================================================
+
+    Phase 1: INFRASTRUCTURE (✅ COMPLETED)
+    ├─ Create blas_lapack_reference_backend.h
+    ├─ Create blas_lapack_reference_backend.c (with 6 proof-of-concept wrappers)
+    ├─ Create test_correctness_with_reference.c framework
+    ├─ Create generate_wrappers.py script
+    └─ Document architecture
+    
+    Phase 2: WRAPPER GENERATION (⏳ NEXT)
+    ├─ Generate all 1248 wrapper functions
+    ├─ Append to blas_lapack_reference_backend.c
+    └─ Verify compilation
+    
+    Phase 3: PLUGIN INTEGRATION (⏳ NEXT)
+    ├─ Register in backend_registry.c
+    ├─ Implement hardware scoring function
+    └─ Test vtable population
+    
+    Phase 4: TESTING (⏳ NEXT)
+    ├─ Replace inline test stubs with DLL calls
+    ├─ Extend test coverage to 100+ operations
+    └─ Verify JSON output
+    
+    Phase 5: VALIDATION (⏳ NEXT)
+    ├─ Implement consensus violation detection
+    ├─ Test with multiple backends
+    └─ Document findings
+    
+    Phase 6: CLEANUP (⏳ NEXT)
+    ├─ Delete obsolete reference.c files
+    ├─ Update CMakeLists.txt
+    └─ Full build test
+
+
+==============================================================================
+FILE STRUCTURE
+==============================================================================
+
+    faster-blaster/
+    ├── src/
+    │   ├── backends/
+    │   │   ├── blas_lapack_reference_backend.h          ✅ CREATED
+    │   │   ├── blas_lapack_reference_backend.c          ✅ CREATED (282 lines)
+    │   │   ├── backend_registry.c                        (TO MODIFY)
+    │   │   ├── reference.c                              (TO DELETE)
+    │   │   ├── reference_complete.c                     (TO DELETE)
+    │   │   ├── reference_level1.c                       (TO DELETE)
+    │   │   ├── reference_level2.c                       (TO DELETE)
+    │   │   └── reference_level3.c                       (TO DELETE)
+    │   └── ...
+    ├── tests/
+    │   └── test_correctness_with_reference.c            ✅ CREATED
+    ├── scripts/
+    │   └── generate_wrappers.py                         ✅ CREATED
+    ├── CMakeLists.txt                                   (TO MODIFY)
+    ├── REFERENCE_BACKEND_INTEGRATION.md                 ✅ CREATED
+    ├── INTEGRATION_SUMMARY.md                           ✅ CREATED
+    └── ARCHITECTURE_REFERENCE_INTEGRATION.txt          ✅ THIS FILE
+
+
+==============================================================================
+NEXT STEPS FOR DEVELOPER
+==============================================================================
+
+    1. Run Python wrapper generator:
+       $ cd faster-blaster/scripts
+       $ python generate_wrappers.py
+       
+    2. Capture output and append to blas_lapack_reference_backend.c:
+       $ python generate_wrappers.py >> ../src/backends/blas_lapack_reference_backend.c
+       
+    3. Update backend_registry.c to register reference backend
+       
+    4. Update CMakeLists.txt to compile new files, remove old ones
+       
+    5. Build and test:
+       $ cd ../build
+       $ cmake -DCMAKE_BUILD_TYPE=Release ..
+       $ make
+       $ ctest --output-on-failure
+       
+    6. Check results:
+       $ cat correctness_results_with_reference.json | jq .

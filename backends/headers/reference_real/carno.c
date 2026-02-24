@@ -1,0 +1,2 @@
+/* carno */
+void carno_() { }

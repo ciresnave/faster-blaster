@@ -1,0 +1,2 @@
+/* csygvd */
+void csygvd_() { }

@@ -1,0 +1,2 @@
+/* ctrsmv */
+void ctrsmv_() { }

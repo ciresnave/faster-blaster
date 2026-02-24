@@ -1,0 +1,2 @@
+/* zgycon */
+void zgycon_() { }

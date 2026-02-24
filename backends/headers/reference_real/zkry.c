@@ -1,0 +1,2 @@
+/* zkry */
+void zkry_() { }

@@ -1,0 +1,2 @@
+/* cgecon */
+void cgecon_() { }

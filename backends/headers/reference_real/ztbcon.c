@@ -1,0 +1,2 @@
+/* ztbcon */
+void ztbcon_() { }

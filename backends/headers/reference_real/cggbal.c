@@ -1,0 +1,2 @@
+/* cggbal */
+void cggbal_() { }

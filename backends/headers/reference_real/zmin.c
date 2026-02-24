@@ -1,0 +1,2 @@
+/* zmin */
+void zmin_() { }

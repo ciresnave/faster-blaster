@@ -1,0 +1,2 @@
+/* csygvx */
+void csygvx_() { }

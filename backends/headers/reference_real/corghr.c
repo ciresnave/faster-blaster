@@ -1,0 +1,2 @@
+/* corghr */
+void corghr_() { }

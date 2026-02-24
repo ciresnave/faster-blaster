@@ -1,0 +1,2 @@
+/* csyr */
+void csyr_() { }

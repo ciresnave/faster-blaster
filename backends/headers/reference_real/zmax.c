@@ -1,0 +1,2 @@
+/* zmax */
+void zmax_() { }

@@ -1,0 +1,2 @@
+/* cprec */
+void cprec_() { }

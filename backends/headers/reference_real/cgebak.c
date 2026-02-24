@@ -1,0 +1,2 @@
+/* cgebak */
+void cgebak_() { }

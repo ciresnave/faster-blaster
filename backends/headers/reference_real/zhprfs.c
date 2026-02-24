@@ -1,0 +1,2 @@
+/* zhprfs */
+void zhprfs_() { }

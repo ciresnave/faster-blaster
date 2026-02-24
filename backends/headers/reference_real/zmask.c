@@ -1,0 +1,2 @@
+/* zmask */
+void zmask_() { }

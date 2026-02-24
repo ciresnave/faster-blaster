@@ -1,0 +1,2 @@
+/* clarnt */
+void clarnt_() { }

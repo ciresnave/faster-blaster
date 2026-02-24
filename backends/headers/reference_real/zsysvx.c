@@ -1,0 +1,2 @@
+/* zsysvx */
+void zsysvx_() { }

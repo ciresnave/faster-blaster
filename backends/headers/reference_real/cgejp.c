@@ -1,0 +1,2 @@
+/* cgejp */
+void cgejp_() { }

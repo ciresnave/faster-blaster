@@ -1,0 +1,2 @@
+/* cyrfs */
+void cyrfs_() { }

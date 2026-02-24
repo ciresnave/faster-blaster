@@ -1,0 +1,2 @@
+/* cpertb */
+void cpertb_() { }

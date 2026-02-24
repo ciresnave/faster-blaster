@@ -1,0 +1,2 @@
+/* chegv */
+void chegv_() { }

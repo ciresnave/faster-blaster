@@ -1,0 +1,2 @@
+/* cgbequ */
+void cgbequ_() { }

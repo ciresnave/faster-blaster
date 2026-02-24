@@ -1,0 +1,2 @@
+/* cgivnm */
+void cgivnm_() { }

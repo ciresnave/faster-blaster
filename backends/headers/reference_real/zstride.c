@@ -1,0 +1,2 @@
+/* zstride */
+void zstride_() { }

@@ -1,0 +1,2 @@
+/* cpoevx */
+void cpoevx_() { }

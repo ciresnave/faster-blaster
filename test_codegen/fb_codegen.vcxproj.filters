@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\src\main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\src\extractor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\src\generator.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\src\library_loader.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\src\logging.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\codegen\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{6E994ED5-7B6D-39B8-A6DC-088D71D6BEE9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,2 @@
+/* zgero */
+void zgero_() { }

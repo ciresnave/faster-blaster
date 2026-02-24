@@ -1,0 +1,2 @@
+/* zbase */
+void zbase_() { }

@@ -1,0 +1,2 @@
+/* zpmd */
+void zpmd_() { }

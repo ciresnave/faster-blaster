@@ -1,0 +1,5 @@
+# ninja log v7
+4	23672	7873735349204411	CMakeFiles/onemkl_trait.dir/onemkl_trait_impl.cpp.obj	14088be5552c42c9
+24142	24731	7873735590575569	onemkl_trait.lib	90348b37939ddf2b
+11	27468	7873767667933188	CMakeFiles/onemkl_trait.dir/onemkl_trait_impl.cpp.obj	14088be5552c42c9
+27483	27822	7873767942644463	onemkl_trait.lib	90348b37939ddf2b

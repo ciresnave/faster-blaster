@@ -1,0 +1,2 @@
+/* cgglse */
+void cgglse_() { }

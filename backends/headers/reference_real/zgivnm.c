@@ -1,0 +1,2 @@
+/* zgivnm */
+void zgivnm_() { }

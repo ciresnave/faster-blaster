@@ -1,0 +1,2 @@
+/* zorghr */
+void zorghr_() { }

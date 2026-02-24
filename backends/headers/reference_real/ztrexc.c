@@ -1,0 +1,2 @@
+/* ztrexc */
+void ztrexc_() { }

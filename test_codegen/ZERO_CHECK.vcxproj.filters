@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\cires\OneDrive\Documents\projects\faster-blaster\test_codegen\CMakeFiles\5b307f064a55e6765ff716e90ab50c76\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8D42C674-1A32-3430-BA9B-5F0D098CE0CD}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

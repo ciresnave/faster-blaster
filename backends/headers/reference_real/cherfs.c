@@ -1,0 +1,2 @@
+/* cherfs */
+void cherfs_() { }

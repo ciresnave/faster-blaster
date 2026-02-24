@@ -1,0 +1,2 @@
+/* cmin */
+void cmin_() { }

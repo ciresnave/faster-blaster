@@ -1,0 +1,2 @@
+/* zsprfs */
+void zsprfs_() { }

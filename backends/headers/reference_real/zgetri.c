@@ -1,0 +1,2 @@
+/* zgetri */
+void zgetri_() { }

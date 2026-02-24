@@ -1,0 +1,2 @@
+/* cpmd */
+void cpmd_() { }

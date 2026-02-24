@@ -1,0 +1,2 @@
+/* zcycl */
+void zcycl_() { }

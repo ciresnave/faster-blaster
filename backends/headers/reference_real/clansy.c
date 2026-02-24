@@ -1,0 +1,2 @@
+/* clansy */
+void clansy_() { }

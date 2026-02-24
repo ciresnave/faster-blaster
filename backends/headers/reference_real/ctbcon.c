@@ -1,0 +1,2 @@
+/* ctbcon */
+void ctbcon_() { }

@@ -1,0 +1,2 @@
+/* ctrexc */
+void ctrexc_() { }

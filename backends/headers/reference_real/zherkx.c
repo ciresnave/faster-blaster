@@ -1,0 +1,2 @@
+/* zherkx */
+void zherkx_() { }

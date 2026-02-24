@@ -1,0 +1,2 @@
+/* clanhe */
+void clanhe_() { }

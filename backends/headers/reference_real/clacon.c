@@ -1,0 +1,2 @@
+/* clacon */
+void clacon_() { }

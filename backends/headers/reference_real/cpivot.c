@@ -1,0 +1,2 @@
+/* cpivot */
+void cpivot_() { }

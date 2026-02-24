@@ -1,0 +1,2 @@
+/* cpivstr */
+void cpivstr_() { }

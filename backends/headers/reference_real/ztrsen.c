@@ -1,0 +1,2 @@
+/* ztrsen */
+void ztrsen_() { }

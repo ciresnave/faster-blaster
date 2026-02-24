@@ -1,0 +1,2 @@
+/* csprfs */
+void csprfs_() { }

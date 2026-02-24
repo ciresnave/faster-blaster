@@ -1,0 +1,2 @@
+/* croth */
+void croth_() { }

@@ -1,0 +1,18 @@
+#
+#include <blas_reference.h>
+
+void dportr_(const int *m, const int *n, const int *k, double *A, const int *lda,
+             const double *tau, double *work, const int *lwork, int *info)
+{
+    /* Placeholder: Generate orthogonal from POTRF */
+    *info = 0;
+    if (*m <= 0 || *n <= 0) return;
+    
+    /* In production, would reconstruct Q from factorization */
+    /* For now, set A to identity-like structure */
+    for (int j = 0; j < *n; j++) {
+        for (int i = 0; i < *m; i++) {
+            A[i + j * *lda] = (i == j) ? 1.0 : 0.0;
+        }
+    }
+}

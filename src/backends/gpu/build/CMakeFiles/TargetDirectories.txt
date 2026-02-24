@@ -1,0 +1,6 @@
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/onemkl_trait.dir
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/edit_cache.dir
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/rebuild_cache.dir
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/list_install_components.dir
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/install.dir
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/build/CMakeFiles/install/local.dir

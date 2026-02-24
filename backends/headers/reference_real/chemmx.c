@@ -1,0 +1,2 @@
+/* chemmx */
+void chemmx_() { }

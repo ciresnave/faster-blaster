@@ -1,0 +1,2 @@
+/* cggbak */
+void cggbak_() { }

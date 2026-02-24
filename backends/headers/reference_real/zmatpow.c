@@ -1,0 +1,2 @@
+/* zmatpow */
+void zmatpow_() { }

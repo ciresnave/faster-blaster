@@ -1,0 +1,2 @@
+/* zlansy */
+void zlansy_() { }

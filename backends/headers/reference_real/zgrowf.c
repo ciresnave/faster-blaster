@@ -1,0 +1,2 @@
+/* zgrowf */
+void zgrowf_() { }

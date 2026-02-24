@@ -1,0 +1,2 @@
+/* cgerm */
+void cgerm_() { }

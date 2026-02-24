@@ -1,0 +1,2 @@
+/* zyrfs */
+void zyrfs_() { }

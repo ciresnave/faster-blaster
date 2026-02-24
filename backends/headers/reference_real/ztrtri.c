@@ -1,0 +1,2 @@
+/* ztrtri */
+void ztrtri_() { }

@@ -1,0 +1,2 @@
+/* clagsy */
+void clagsy_() { }

@@ -1,0 +1,2 @@
+/* zlannb */
+void zlannb_() { }

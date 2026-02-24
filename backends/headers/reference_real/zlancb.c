@@ -1,0 +1,2 @@
+/* zlancb */
+void zlancb_() { }

@@ -1,0 +1,2 @@
+/* zlantr */
+void zlantr_() { }

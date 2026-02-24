@@ -1,0 +1,2 @@
+/* clange */
+void clange_() { }

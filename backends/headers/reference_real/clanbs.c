@@ -1,0 +1,2 @@
+/* clanbs */
+void clanbs_() { }

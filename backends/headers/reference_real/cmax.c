@@ -1,0 +1,2 @@
+/* cmax */
+void cmax_() { }

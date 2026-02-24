@@ -1,0 +1,2 @@
+/* zlagsy */
+void zlagsy_() { }

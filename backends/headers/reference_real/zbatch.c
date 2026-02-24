@@ -1,0 +1,2 @@
+/* zbatch */
+void zbatch_() { }

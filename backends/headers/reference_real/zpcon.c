@@ -1,0 +1,2 @@
+/* zpcon */
+void zpcon_() { }

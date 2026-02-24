@@ -1,0 +1,2 @@
+/* cgycon */
+void cgycon_() { }

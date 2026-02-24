@@ -1,0 +1,2 @@
+/* zggbal */
+void zggbal_() { }

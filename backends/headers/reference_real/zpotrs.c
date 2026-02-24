@@ -1,0 +1,2 @@
+/* zpotrs */
+void zpotrs_() { }

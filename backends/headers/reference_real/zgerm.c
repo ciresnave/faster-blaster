@@ -1,0 +1,2 @@
+/* zgerm */
+void zgerm_() { }

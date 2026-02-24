@@ -1,0 +1,2 @@
+/* zbcon */
+void zbcon_() { }

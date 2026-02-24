@@ -1,0 +1,2 @@
+/* zpotri */
+void zpotri_() { }

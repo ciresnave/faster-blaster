@@ -1,0 +1,2 @@
+/* clarrm */
+void clarrm_() { }

@@ -1,0 +1,2 @@
+/* ztrsvm */
+void ztrsvm_() { }

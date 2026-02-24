@@ -1,0 +1,2 @@
+/* zroth */
+void zroth_() { }
