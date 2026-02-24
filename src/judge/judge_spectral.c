@@ -4,11 +4,9 @@
  * Phase 5: Complete spectral operation evaluation with 5-metric stack.
  * Metrics: values, reconstruction, orthogonality, subspace (degenerate), eigenpair (deep audit)
  *
- * Fully implemented Phase 5 coverage:
- *   - SSYEV, DSYEV: Complete (symmetric eigenvalue) with residual computation
- *   - SGESVD, DGESVD: Complete (SVD) with residual computation
- *   - SGEEV, DGEEV: Stubs (general eigenvalue, deferred to Phase 5+)
- *   - Other variants: Stubs (complex types, deferred)
+ * Phase 5  (complete): SSYEV, DSYEV, SGESVD, DGESVD
+ * Phase 5+ (complete): CHEEV, ZHEEV, CGESVD, ZGESVD (complex Hermitian/SVD)
+ * Phase 5++ (complete): SGEEV, DGEEV (general real eigenvalue, WR+WI output)
  */
 
 #include "judge_spectral.h"
@@ -18,6 +16,24 @@
 #include <math.h>
 #include <stdint.h>
 #include <float.h>
+
+/* =========================================================================
+ * Portable complex element accessors
+ * MSVC defines fb_complex_float_t as struct {float real, imag}.
+ * GCC/Clang uses native float complex / double complex.
+ * ========================================================================= */
+#ifdef _MSC_VER
+#  define FB_CF_REAL(z)  ((z).real)
+#  define FB_CF_IMAG(z)  ((z).imag)
+#  define FB_CD_REAL(z)  ((z).real)
+#  define FB_CD_IMAG(z)  ((z).imag)
+#else
+#  include <complex.h>
+#  define FB_CF_REAL(z)  crealf(z)
+#  define FB_CF_IMAG(z)  cimagf(z)
+#  define FB_CD_REAL(z)  creal(z)
+#  define FB_CD_IMAG(z)  cimag(z)
+#endif
 
 /* =========================================================================
  * Helper: Compute Frobenius norm of a matrix
@@ -135,6 +151,92 @@ static bool is_clustered_f64(const double *w, int n, double *gap_min_out)
     double threshold = (double)n * 2.2e-16;
     *gap_min_out = gap_min;
     return gap_min < threshold;
+}
+
+/* =========================================================================
+ * Helpers: Complex Frobenius norm and unitary check
+ * ========================================================================= */
+
+/* ||A||_F for a complex single-precision m×n matrix stored row-major with lda */
+static double frobenius_norm_cf32(const fb_complex_float_t *A, int m, int n, int lda)
+{
+    double sum = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double re = (double)FB_CF_REAL(A[i * lda + j]);
+            double im = (double)FB_CF_IMAG(A[i * lda + j]);
+            sum += re * re + im * im;
+        }
+    }
+    return sqrt(sum);
+}
+
+/* ||A||_F for a complex double-precision m×n matrix stored row-major with lda */
+static double frobenius_norm_cf64(const fb_complex_double_t *A, int m, int n, int lda)
+{
+    double sum = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double re = FB_CD_REAL(A[i * lda + j]);
+            double im = FB_CD_IMAG(A[i * lda + j]);
+            sum += re * re + im * im;
+        }
+    }
+    return sqrt(sum);
+}
+
+/*
+ * Compute ||Q^H*Q - I||_F for an m×n complex single-precision matrix Q stored
+ * row-major with ldq.  Result is the raw Frobenius-norm error (caller divides
+ * by sqrt(n) when needed).
+ */
+static double ahac_cf32_ortho_error(const fb_complex_float_t *Q, int m, int n, int ldq)
+{
+    double sum_err = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            /* (Q^H*Q)[i,j] = sum_k  conj(Q[k,i]) * Q[k,j] */
+            double re = 0.0, im = 0.0;
+            for (int k = 0; k < m; k++) {
+                double q_ki_re = (double)FB_CF_REAL(Q[k * ldq + i]);
+                double q_ki_im = (double)FB_CF_IMAG(Q[k * ldq + i]);
+                double q_kj_re = (double)FB_CF_REAL(Q[k * ldq + j]);
+                double q_kj_im = (double)FB_CF_IMAG(Q[k * ldq + j]);
+                /* conj(Q[k,i]) * Q[k,j] = (q_ki_re - i*q_ki_im)(q_kj_re + i*q_kj_im) */
+                re += q_ki_re * q_kj_re + q_ki_im * q_kj_im;
+                im += q_ki_re * q_kj_im - q_ki_im * q_kj_re;
+            }
+            double expected_re = (i == j) ? 1.0 : 0.0;
+            double diff_re = re - expected_re;
+            double diff_im = im;
+            sum_err += diff_re * diff_re + diff_im * diff_im;
+        }
+    }
+    return sqrt(sum_err);
+}
+
+/* Same as above for complex double-precision */
+static double ahac_cf64_ortho_error(const fb_complex_double_t *Q, int m, int n, int ldq)
+{
+    double sum_err = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double re = 0.0, im = 0.0;
+            for (int k = 0; k < m; k++) {
+                double q_ki_re = FB_CD_REAL(Q[k * ldq + i]);
+                double q_ki_im = FB_CD_IMAG(Q[k * ldq + i]);
+                double q_kj_re = FB_CD_REAL(Q[k * ldq + j]);
+                double q_kj_im = FB_CD_IMAG(Q[k * ldq + j]);
+                re += q_ki_re * q_kj_re + q_ki_im * q_kj_im;
+                im += q_ki_re * q_kj_im - q_ki_im * q_kj_re;
+            }
+            double expected_re = (i == j) ? 1.0 : 0.0;
+            double diff_re = re - expected_re;
+            double diff_im = im;
+            sum_err += diff_re * diff_re + diff_im * diff_im;
+        }
+    }
+    return sqrt(sum_err);
 }
 
 /* =========================================================================
@@ -534,8 +636,121 @@ static fb_judge_status_t run_cheev(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->cheev || !cand->cheev)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_float_t *A_in = (const fb_complex_float_t *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+
+    char layout = 'R';
+    char jobz   = 'V';  /* compute eigenvectors */
+    char uplo   = 'U';  /* upper triangle */
+
+    fb_complex_float_t *A_oracle = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    fb_complex_float_t *A_cand = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    float *w_oracle = (float *)malloc((size_t)n * sizeof(float));
+    float *w_cand   = (float *)malloc((size_t)n * sizeof(float));
+
+    if (!A_oracle || !A_cand || !w_oracle || !w_cand) {
+        mark_oracle_fatal(res);
+        free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+
+    int64_t oracle_info = oracle->cheev(layout, jobz, uplo, (int64_t)n,
+                                         A_oracle, (int64_t)lda, w_oracle);
+    if (oracle_info != 0) {
+        mark_oracle_fatal(res);
+        free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
+        return FB_JUDGE_OK;
+    }
+
+    int64_t cand_info = cand->cheev(layout, jobz, uplo, (int64_t)n,
+                                     A_cand, (int64_t)lda, w_cand);
+    if (cand_info != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_cheev;
+    }
+
+    /* === VALUES METRIC: eigenvalue accuracy (eigenvalues are real) === */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < n; i++) {
+            double ow = (double)w_oracle[i];
+            double cw = (double)w_cand[i];
+            double abs_o = fabs(ow);
+            double re = (abs_o > 1e-16) ? fabs(ow - cw) / abs_o : fabs(ow - cw);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* === RECONSTRUCTION METRIC: ||A - Q*Λ*Q^H||_F / ||A||_F === */
+    {
+        double norm_A = frobenius_norm_cf32(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            /* A_recon[i,j] = sum_k Q[i,k]*w[k]*conj(Q[j,k])
+             * Q stored in A_cand after the call: A_cand[i*n+k] = Q_{ik}         */
+            double sum_diff = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double q_ik_re = (double)FB_CF_REAL(A_cand[i * n + k]);
+                        double q_ik_im = (double)FB_CF_IMAG(A_cand[i * n + k]);
+                        double q_jk_re = (double)FB_CF_REAL(A_cand[j * n + k]);
+                        double q_jk_im = (double)FB_CF_IMAG(A_cand[j * n + k]);
+                        double wk = (double)w_cand[k];
+                        /* Q[i,k] * w[k] * conj(Q[j,k]) */
+                        re_sum += wk * (q_ik_re * q_jk_re + q_ik_im * q_jk_im);
+                        im_sum += wk * (q_ik_im * q_jk_re - q_ik_re * q_jk_im);
+                    }
+                    double a_re = (double)FB_CF_REAL(A_in[i * lda + j]);
+                    double a_im = (double)FB_CF_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* === ORTHOGONALITY METRIC: ||Q^H*Q - I||_F / sqrt(n) === */
+    {
+        double raw_err = ahac_cf32_ortho_error(A_cand, n, n, n);
+        res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
+    }
+
+    /* === SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(w_cand, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+    /* === PAIRS METRIC === */
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+cleanup_cheev:
+    free(A_oracle);
+    free(A_cand);
+    free(w_oracle);
+    free(w_cand);
+    return FB_JUDGE_OK;
 }
 
 static fb_judge_status_t run_zheev(
@@ -543,8 +758,117 @@ static fb_judge_status_t run_zheev(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->zheev || !cand->zheev)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_double_t *A_in = (const fb_complex_double_t *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+
+    char layout = 'R';
+    char jobz   = 'V';
+    char uplo   = 'U';
+
+    fb_complex_double_t *A_oracle = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    fb_complex_double_t *A_cand = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    double *w_oracle = (double *)malloc((size_t)n * sizeof(double));
+    double *w_cand   = (double *)malloc((size_t)n * sizeof(double));
+
+    if (!A_oracle || !A_cand || !w_oracle || !w_cand) {
+        mark_oracle_fatal(res);
+        free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+
+    int64_t oracle_info = oracle->zheev(layout, jobz, uplo, (int64_t)n,
+                                         A_oracle, (int64_t)lda, w_oracle);
+    if (oracle_info != 0) {
+        mark_oracle_fatal(res);
+        free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
+        return FB_JUDGE_OK;
+    }
+
+    int64_t cand_info = cand->zheev(layout, jobz, uplo, (int64_t)n,
+                                     A_cand, (int64_t)lda, w_cand);
+    if (cand_info != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_zheev;
+    }
+
+    /* === VALUES METRIC === */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < n; i++) {
+            double ow = w_oracle[i], cw = w_cand[i];
+            double abs_o = fabs(ow);
+            double re = (abs_o > 1e-16) ? fabs(ow - cw) / abs_o : fabs(ow - cw);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* === RECONSTRUCTION METRIC: ||A - Q*Λ*Q^H||_F / ||A||_F === */
+    {
+        double norm_A = frobenius_norm_cf64(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double q_ik_re = FB_CD_REAL(A_cand[i * n + k]);
+                        double q_ik_im = FB_CD_IMAG(A_cand[i * n + k]);
+                        double q_jk_re = FB_CD_REAL(A_cand[j * n + k]);
+                        double q_jk_im = FB_CD_IMAG(A_cand[j * n + k]);
+                        double wk = w_cand[k];
+                        re_sum += wk * (q_ik_re * q_jk_re + q_ik_im * q_jk_im);
+                        im_sum += wk * (q_ik_im * q_jk_re - q_ik_re * q_jk_im);
+                    }
+                    double a_re = FB_CD_REAL(A_in[i * lda + j]);
+                    double a_im = FB_CD_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* === ORTHOGONALITY METRIC: ||Q^H*Q - I||_F / sqrt(n) === */
+    {
+        double raw_err = ahac_cf64_ortho_error(A_cand, n, n, n);
+        res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
+    }
+
+    /* === SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f64(w_cand, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+    /* === PAIRS METRIC === */
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+cleanup_zheev:
+    free(A_oracle);
+    free(A_cand);
+    free(w_oracle);
+    free(w_cand);
+    return FB_JUDGE_OK;
 }
 
 /* SVD runners */
@@ -956,8 +1280,123 @@ static fb_judge_status_t run_cgesvd(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->cgesvd || !cand->cgesvd)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_float_t *A_in = (const fb_complex_float_t *)tc->A;
+    int m = tc->m, n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->m;
+    int minmn = (m < n) ? m : n;
+
+    char layout = 'R';
+    char jobu   = 'A';
+    char jobvt  = 'A';
+
+    fb_complex_float_t *A_oracle = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    fb_complex_float_t *A_cand = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    float *s_oracle = (float *)malloc((size_t)minmn * sizeof(float));
+    float *s_cand   = (float *)malloc((size_t)minmn * sizeof(float));
+    fb_complex_float_t *U  = (fb_complex_float_t *)malloc(
+        (size_t)(m * minmn) * sizeof(fb_complex_float_t));
+    fb_complex_float_t *VT = (fb_complex_float_t *)malloc(
+        (size_t)(minmn * n) * sizeof(fb_complex_float_t));
+    float *superb = (float *)malloc((size_t)minmn * sizeof(float));
+
+    if (!A_oracle || !A_cand || !s_oracle || !s_cand || !U || !VT || !superb) {
+        mark_oracle_fatal(res);
+        goto cleanup_cgesvd;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+
+    {
+        int64_t info = oracle->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
+                                       A_oracle, (int64_t)lda, s_oracle,
+                                       U, (int64_t)m, VT, (int64_t)minmn, superb);
+        if (info != 0) { mark_oracle_fatal(res); goto cleanup_cgesvd; }
+    }
+
+    {
+        int64_t info = cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
+                                     A_cand, (int64_t)lda, s_cand,
+                                     U, (int64_t)m, VT, (int64_t)minmn, superb);
+        if (info != 0) { mark_cand_fatal(res); goto cleanup_cgesvd; }
+    }
+
+    /* === VALUES METRIC: singular value accuracy === */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < minmn; i++) {
+            double os = (double)s_oracle[i], cs = (double)s_cand[i];
+            double re = (os > 1e-16) ? fabs(os - cs) / os : fabs(os - cs);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* === RECONSTRUCTION: ||A - U*Σ*V^H||_F / ||A||_F === */
+    {
+        double norm_A = frobenius_norm_cf32(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            /* A_recon[i,j] = sum_k U[i,k]*s[k]*VT[k,j]  (VT stores V^H rows) */
+            double sum_diff = 0.0;
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < minmn; k++) {
+                        double u_re = (double)FB_CF_REAL(U[i * minmn + k]);
+                        double u_im = (double)FB_CF_IMAG(U[i * minmn + k]);
+                        double vt_re = (double)FB_CF_REAL(VT[k * n + j]);
+                        double vt_im = (double)FB_CF_IMAG(VT[k * n + j]);
+                        double sk = (double)s_cand[k];
+                        /* U[i,k]*s[k]*VT[k,j] */
+                        re_sum += sk * (u_re * vt_re - u_im * vt_im);
+                        im_sum += sk * (u_re * vt_im + u_im * vt_re);
+                    }
+                    double a_re = (double)FB_CF_REAL(A_in[i * lda + j]);
+                    double a_im = (double)FB_CF_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* === ORTHOGONALITY: max(||U^H*U - I||, ||V^H*V - I||) / sqrt(minmn) === */
+    {
+        double err_u = ahac_cf32_ortho_error(U, m, minmn, minmn);
+        double err_v = ahac_cf32_ortho_error(VT, minmn, n, n);
+        double max_err = (err_u > err_v ? err_u : err_v);
+        res->orthogonality = result_from_relerr(max_err / sqrt((double)minmn));
+    }
+
+    /* === SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(s_cand, minmn, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+    /* === PAIRS METRIC === */
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+cleanup_cgesvd:
+    free(A_oracle); free(A_cand);
+    free(s_oracle); free(s_cand);
+    free(U); free(VT); free(superb);
+    return FB_JUDGE_OK;
 }
 
 static fb_judge_status_t run_zgesvd(
@@ -965,8 +1404,121 @@ static fb_judge_status_t run_zgesvd(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->zgesvd || !cand->zgesvd)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_double_t *A_in = (const fb_complex_double_t *)tc->A;
+    int m = tc->m, n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->m;
+    int minmn = (m < n) ? m : n;
+
+    char layout = 'R';
+    char jobu   = 'A';
+    char jobvt  = 'A';
+
+    fb_complex_double_t *A_oracle = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    fb_complex_double_t *A_cand = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    double *s_oracle = (double *)malloc((size_t)minmn * sizeof(double));
+    double *s_cand   = (double *)malloc((size_t)minmn * sizeof(double));
+    fb_complex_double_t *U  = (fb_complex_double_t *)malloc(
+        (size_t)(m * minmn) * sizeof(fb_complex_double_t));
+    fb_complex_double_t *VT = (fb_complex_double_t *)malloc(
+        (size_t)(minmn * n) * sizeof(fb_complex_double_t));
+    double *superb = (double *)malloc((size_t)minmn * sizeof(double));
+
+    if (!A_oracle || !A_cand || !s_oracle || !s_cand || !U || !VT || !superb) {
+        mark_oracle_fatal(res);
+        goto cleanup_zgesvd;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+
+    {
+        int64_t info = oracle->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
+                                       A_oracle, (int64_t)lda, s_oracle,
+                                       U, (int64_t)m, VT, (int64_t)minmn, superb);
+        if (info != 0) { mark_oracle_fatal(res); goto cleanup_zgesvd; }
+    }
+
+    {
+        int64_t info = cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
+                                     A_cand, (int64_t)lda, s_cand,
+                                     U, (int64_t)m, VT, (int64_t)minmn, superb);
+        if (info != 0) { mark_cand_fatal(res); goto cleanup_zgesvd; }
+    }
+
+    /* === VALUES METRIC === */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < minmn; i++) {
+            double os = s_oracle[i], cs = s_cand[i];
+            double re = (os > 1e-16) ? fabs(os - cs) / os : fabs(os - cs);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* === RECONSTRUCTION: ||A - U*Σ*V^H||_F / ||A||_F === */
+    {
+        double norm_A = frobenius_norm_cf64(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < minmn; k++) {
+                        double u_re  = FB_CD_REAL(U[i * minmn + k]);
+                        double u_im  = FB_CD_IMAG(U[i * minmn + k]);
+                        double vt_re = FB_CD_REAL(VT[k * n + j]);
+                        double vt_im = FB_CD_IMAG(VT[k * n + j]);
+                        double sk = s_cand[k];
+                        re_sum += sk * (u_re * vt_re - u_im * vt_im);
+                        im_sum += sk * (u_re * vt_im + u_im * vt_re);
+                    }
+                    double a_re = FB_CD_REAL(A_in[i * lda + j]);
+                    double a_im = FB_CD_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* === ORTHOGONALITY === */
+    {
+        double err_u = ahac_cf64_ortho_error(U, m, minmn, minmn);
+        double err_v = ahac_cf64_ortho_error(VT, minmn, n, n);
+        double max_err = (err_u > err_v ? err_u : err_v);
+        res->orthogonality = result_from_relerr(max_err / sqrt((double)minmn));
+    }
+
+    /* === SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f64(s_cand, minmn, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+    /* === PAIRS METRIC === */
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+cleanup_zgesvd:
+    free(A_oracle); free(A_cand);
+    free(s_oracle); free(s_cand);
+    free(U); free(VT); free(superb);
+    return FB_JUDGE_OK;
 }
 
 /* General eigenvalue runners */
@@ -976,8 +1528,164 @@ static fb_judge_status_t run_sgeev(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->sgeev || !cand->sgeev)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const float *A_in = (const float *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+
+    char layout = 'R';
+    char jobvl  = 'N';  /* no left eigenvectors */
+    char jobvr  = 'V';  /* compute right eigenvectors */
+
+    float *A_oracle  = (float *)malloc((size_t)(lda * n) * sizeof(float));
+    float *A_cand    = (float *)malloc((size_t)(lda * n) * sizeof(float));
+    float *A_copy    = (float *)malloc((size_t)(lda * n) * sizeof(float));
+    float *WR_oracle = (float *)malloc((size_t)n * sizeof(float));
+    float *WI_oracle = (float *)malloc((size_t)n * sizeof(float));
+    float *WR_cand   = (float *)malloc((size_t)n * sizeof(float));
+    float *WI_cand   = (float *)malloc((size_t)n * sizeof(float));
+    float *VR        = (float *)malloc((size_t)(n * n) * sizeof(float));
+    float *eig_mag   = (float *)malloc((size_t)n * sizeof(float));
+
+    if (!A_oracle || !A_cand || !A_copy ||
+        !WR_oracle || !WI_oracle || !WR_cand || !WI_cand ||
+        !VR || !eig_mag) {
+        mark_oracle_fatal(res);
+        goto cleanup_sgeev;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(float));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(float));
+    memcpy(A_copy,   A_in, (size_t)(lda * n) * sizeof(float));
+
+    /* Oracle call (A_oracle overwritten). VR receives oracle eigenvectors first
+     * (overwritten by candidate call). Only eigenvalues from oracle are used. */
+    int64_t oracle_info = oracle->sgeev(layout, jobvl, jobvr, (int64_t)n,
+                                         A_oracle, (int64_t)lda,
+                                         WR_oracle, WI_oracle,
+                                         NULL, 1L, VR, (int64_t)n);
+    if (oracle_info != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_sgeev;
+    }
+
+    /* Candidate call (A_cand overwritten, VR now has candidate eigenvectors). */
+    int64_t cand_info = cand->sgeev(layout, jobvl, jobvr, (int64_t)n,
+                                     A_cand, (int64_t)lda,
+                                     WR_cand, WI_cand,
+                                     NULL, 1L, VR, (int64_t)n);
+    if (cand_info != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_sgeev;
+    }
+
+    /* === VALUES METRIC: eigenvalue accuracy (complex magnitudes)
+     * Assumes oracle/candidate return eigenvalues in same order for same input.
+     * ================================================================= */
+    {
+        double max_err = 0.0;
+        for (int j = 0; j < n; j++) {
+            double or_r = (double)WR_oracle[j], or_i = (double)WI_oracle[j];
+            double ca_r = (double)WR_cand[j],   ca_i = (double)WI_cand[j];
+            double mag_o = sqrt(or_r * or_r + or_i * or_i);
+            double diff  = sqrt((or_r - ca_r) * (or_r - ca_r) +
+                                (or_i - ca_i) * (or_i - ca_i));
+            double re = (mag_o > 1e-16) ? diff / mag_o : diff;
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* === RECONSTRUCTION: N/A for general eigenvalue decomposition === */
+    res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+
+    /* === ORTHOGONALITY: N/A (general eigenvectors not orthogonal) === */
+    res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+    /* === PAIRS METRIC: ||A*v_j - λ_j*v_j|| / (||A|| * ||v_j||) === */
+    {
+        double norm_A = frobenius_norm_f32(A_copy, n, n, lda);
+        double max_pair_err = 0.0;
+
+        int j = 0;
+        while (j < n) {
+            if ((double)WI_cand[j] == 0.0) {
+                /* Real eigenvalue: residual = ||A*vr - wr*vr|| */
+                double wr = (double)WR_cand[j];
+                double res_sq = 0.0, vr_sq = 0.0;
+                for (int i = 0; i < n; i++) {
+                    double av = 0.0;
+                    for (int k = 0; k < n; k++)
+                        av += (double)A_copy[i * n + k] * (double)VR[k * n + j];
+                    double r = av - wr * (double)VR[i * n + j];
+                    res_sq += r * r;
+                    double vri = (double)VR[i * n + j];
+                    vr_sq += vri * vri;
+                }
+                double denom = norm_A * sqrt(vr_sq);
+                double re = (denom > 1e-16) ? sqrt(res_sq) / denom : 0.0;
+                if (re > max_pair_err) max_pair_err = re;
+                j++;
+            } else {
+                /* Complex pair: λ = wr ± i*wi,  vr = VR[:,j],  vi = VR[:,j+1]
+                 * Equations: A*vr - (wr*vr - wi*vi) = 0
+                 *            A*vi - (wr*vi + wi*vr) = 0                         */
+                double wr = (double)WR_cand[j], wi = (double)WI_cand[j];
+                double res_r_sq = 0.0, res_i_sq = 0.0, v_sq = 0.0;
+                for (int i = 0; i < n; i++) {
+                    double avr = 0.0, avi = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double a = (double)A_copy[i * n + k];
+                        avr += a * (double)VR[k * n + j];
+                        avi += a * (double)VR[k * n + j + 1];
+                    }
+                    double vri = (double)VR[i * n + j];
+                    double vii = (double)VR[i * n + j + 1];
+                    double rr = avr - (wr * vri - wi * vii);
+                    double ri = avi - (wr * vii + wi * vri);
+                    res_r_sq += rr * rr;
+                    res_i_sq += ri * ri;
+                    v_sq += vri * vri + vii * vii;
+                }
+                double denom = norm_A * sqrt(v_sq);
+                double re = (denom > 1e-16) ?
+                    sqrt(res_r_sq + res_i_sq) / denom : 0.0;
+                if (re > max_pair_err) max_pair_err = re;
+                j += 2;  /* skip conjugate partner */
+            }
+        }
+        res->pairs = result_from_relerr(max_pair_err);
+    }
+
+    /* === SUBSPACE METRIC: gap in eigenvalue magnitude spectrum === */
+    {
+        for (int j = 0; j < n; j++)
+            eig_mag[j] = sqrtf(WR_cand[j] * WR_cand[j] + WI_cand[j] * WI_cand[j]);
+        /* Insertion sort to order magnitudes for gap analysis */
+        for (int i = 1; i < n; i++) {
+            float tmp = eig_mag[i]; int k = i;
+            while (k > 0 && eig_mag[k - 1] > tmp) { eig_mag[k] = eig_mag[k - 1]; k--; }
+            eig_mag[k] = tmp;
+        }
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(eig_mag, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+cleanup_sgeev:
+    free(A_oracle); free(A_cand); free(A_copy);
+    free(WR_oracle); free(WI_oracle);
+    free(WR_cand);   free(WI_cand);
+    free(VR); free(eig_mag);
+    return FB_JUDGE_OK;
 }
 
 static fb_judge_status_t run_dgeev(
@@ -985,8 +1693,149 @@ static fb_judge_status_t run_dgeev(
     const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
     uint64_t *ns_out)
 {
-    (void)oracle; (void)cand; (void)tc; (void)res; (void)ns_out;
-    return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->dgeev || !cand->dgeev)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const double *A_in = (const double *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+
+    char layout = 'R';
+    char jobvl  = 'N';
+    char jobvr  = 'V';
+
+    double *A_oracle  = (double *)malloc((size_t)(lda * n) * sizeof(double));
+    double *A_cand    = (double *)malloc((size_t)(lda * n) * sizeof(double));
+    double *A_copy    = (double *)malloc((size_t)(lda * n) * sizeof(double));
+    double *WR_oracle = (double *)malloc((size_t)n * sizeof(double));
+    double *WI_oracle = (double *)malloc((size_t)n * sizeof(double));
+    double *WR_cand   = (double *)malloc((size_t)n * sizeof(double));
+    double *WI_cand   = (double *)malloc((size_t)n * sizeof(double));
+    double *VR        = (double *)malloc((size_t)(n * n) * sizeof(double));
+    float  *eig_mag   = (float  *)malloc((size_t)n * sizeof(float));
+
+    if (!A_oracle || !A_cand || !A_copy ||
+        !WR_oracle || !WI_oracle || !WR_cand || !WI_cand ||
+        !VR || !eig_mag) {
+        mark_oracle_fatal(res);
+        goto cleanup_dgeev;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(double));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(double));
+    memcpy(A_copy,   A_in, (size_t)(lda * n) * sizeof(double));
+
+    int64_t oracle_info = oracle->dgeev(layout, jobvl, jobvr, (int64_t)n,
+                                         A_oracle, (int64_t)lda,
+                                         WR_oracle, WI_oracle,
+                                         NULL, 1L, VR, (int64_t)n);
+    if (oracle_info != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_dgeev;
+    }
+
+    int64_t cand_info = cand->dgeev(layout, jobvl, jobvr, (int64_t)n,
+                                     A_cand, (int64_t)lda,
+                                     WR_cand, WI_cand,
+                                     NULL, 1L, VR, (int64_t)n);
+    if (cand_info != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_dgeev;
+    }
+
+    /* === VALUES METRIC === */
+    {
+        double max_err = 0.0;
+        for (int j = 0; j < n; j++) {
+            double or_r = WR_oracle[j], or_i = WI_oracle[j];
+            double ca_r = WR_cand[j],   ca_i = WI_cand[j];
+            double mag_o = sqrt(or_r * or_r + or_i * or_i);
+            double diff  = sqrt((or_r - ca_r) * (or_r - ca_r) +
+                                (or_i - ca_i) * (or_i - ca_i));
+            double re = (mag_o > 1e-16) ? diff / mag_o : diff;
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+
+    /* === PAIRS METRIC === */
+    {
+        double norm_A = frobenius_norm_f64(A_copy, n, n, lda);
+        double max_pair_err = 0.0;
+
+        int j = 0;
+        while (j < n) {
+            if (WI_cand[j] == 0.0) {
+                double wr = WR_cand[j];
+                double res_sq = 0.0, vr_sq = 0.0;
+                for (int i = 0; i < n; i++) {
+                    double av = 0.0;
+                    for (int k = 0; k < n; k++)
+                        av += A_copy[i * n + k] * VR[k * n + j];
+                    double r = av - wr * VR[i * n + j];
+                    res_sq += r * r;
+                    vr_sq  += VR[i * n + j] * VR[i * n + j];
+                }
+                double denom = norm_A * sqrt(vr_sq);
+                double re = (denom > 1e-16) ? sqrt(res_sq) / denom : 0.0;
+                if (re > max_pair_err) max_pair_err = re;
+                j++;
+            } else {
+                double wr = WR_cand[j], wi = WI_cand[j];
+                double res_r_sq = 0.0, res_i_sq = 0.0, v_sq = 0.0;
+                for (int i = 0; i < n; i++) {
+                    double avr = 0.0, avi = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double a = A_copy[i * n + k];
+                        avr += a * VR[k * n + j];
+                        avi += a * VR[k * n + j + 1];
+                    }
+                    double vri = VR[i * n + j], vii = VR[i * n + j + 1];
+                    double rr = avr - (wr * vri - wi * vii);
+                    double ri = avi - (wr * vii + wi * vri);
+                    res_r_sq += rr * rr;
+                    res_i_sq += ri * ri;
+                    v_sq += vri * vri + vii * vii;
+                }
+                double denom = norm_A * sqrt(v_sq);
+                double re = (denom > 1e-16) ?
+                    sqrt(res_r_sq + res_i_sq) / denom : 0.0;
+                if (re > max_pair_err) max_pair_err = re;
+                j += 2;
+            }
+        }
+        res->pairs = result_from_relerr(max_pair_err);
+    }
+
+    /* === SUBSPACE METRIC === */
+    {
+        for (int j = 0; j < n; j++)
+            eig_mag[j] = (float)sqrt(WR_cand[j] * WR_cand[j] + WI_cand[j] * WI_cand[j]);
+        for (int i = 1; i < n; i++) {
+            float tmp = eig_mag[i]; int k = i;
+            while (k > 0 && eig_mag[k - 1] > tmp) { eig_mag[k] = eig_mag[k - 1]; k--; }
+            eig_mag[k] = tmp;
+        }
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(eig_mag, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+
+cleanup_dgeev:
+    free(A_oracle); free(A_cand); free(A_copy);
+    free(WR_oracle); free(WI_oracle);
+    free(WR_cand);   free(WI_cand);
+    free(VR); free(eig_mag);
+    return FB_JUDGE_OK;
 }
 
 static fb_judge_status_t run_cgeev(

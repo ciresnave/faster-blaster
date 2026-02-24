@@ -247,6 +247,8 @@
 #define FB_OP_ZGESVD 303
 #define FB_OP_SGEEV  310
 #define FB_OP_DGEEV  311
-/* 312–749: additional LAPACK routines */
+#define FB_OP_CGEEV  312
+#define FB_OP_ZGEEV  313
+/* 314–749: additional LAPACK routines */
 
 #endif /* FB_JUDGE_OP_IDS_H */
