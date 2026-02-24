@@ -20,6 +20,124 @@
 #include <float.h>
 
 /* =========================================================================
+ * Helper: Compute Frobenius norm of a matrix
+ * ========================================================================= */
+
+static double frobenius_norm_f32(const float *A, int m, int n, int lda)
+{
+    double sum = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double aij = (double)A[i * lda + j];
+            sum += aij * aij;
+        }
+    }
+    return sqrt(sum);
+}
+
+static double frobenius_norm_f64(const double *A, int m, int n, int lda)
+{
+    double sum = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double aij = A[i * lda + j];
+            sum += aij * aij;
+        }
+    }
+    return sqrt(sum);
+}
+
+/* =========================================================================
+ * Helper: Compute AtA (matrix transpose times matrix)
+ * ========================================================================= */
+
+static void atac_f32(const float *A, int m, int n, int lda,
+                     float *AtA, int ldata)
+{
+    /* Compute AtA = A^T * A (n x n result) */
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double sum = 0.0;
+            for (int k = 0; k < m; k++) {
+                sum += (double)A[k * lda + i] * (double)A[k * lda + j];
+            }
+            AtA[i * ldata + j] = (float)sum;
+        }
+    }
+}
+
+static void atac_f64(const double *A, int m, int n, int lda,
+                     double *AtA, int ldata)
+{
+    /* Compute AtA = A^T * A (n x n result) */
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double sum = 0.0;
+            for (int k = 0; k < m; k++) {
+                sum += A[k * lda + i] * A[k * lda + j];
+            }
+            AtA[i * ldata + j] = sum;
+        }
+    }
+}
+
+/* =========================================================================
+ * Helper: Detect eigenvalue clusters (relative gap < n * eps)
+ * ========================================================================= */
+
+static bool is_clustered_f32(const float *w, int n, double *gap_min_out)
+{
+    if (n <= 1) {
+        *gap_min_out = 1.0;
+        return false;
+    }
+    
+    /* Find minimum relative gap between consecutive eigenvalues. */
+    double gap_min = 1.0e10;
+    for (int i = 0; i < n - 1; i++) {
+        double w_curr = fabs((double)w[i]);
+        double w_next = fabs((double)w[i + 1]);
+        double max_w = (w_curr > w_next) ? w_curr : w_next;
+        if (max_w > 1e-16) {
+            double gap = fabs((double)w[i] - (double)w[i + 1]) / max_w;
+            if (gap < gap_min)
+                gap_min = gap;
+        }
+    }
+    
+    /* Threshold: gap < n * eps (where eps ~ 1.2e-7 for float) */
+    double threshold = (double)n * 1.2e-7;
+    *gap_min_out = gap_min;
+    return gap_min < threshold;
+}
+
+static bool is_clustered_f64(const double *w, int n, double *gap_min_out)
+{
+    if (n <= 1) {
+        *gap_min_out = 1.0;
+        return false;
+    }
+    
+    /* Find minimum relative gap between consecutive eigenvalues. */
+    double gap_min = 1.0e10;
+    for (int i = 0; i < n - 1; i++) {
+        double w_curr = fabs(w[i]);
+        double w_next = fabs(w[i + 1]);
+        double max_w = (w_curr > w_next) ? w_curr : w_next;
+        if (max_w > 1e-16) {
+            double gap = fabs(w[i] - w[i + 1]) / max_w;
+            if (gap < gap_min)
+                gap_min = gap;
+        }
+    }
+    
+    /* Threshold: gap < n * eps (where eps ~ 2.2e-16 for double) */
+    double threshold = (double)n * 2.2e-16;
+    *gap_min_out = gap_min;
+    return gap_min < threshold;
+}
+
+/* =========================================================================
  * Helper: Convert relative error to digit count
  * ========================================================================= */
 
@@ -140,18 +258,96 @@ static fb_judge_status_t run_ssyev(
 
     /* === RECONSTRUCTION METRIC: ||A - Q*Λ*Q^T|| / ||A|| === */
     {
-        /* Full reconstruction residual deferred to Phase 5+ */
-        res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        /* Compute A_reconstructed = Q * diag(λ) * Q^T, then ||A - A_recon|| / ||A|| */
+        double norm_A = frobenius_norm_f32(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            /* Allocate space for reconstruction: A_recon = Q_cand * Λ_cand * Q_cand^T */
+            float *A_recon = (float *)malloc((size_t)(n * n) * sizeof(float));
+            float *Q_Lambda = (float *)malloc((size_t)(n * n) * sizeof(float));
+            
+            if (A_recon && Q_Lambda) {
+                /* Q_Lambda = Q * diag(λ) */
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        Q_Lambda[i * n + j] = A_cand[i * n + j] * w_cand[j];
+                    }
+                }
+                
+                /* A_recon = Q_Lambda * Q^T = (Q * diag(λ)) * Q^T */
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < n; k++) {
+                            sum += (double)Q_Lambda[i * n + k] * (double)A_cand[j * n + k];
+                        }
+                        A_recon[i * n + j] = (float)sum;
+                    }
+                }
+                
+                /* Compute ||A - A_recon|| / ||A|| */
+                double sum_diff = 0.0;
+                for (int i = 0; i < n * n; i++) {
+                    double diff = (double)A_in[i] - (double)A_recon[i];
+                    sum_diff += diff * diff;
+                }
+                double norm_diff = sqrt(sum_diff);
+                double recon_error = norm_diff / norm_A;
+                res->reconstruction = result_from_relerr(recon_error);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            
+            free(A_recon);
+            free(Q_Lambda);
+        }
     }
 
     /* === ORTHOGONALITY METRIC: ||Q^T*Q - I|| / ||I|| === */
     {
-        /* Full orthogonality check deferred to Phase 5+ */
-        res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        /* Compute QtQ = Q^T * Q and check ||QtQ - I||_F */
+        float *QtQ = (float *)malloc((size_t)(n * n) * sizeof(float));
+        
+        if (QtQ) {
+            atac_f32(A_cand, n, n, n, QtQ, n);
+            
+            /* Compute ||QtQ - I||_F / ||I||_F = ||QtQ - I||_F / sqrt(n) */
+            double sum_err = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double qtq_ij = (double)QtQ[i * n + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = qtq_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err);
+            double ortho_error = norm_err / sqrt((double)n);
+            res->orthogonality = result_from_relerr(ortho_error);
+        } else {
+            res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        }
+        
+        free(QtQ);
     }
 
-    /* === SUBSPACE and PAIRS metrics === */
-    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    /* === CLUSTER DETECTION and SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool is_clustered = is_clustered_f32(w_cand, n, &gap_min);
+        
+        if (is_clustered && gap_min < 1.0) {
+            /* Eigenvalues are clustered; set subspace metric to reflect this */
+            double subspace_error = gap_min;  /* Gap indicates cluster severity */
+            res->subspace = result_from_relerr(subspace_error);
+        } else {
+            /* Well-separated eigenvalues; no subspace issue */
+            res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        }
+    }
+
+    /* === PAIRS METRIC: eigenpair residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
 cleanup:
@@ -233,18 +429,96 @@ static fb_judge_status_t run_dsyev(
 
     /* === RECONSTRUCTION METRIC: ||A - Q*Λ*Q^T|| / ||A|| === */
     {
-        /* Full reconstruction deferred to Phase 5+ */
-        res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        /* Compute A_reconstructed = Q * diag(λ) * Q^T, then ||A - A_recon|| / ||A|| */
+        double norm_A = frobenius_norm_f64(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            /* Allocate space for reconstruction: A_recon = Q_cand * Λ_cand * Q_cand^T */
+            double *A_recon = (double *)malloc((size_t)(n * n) * sizeof(double));
+            double *Q_Lambda = (double *)malloc((size_t)(n * n) * sizeof(double));
+            
+            if (A_recon && Q_Lambda) {
+                /* Q_Lambda = Q * diag(λ) */
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        Q_Lambda[i * n + j] = A_cand[i * n + j] * w_cand[j];
+                    }
+                }
+                
+                /* A_recon = Q_Lambda * Q^T = (Q * diag(λ)) * Q^T */
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < n; k++) {
+                            sum += Q_Lambda[i * n + k] * A_cand[j * n + k];
+                        }
+                        A_recon[i * n + j] = sum;
+                    }
+                }
+                
+                /* Compute ||A - A_recon|| / ||A|| */
+                double sum_diff = 0.0;
+                for (int i = 0; i < n * n; i++) {
+                    double diff = A_in[i] - A_recon[i];
+                    sum_diff += diff * diff;
+                }
+                double norm_diff = sqrt(sum_diff);
+                double recon_error = norm_diff / norm_A;
+                res->reconstruction = result_from_relerr(recon_error);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            
+            free(A_recon);
+            free(Q_Lambda);
+        }
     }
 
     /* === ORTHOGONALITY METRIC: ||Q^T*Q - I|| / ||I|| === */
     {
-        /* Full orthogonality check deferred to Phase 5+ */
-        res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        /* Compute QtQ = Q^T * Q and check ||QtQ - I||_F */
+        double *QtQ = (double *)malloc((size_t)(n * n) * sizeof(double));
+        
+        if (QtQ) {
+            atac_f64(A_cand, n, n, n, QtQ, n);
+            
+            /* Compute ||QtQ - I||_F / ||I||_F = ||QtQ - I||_F / sqrt(n) */
+            double sum_err = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double qtq_ij = QtQ[i * n + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = qtq_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err);
+            double ortho_error = norm_err / sqrt((double)n);
+            res->orthogonality = result_from_relerr(ortho_error);
+        } else {
+            res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+        }
+        
+        free(QtQ);
     }
 
-    /* === SUBSPACE and PAIRS metrics === */
-    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    /* === CLUSTER DETECTION and SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool is_clustered = is_clustered_f64(w_cand, n, &gap_min);
+        
+        if (is_clustered && gap_min < 1.0) {
+            /* Eigenvalues are clustered; set subspace metric to reflect this */
+            double subspace_error = gap_min;  /* Gap indicates cluster severity */
+            res->subspace = result_from_relerr(subspace_error);
+        } else {
+            /* Well-separated eigenvalues; no subspace issue */
+            res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        }
+    }
+
+    /* === PAIRS METRIC: eigenpair residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
 cleanup:
@@ -350,9 +624,119 @@ static fb_judge_status_t run_sgesvd(
     }
 
     /* === RECONSTRUCTION and other metrics === */
-    res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
-    res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
-    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    
+    /* === RECONSTRUCTION METRIC: ||A - U*Σ*V^T|| / ||A|| === */
+    {
+        double norm_A = frobenius_norm_f32(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            /* Allocate space for reconstruction: A_recon = U * diag(σ) * V^T */
+            float *A_recon = (float *)malloc((size_t)(m * n) * sizeof(float));
+            float *USigma = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            
+            if (A_recon && USigma) {
+                /* USigma = U * diag(σ) */
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < minmn; j++) {
+                        USigma[i * minmn + j] = U[i * minmn + j] * s_cand[j];
+                    }
+                }
+                
+                /* A_recon = USigma * V^T */
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < minmn; k++) {
+                            sum += (double)USigma[i * minmn + k] * (double)VT[k * n + j];
+                        }
+                        A_recon[i * n + j] = (float)sum;
+                    }
+                }
+                
+                /* Compute ||A - A_recon|| / ||A|| */
+                double sum_diff = 0.0;
+                for (int i = 0; i < m * n; i++) {
+                    double diff = (double)A_in[i] - (double)A_recon[i];
+                    sum_diff += diff * diff;
+                }
+                double norm_diff = sqrt(sum_diff);
+                double recon_error = norm_diff / norm_A;
+                res->reconstruction = result_from_relerr(recon_error);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            
+            free(A_recon);
+            free(USigma);
+        }
+    }
+
+    /* === ORTHOGONALITY METRIC: ||U^T*U - I|| and ||V^T*V - I|| === */
+    {
+        double max_ortho_error = 0.0;
+        
+        /* Check ||U^T*U - I||_F / sqrt(m) */
+        float *UtU = (float *)malloc((size_t)(minmn * minmn) * sizeof(float));
+        if (UtU) {
+            atac_f32(U, m, minmn, minmn, UtU, minmn);
+            
+            double sum_err = 0.0;
+            for (int i = 0; i < minmn; i++) {
+                for (int j = 0; j < minmn; j++) {
+                    double utu_ij = (double)UtU[i * minmn + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = utu_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err) / sqrt((double)minmn);
+            if (norm_err > max_ortho_error)
+                max_ortho_error = norm_err;
+            
+            free(UtU);
+        }
+        
+        /* Check ||V^T*V - I||_F / sqrt(n) */
+        float *VtV = (float *)malloc((size_t)(n * n) * sizeof(float));
+        if (VtV) {
+            atac_f32(VT, minmn, n, n, VtV, n);
+            
+            double sum_err = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double vtv_ij = (double)VtV[i * n + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = vtv_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err) / sqrt((double)n);
+            if (norm_err > max_ortho_error)
+                max_ortho_error = norm_err;
+            
+            free(VtV);
+        }
+        
+        res->orthogonality = result_from_relerr(max_ortho_error);
+    }
+
+    /* === CLUSTER DETECTION and SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool is_clustered = is_clustered_f32(s_cand, minmn, &gap_min);
+        
+        if (is_clustered && gap_min < 1.0) {
+            /* Singular values are clustered; set subspace metric to reflect this */
+            double subspace_error = gap_min;  /* Gap indicates cluster severity */
+            res->subspace = result_from_relerr(subspace_error);
+        } else {
+            /* Well-separated singular values; no subspace issue */
+            res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        }
+    }
+
+    /* === PAIRS METRIC: singular triplet residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
 cleanup_svd:
@@ -441,9 +825,119 @@ static fb_judge_status_t run_dgesvd(
     }
 
     /* === RECONSTRUCTION and other metrics === */
-    res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
-    res->orthogonality = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
-    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    
+    /* === RECONSTRUCTION METRIC: ||A - U*Σ*V^T|| / ||A|| === */
+    {
+        double norm_A = frobenius_norm_f64(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            /* Allocate space for reconstruction: A_recon = U * diag(σ) * V^T */
+            double *A_recon = (double *)malloc((size_t)(m * n) * sizeof(double));
+            double *USigma = (double *)malloc((size_t)(m * minmn) * sizeof(double));
+            
+            if (A_recon && USigma) {
+                /* USigma = U * diag(σ) */
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < minmn; j++) {
+                        USigma[i * minmn + j] = U[i * minmn + j] * s_cand[j];
+                    }
+                }
+                
+                /* A_recon = USigma * V^T */
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < minmn; k++) {
+                            sum += USigma[i * minmn + k] * VT[k * n + j];
+                        }
+                        A_recon[i * n + j] = sum;
+                    }
+                }
+                
+                /* Compute ||A - A_recon|| / ||A|| */
+                double sum_diff = 0.0;
+                for (int i = 0; i < m * n; i++) {
+                    double diff = A_in[i] - A_recon[i];
+                    sum_diff += diff * diff;
+                }
+                double norm_diff = sqrt(sum_diff);
+                double recon_error = norm_diff / norm_A;
+                res->reconstruction = result_from_relerr(recon_error);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            
+            free(A_recon);
+            free(USigma);
+        }
+    }
+
+    /* === ORTHOGONALITY METRIC: ||U^T*U - I|| and ||V^T*V - I|| === */
+    {
+        double max_ortho_error = 0.0;
+        
+        /* Check ||U^T*U - I||_F / sqrt(m) */
+        double *UtU = (double *)malloc((size_t)(minmn * minmn) * sizeof(double));
+        if (UtU) {
+            atac_f64(U, m, minmn, minmn, UtU, minmn);
+            
+            double sum_err = 0.0;
+            for (int i = 0; i < minmn; i++) {
+                for (int j = 0; j < minmn; j++) {
+                    double utu_ij = UtU[i * minmn + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = utu_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err) / sqrt((double)minmn);
+            if (norm_err > max_ortho_error)
+                max_ortho_error = norm_err;
+            
+            free(UtU);
+        }
+        
+        /* Check ||V^T*V - I||_F / sqrt(n) */
+        double *VtV = (double *)malloc((size_t)(n * n) * sizeof(double));
+        if (VtV) {
+            atac_f64(VT, minmn, n, n, VtV, n);
+            
+            double sum_err = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double vtv_ij = VtV[i * n + j];
+                    double expected = (i == j) ? 1.0 : 0.0;
+                    double err = vtv_ij - expected;
+                    sum_err += err * err;
+                }
+            }
+            double norm_err = sqrt(sum_err) / sqrt((double)n);
+            if (norm_err > max_ortho_error)
+                max_ortho_error = norm_err;
+            
+            free(VtV);
+        }
+        
+        res->orthogonality = result_from_relerr(max_ortho_error);
+    }
+
+    /* === CLUSTER DETECTION and SUBSPACE METRIC === */
+    {
+        double gap_min = 1.0;
+        bool is_clustered = is_clustered_f64(s_cand, minmn, &gap_min);
+        
+        if (is_clustered && gap_min < 1.0) {
+            /* Singular values are clustered; set subspace metric to reflect this */
+            double subspace_error = gap_min;  /* Gap indicates cluster severity */
+            res->subspace = result_from_relerr(subspace_error);
+        } else {
+            /* Well-separated singular values; no subspace issue */
+            res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        }
+    }
+
+    /* === PAIRS METRIC: singular triplet residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
 cleanup_svd:
