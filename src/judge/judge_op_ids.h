@@ -237,6 +237,10 @@
 #define FB_OP_DGEQRF 271
 #define FB_OP_SGESV  280
 #define FB_OP_DGESV  281
+#define FB_OP_SPOSV  282
+#define FB_OP_DPOSV  283
+#define FB_OP_SGELS  284
+#define FB_OP_DGELS  285
 #define FB_OP_SSYEV  290
 #define FB_OP_DSYEV  291
 #define FB_OP_CHEEV  292

@@ -339,6 +339,10 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
 
     SOLVE_ENTRY(FB_OP_SGESV,    4, 10),
     SOLVE_ENTRY(FB_OP_DGESV,    4, 10),
+    SOLVE_ENTRY(FB_OP_SPOSV,    4, 10),
+    SOLVE_ENTRY(FB_OP_DPOSV,    4, 10),
+    SOLVE_ENTRY(FB_OP_SGELS,    4, 10),
+    SOLVE_ENTRY(FB_OP_DGELS,    4, 10),
 
     SPECTRAL_ENTRY(FB_OP_SSYEV,  4, 10),
     SPECTRAL_ENTRY(FB_OP_DSYEV,  4, 10),

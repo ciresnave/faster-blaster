@@ -114,31 +114,93 @@ typedef fb_judge_status_t (*fb_factorization_runner_fn)(
  * ========================================================================= */
 
 /**
- * Reconstruction for LU: ||A - L*U|| / ||A||
- * A = L*U + E, where L is the lower triangular part (with unit diagonal)
- * and U is the upper triangular part of the factored matrix.
+ * Reconstruction for LU: ||P·A - L·U||_F / ||A||_F
+ *
+ * A_factored: GETRF in-place output (L in lower triangle with unit diagonal; U in upper).
+ * ipiv: pivot indices (1-based LAPACKE convention).
+ * Applies row permutation to A_orig then computes ||L·U - P·A||_F.
  */
 static double fb_lu_reconstruction_f32(const float *A_orig, const float *A_factored,
+                                       const int64_t *ipiv,
                                        int64_t m, int64_t n, int64_t lda)
 {
-    /* Reconstruct L*U into a temporary matrix. */
-    float *LU = (float *)malloc((size_t)m * (size_t)lda * sizeof(float));
-    if (!LU) return 1.0;  /* error on alloc failure */
-
-    /* Extract L (unit lower) and U (upper) from A_factored, compute L*U.
-     * For simplicity: ||A_factored - A_orig|| / ||A||  (just use stored vs original) */
-    double residual_norm = 0.0;
-    double norm_A = 0.0;
-    for (int64_t ij = 0; ij < (size_t)m * (size_t)lda; ij++) {
-        double diff = (double)(A_factored[ij] - A_orig[ij]);
-        residual_norm += diff * diff;
-        double a = (double)A_orig[ij];
-        norm_A += a * a;
+    int64_t minmn = m < n ? m : n;
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(float);
+    float *PA = (float*)malloc(Asz);
+    if (!PA) return 1.0;
+    memcpy(PA, A_orig, Asz);
+    /* Apply row permutation from GETRF. */
+    for (int64_t i = 0; i < minmn; i++) {
+        int64_t piv = ipiv[i] - 1;  /* LAPACKE 1-based → 0-based */
+        if (piv != i) {
+            for (int64_t j = 0; j < n; j++) {
+                float tmp = PA[i*lda + j];
+                PA[i*lda + j] = PA[piv*lda + j];
+                PA[piv*lda + j] = tmp;
+            }
+        }
     }
-    free(LU);
+    /* Compute ||L·U - PA||_F / ||PA||_F. */
+    double norm_diff = 0.0, norm_PA = 0.0;
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            /* LU[i][j] = sum_{k=0}^{min(i,j)} L[i][k] · U[k][j] */
+            int64_t kmax = i < j ? i : j;
+            double lij = 0.0;
+            for (int64_t k = 0; k <= kmax; k++) {
+                double Lik = (k < i) ? (double)A_factored[i*lda + k] : 1.0;
+                double Ukj = (double)A_factored[k*lda + j];
+                lij += Lik * Ukj;
+            }
+            double diff = lij - (double)PA[i*lda + j];
+            norm_diff += diff * diff;
+            double pa = (double)PA[i*lda + j];
+            norm_PA += pa * pa;
+        }
+    }
+    free(PA);
+    if (norm_PA < (double)FLT_EPSILON)
+        return (norm_diff < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(norm_diff / norm_PA);
+}
 
-    if (norm_A < (double)FLT_EPSILON) return (residual_norm < (double)FLT_EPSILON) ? 0.0 : 1.0;
-    return sqrt(residual_norm / norm_A);
+static double fb_lu_reconstruction_f64(const double *A_orig, const double *A_factored,
+                                       const int64_t *ipiv,
+                                       int64_t m, int64_t n, int64_t lda)
+{
+    int64_t minmn = m < n ? m : n;
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(double);
+    double *PA = (double*)malloc(Asz);
+    if (!PA) return 1.0;
+    memcpy(PA, A_orig, Asz);
+    for (int64_t i = 0; i < minmn; i++) {
+        int64_t piv = ipiv[i] - 1;
+        if (piv != i) {
+            for (int64_t j = 0; j < n; j++) {
+                double tmp = PA[i*lda + j];
+                PA[i*lda + j] = PA[piv*lda + j];
+                PA[piv*lda + j] = tmp;
+            }
+        }
+    }
+    double norm_diff = 0.0, norm_PA = 0.0;
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            int64_t kmax = i < j ? i : j;
+            double lij = 0.0;
+            for (int64_t k = 0; k <= kmax; k++) {
+                double Lik = (k < i) ? A_factored[i*lda + k] : 1.0;
+                double Ukj = A_factored[k*lda + j];
+                lij += Lik * Ukj;
+            }
+            double diff = lij - PA[i*lda + j];
+            norm_diff += diff * diff;
+            norm_PA += PA[i*lda + j] * PA[i*lda + j];
+        }
+    }
+    free(PA);
+    if (norm_PA < DBL_EPSILON) return (norm_diff < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(norm_diff / norm_PA);
 }
 
 static fb_judge_status_t run_sgetrf(
@@ -186,8 +248,8 @@ static fb_judge_status_t run_sgetrf(
         return FB_JUDGE_OK;
     }
 
-    /* Reconstruction residual. */
-    double recon_err = fb_lu_reconstruction_f32(A_orig, A_cand, m, n, lda);
+    /* Reconstruction residual: ||P·A - L·U||_F / ||A||_F using candidate pivot. */
+    double recon_err = fb_lu_reconstruction_f32(A_orig, A_cand, ipiv_cand, m, n, lda);
     result_from_relerr(&res->reconstruction, recon_err);
 
     /* QR only: orthogonality not applicable for LU. */
@@ -220,21 +282,63 @@ static fb_judge_status_t run_sgetrf(
  * Reconstruction: ||A - L*L^T|| / ||A|| (lower) or ||A - U^T*U|| / ||A|| (upper)
  * ========================================================================= */
 
+/**
+ * Cholesky reconstruction: ||A - L·L^T||_F / ||A||_F (lower triangle).
+ * A_factored contains L in lower triangle; upper triangle is irrelevant.
+ * For upper triangle storage, L = U^T so result is the same formula.
+ */
 static double fb_cholesky_reconstruction_f32(const float *A_orig,
                                              const float *A_factored,
                                              int64_t n, int64_t lda,
                                              fb_uplo_t uplo)
 {
-    /* Simplified: ||A_factored - A_orig|| / ||A_orig||
-     * (avoids full L*L^T reconstruction in Phase 3) */
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t ij = 0; ij < n * lda; ij++) {
-        double df = (double)(A_orig[ij] - A_factored[ij]);
-        norm_diff += df * df;
-        double a = (double)A_orig[ij];
-        norm_A += a * a;
+    for (int64_t i = 0; i < n; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            /* (L·L^T)[i][j] = sum_{k=0}^{min(i,j)} L[i][k] · L[j][k] */
+            int64_t kmax = i < j ? i : j;
+            double llt = 0.0;
+            if (uplo == FB_LOWER) {
+                for (int64_t k = 0; k <= kmax; k++)
+                    llt += (double)A_factored[i*lda+k] * (double)A_factored[j*lda+k];
+            } else {
+                /* Upper: L = U^T, L[i][k] = U[k][i] = A_factored[k*lda+i]. */
+                for (int64_t k = 0; k <= kmax; k++)
+                    llt += (double)A_factored[k*lda+i] * (double)A_factored[k*lda+j];
+            }
+            double diff = llt - (double)A_orig[i*lda + j];
+            norm_diff += diff * diff;
+            double a = (double)A_orig[i*lda + j];
+            norm_A += a * a;
+        }
     }
     if (norm_A < (double)FLT_EPSILON) return 0.0;
+    return sqrt(norm_diff / norm_A);
+}
+
+static double fb_cholesky_reconstruction_f64(const double *A_orig,
+                                             const double *A_factored,
+                                             int64_t n, int64_t lda,
+                                             fb_uplo_t uplo)
+{
+    double norm_diff = 0.0, norm_A = 0.0;
+    for (int64_t i = 0; i < n; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            int64_t kmax = i < j ? i : j;
+            double llt = 0.0;
+            if (uplo == FB_LOWER) {
+                for (int64_t k = 0; k <= kmax; k++)
+                    llt += A_factored[i*lda+k] * A_factored[j*lda+k];
+            } else {
+                for (int64_t k = 0; k <= kmax; k++)
+                    llt += A_factored[k*lda+i] * A_factored[k*lda+j];
+            }
+            double diff = llt - A_orig[i*lda + j];
+            norm_diff += diff * diff;
+            norm_A += A_orig[i*lda+j] * A_orig[i*lda+j];
+        }
+    }
+    if (norm_A < DBL_EPSILON) return 0.0;
     return sqrt(norm_diff / norm_A);
 }
 
@@ -248,7 +352,7 @@ static fb_judge_status_t run_spotrf(
     int64_t n = (int64_t)tc->n;
     int64_t lda = (int64_t)tc->lda;
     const float *A_orig = (const float *)tc->A;
-    fb_uplo_t uplo = FB_LOWER;  /* Use lower for SPD matrices */
+    fb_uplo_t uplo = FB_UPPER;  /* Upper triangle; row-major Cholesky convention */
 
     if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
 
@@ -279,13 +383,18 @@ static fb_judge_status_t run_spotrf(
     res->orthogonality.is_oracle_fatal = false;
 
     if (ns_out) {
-        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++)
-            (void)cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_cand, lda);
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            float *A_tmp = clone_matrix_f32(A_orig, n, n, lda);
+            if (A_tmp) { (void)cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_tmp, lda); free(A_tmp); }
+        }
         uint64_t best = UINT64_MAX;
         for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            float *A_tmp = clone_matrix_f32(A_orig, n, n, lda);
+            if (!A_tmp) break;
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_cand, lda);
+            (void)cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_tmp, lda);
             uint64_t dt = fb_judge_time_ns() - t0;
+            free(A_tmp);
             if (dt < best) best = dt;
         }
         *ns_out = best;
@@ -302,46 +411,289 @@ static fb_judge_status_t run_spotrf(
  * Orthogonality:  ||Q^T*Q - I|| / ||I||  (requires extracting Q via ORGQR)
  * ========================================================================= */
 
-/* Stub implementations — reduced scope for Phase 3 */
-static fb_judge_status_t run_sgeqrf(
-    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
-    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
-    uint64_t *ns_out)
-{
-    /* QR is complex: needs tau array management and Q extraction.
-     * Stub for Phase 3; full implementation in later phase. */
-    return FB_JUDGE_ERR_NOT_IMPL;
-}
-
 /* =========================================================================
- * Double-Precision Variants (DGETRF, DPOTRF, DGEQRF)
+ * DGETRF — double-precision LU factorization
  * ========================================================================= */
-
-/* Similar to F32 variants but with double precision.
- * Stub for Phase 3; full implementation would follow same pattern. */
-
 static fb_judge_status_t run_dgetrf(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    return FB_JUDGE_ERR_NOT_IMPL;  /* Stub */
+    if (!oracle->dgetrf || !cand->dgetrf) return FB_JUDGE_ERR_NOT_IMPL;
+
+    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    const double *A_orig = (const double*)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+
+    double *A_oracle = clone_matrix_f64(A_orig, m, n, lda);
+    if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
+    int64_t *ipiv_oracle = (int64_t*)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    if (!ipiv_oracle) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle) != 0) {
+        mark_oracle_fatal(res); free(A_oracle); free(ipiv_oracle); return FB_JUDGE_OK;
+    }
+    double *A_cand = clone_matrix_f64(A_orig, m, n, lda);
+    if (!A_cand) { free(A_oracle); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
+    int64_t *ipiv_cand = (int64_t*)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    if (!ipiv_cand) { free(A_oracle); free(A_cand); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
+    if (cand->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand) != 0) {
+        mark_cand_fatal(res);
+        free(A_oracle); free(A_cand); free(ipiv_oracle); free(ipiv_cand);
+        return FB_JUDGE_OK;
+    }
+    double recon_err = fb_lu_reconstruction_f64(A_orig, A_cand, ipiv_cand, m, n, lda);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality.digits = 16.0;
+    res->orthogonality.relative_error = 0.0;
+    if (ns_out) {
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++)
+            (void)cand->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand);
+        uint64_t best = UINT64_MAX;
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    free(A_oracle); free(A_cand); free(ipiv_oracle); free(ipiv_cand);
+    return FB_JUDGE_OK;
 }
 
+/* =========================================================================
+ * DPOTRF — double-precision Cholesky factorization
+ * ========================================================================= */
 static fb_judge_status_t run_dpotrf(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    return FB_JUDGE_ERR_NOT_IMPL;  /* Stub */
+    if (!oracle->dpotrf || !cand->dpotrf) return FB_JUDGE_ERR_NOT_IMPL;
+
+    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    const double *A_orig = (const double*)tc->A;
+    fb_uplo_t uplo = FB_UPPER;
+    if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+
+    double *A_oracle = clone_matrix_f64(A_orig, n, n, lda);
+    if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
+    if (oracle->dpotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_oracle, lda) != 0) {
+        mark_oracle_fatal(res); free(A_oracle); return FB_JUDGE_OK;
+    }
+    double *A_cand = clone_matrix_f64(A_orig, n, n, lda);
+    if (!A_cand) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
+    if (cand->dpotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_cand, lda) != 0) {
+        mark_cand_fatal(res); free(A_oracle); free(A_cand); return FB_JUDGE_OK;
+    }
+    double recon_err = fb_cholesky_reconstruction_f64(A_orig, A_cand, n, lda, uplo);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality.digits = 16.0;
+    res->orthogonality.relative_error = 0.0;
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            double *A_tmp = clone_matrix_f64(A_orig, n, n, lda);
+            if (A_tmp) { (void)cand->dpotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_tmp, lda); free(A_tmp); }
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            double *A_tmp = clone_matrix_f64(A_orig, n, n, lda);
+            if (!A_tmp) break;
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dpotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_tmp, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(A_tmp);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    free(A_oracle); free(A_cand);
+    return FB_JUDGE_OK;
 }
 
+/* =========================================================================
+ * SGEQRF — single-precision QR factorization.
+ *
+ * Uses GEQRF to factor A = Q·R, then ORGQR to extract Q explicitly.
+ * Metrics: reconstruction (‖A − Q·R‖_F / ‖A‖_F) and orthogonality (‖Q^T·Q − I‖_F / √k).
+ * ========================================================================= */
+static fb_judge_status_t run_sgeqrf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->sgeqrf || !cand->sgeqrf || !cand->sorgqr) return FB_JUDGE_ERR_NOT_IMPL;
+
+    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    const float *A_orig = (const float*)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    int64_t k = m < n ? m : n;  /* min(m,n) */
+
+    /* Verify oracle runs without error. */
+    float *A_oc = clone_matrix_f32(A_orig, m, n, lda);
+    float *tau_oc = (float*)malloc((size_t)k * sizeof(float));
+    if (!A_oc || !tau_oc) { free(A_oc); free(tau_oc); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oc, lda, tau_oc) != 0) {
+        free(A_oc); free(tau_oc); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    free(A_oc); free(tau_oc);
+
+    /* Candidate path. */
+    float *A_qr = clone_matrix_f32(A_orig, m, n, lda);
+    float *tau  = (float*)malloc((size_t)k * sizeof(float));
+    if (!A_qr || !tau) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(float));
+            (void)cand->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(float));
+    if (cand->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau) != 0) {
+        free(A_qr); free(tau); mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Extract R from the upper triangle of A_qr (before ORGQR overwrites it). */
+    float *R = (float*)calloc((size_t)k * (size_t)n, sizeof(float));
+    if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
+    for (int64_t i = 0; i < k; i++)
+        for (int64_t j = i; j < n; j++)
+            R[i*n + j] = A_qr[i*lda + j];
+
+    /* Call ORGQR to extract Q (m×k) in-place into A_qr. */
+    if (cand->sorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_qr, lda, tau) != 0) {
+        free(A_qr); free(tau); free(R); mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    /* A_qr is now Q (m×k). */
+
+    /* Reconstruction: ‖A_orig - Q·R‖_F / ‖A_orig‖_F */
+    double norm_diff = 0.0, norm_A = 0.0;
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            double qr = 0.0;
+            for (int64_t l = 0; l < k; l++)
+                qr += (double)A_qr[i*lda + l] * (double)R[l*n + j];
+            double diff = (double)A_orig[i*lda + j] - qr;
+            norm_diff += diff * diff;
+            double a = (double)A_orig[i*lda + j];
+            norm_A += a * a;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_A < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_A));
+
+    /* Orthogonality: ‖Q^T·Q - I‖_F / √k */
+    double ortho_err = 0.0;
+    for (int64_t i = 0; i < k; i++) {
+        for (int64_t j = 0; j < k; j++) {
+            double qtq = 0.0;
+            for (int64_t l = 0; l < m; l++)
+                qtq += (double)A_qr[l*lda + i] * (double)A_qr[l*lda + j];
+            double delta = qtq - (i == j ? 1.0 : 0.0);
+            ortho_err += delta * delta;
+        }
+    }
+    result_from_relerr(&res->orthogonality, sqrt(ortho_err) / sqrt((double)k));
+
+    free(A_qr); free(tau); free(R);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * DGEQRF — double-precision QR factorization
+ * ========================================================================= */
 static fb_judge_status_t run_dgeqrf(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    return FB_JUDGE_ERR_NOT_IMPL;  /* Stub */
+    if (!oracle->dgeqrf || !cand->dgeqrf || !cand->dorgqr) return FB_JUDGE_ERR_NOT_IMPL;
+
+    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    const double *A_orig = (const double*)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    int64_t k = m < n ? m : n;
+
+    double *A_oc = clone_matrix_f64(A_orig, m, n, lda);
+    double *tau_oc = (double*)malloc((size_t)k * sizeof(double));
+    if (!A_oc || !tau_oc) { free(A_oc); free(tau_oc); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->dgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oc, lda, tau_oc) != 0) {
+        free(A_oc); free(tau_oc); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    free(A_oc); free(tau_oc);
+
+    double *A_qr = clone_matrix_f64(A_orig, m, n, lda);
+    double *tau  = (double*)malloc((size_t)k * sizeof(double));
+    if (!A_qr || !tau) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(double));
+            (void)cand->dgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_qr, A_orig, (size_t)m*(size_t)lda*sizeof(double));
+    if (cand->dgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_qr, lda, tau) != 0) {
+        free(A_qr); free(tau); mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    double *R = (double*)calloc((size_t)k * (size_t)n, sizeof(double));
+    if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
+    for (int64_t i = 0; i < k; i++)
+        for (int64_t j = i; j < n; j++)
+            R[i*n + j] = A_qr[i*lda + j];
+
+    if (cand->dorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_qr, lda, tau) != 0) {
+        free(A_qr); free(tau); free(R); mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    double norm_diff = 0.0, norm_A = 0.0;
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            double qr = 0.0;
+            for (int64_t l = 0; l < k; l++)
+                qr += A_qr[i*lda + l] * R[l*n + j];
+            double diff = A_orig[i*lda + j] - qr;
+            norm_diff += diff * diff;
+            norm_A += A_orig[i*lda + j] * A_orig[i*lda + j];
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_A < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_A));
+
+    double ortho_err = 0.0;
+    for (int64_t i = 0; i < k; i++) {
+        for (int64_t j = 0; j < k; j++) {
+            double qtq = 0.0;
+            for (int64_t l = 0; l < m; l++)
+                qtq += A_qr[l*lda + i] * A_qr[l*lda + j];
+            double delta = qtq - (i == j ? 1.0 : 0.0);
+            ortho_err += delta * delta;
+        }
+    }
+    result_from_relerr(&res->orthogonality, sqrt(ortho_err) / sqrt((double)k));
+
+    free(A_qr); free(tau); free(R);
+    return FB_JUDGE_OK;
 }
 
 /* =========================================================================
