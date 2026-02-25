@@ -305,9 +305,8 @@ static fb_judge_status_t run_ssyev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    /* Conservative defaults for layout and uplo (would come from meta in full impl) */
-    char layout = 'R';  /* Row-major */
-    char uplo = 'U';    /* Upper triangle */
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    fb_uplo_t uplo = FB_UPPER;
     const char jobz = 'V';  /* Compute eigenvectors for orthogonality check */
 
     /* Allocate working space. */
@@ -370,10 +369,10 @@ static fb_judge_status_t run_ssyev(
             float *Q_Lambda = (float *)malloc((size_t)(n * n) * sizeof(float));
             
             if (A_recon && Q_Lambda) {
-                /* Q_Lambda = Q * diag(λ) */
+                /* Q_Lambda = Q * diag(λ), Q stored in A_cand with lda stride */
                 for (int i = 0; i < n; i++) {
                     for (int j = 0; j < n; j++) {
-                        Q_Lambda[i * n + j] = A_cand[i * n + j] * w_cand[j];
+                        Q_Lambda[i * n + j] = A_cand[i * lda + j] * w_cand[j];
                     }
                 }
                 
@@ -382,17 +381,19 @@ static fb_judge_status_t run_ssyev(
                     for (int j = 0; j < n; j++) {
                         double sum = 0.0;
                         for (int k = 0; k < n; k++) {
-                            sum += (double)Q_Lambda[i * n + k] * (double)A_cand[j * n + k];
+                            sum += (double)Q_Lambda[i * n + k] * (double)A_cand[j * lda + k];
                         }
                         A_recon[i * n + j] = (float)sum;
                     }
                 }
                 
-                /* Compute ||A - A_recon|| / ||A|| */
+                /* Compute ||A - A_recon|| / ||A|| (A_in has lda stride, A_recon is compact) */
                 double sum_diff = 0.0;
-                for (int i = 0; i < n * n; i++) {
-                    double diff = (double)A_in[i] - (double)A_recon[i];
-                    sum_diff += diff * diff;
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double diff = (double)A_in[i * lda + j] - (double)A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
                 }
                 double norm_diff = sqrt(sum_diff);
                 double recon_error = norm_diff / norm_A;
@@ -412,7 +413,7 @@ static fb_judge_status_t run_ssyev(
         float *QtQ = (float *)malloc((size_t)(n * n) * sizeof(float));
         
         if (QtQ) {
-            atac_f32(A_cand, n, n, n, QtQ, n);
+            atac_f32(A_cand, n, n, lda, QtQ, n);
             
             /* Compute ||QtQ - I||_F / ||I||_F = ||QtQ - I||_F / sqrt(n) */
             double sum_err = 0.0;
@@ -452,6 +453,29 @@ static fb_judge_status_t run_ssyev(
     /* === PAIRS METRIC: eigenpair residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            float *At = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *wt = (float *)malloc((size_t)n * sizeof(float));
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(float)); (void)cand->ssyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            free(At); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            float *At = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *wt = (float *)malloc((size_t)n * sizeof(float));
+            if (!At || !wt) { free(At); free(wt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->ssyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(wt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup:
     free(A_oracle);
     free(A_cand);
@@ -476,9 +500,8 @@ static fb_judge_status_t run_dsyev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    /* Conservative defaults for layout and uplo */
-    char layout = 'R';  /* Row-major */
-    char uplo = 'U';    /* Upper triangle */
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    fb_uplo_t uplo = FB_UPPER;
     char jobz = 'V';    /* Compute eigenvectors for orthogonality check */
 
     /* Allocate working space. */
@@ -541,10 +564,10 @@ static fb_judge_status_t run_dsyev(
             double *Q_Lambda = (double *)malloc((size_t)(n * n) * sizeof(double));
             
             if (A_recon && Q_Lambda) {
-                /* Q_Lambda = Q * diag(λ) */
+                /* Q_Lambda = Q * diag(λ), Q stored in A_cand with lda stride */
                 for (int i = 0; i < n; i++) {
                     for (int j = 0; j < n; j++) {
-                        Q_Lambda[i * n + j] = A_cand[i * n + j] * w_cand[j];
+                        Q_Lambda[i * n + j] = A_cand[i * lda + j] * w_cand[j];
                     }
                 }
                 
@@ -553,17 +576,19 @@ static fb_judge_status_t run_dsyev(
                     for (int j = 0; j < n; j++) {
                         double sum = 0.0;
                         for (int k = 0; k < n; k++) {
-                            sum += Q_Lambda[i * n + k] * A_cand[j * n + k];
+                            sum += Q_Lambda[i * n + k] * A_cand[j * lda + k];
                         }
                         A_recon[i * n + j] = sum;
                     }
                 }
                 
-                /* Compute ||A - A_recon|| / ||A|| */
+                /* Compute ||A - A_recon|| / ||A|| (A_in has lda stride, A_recon is compact) */
                 double sum_diff = 0.0;
-                for (int i = 0; i < n * n; i++) {
-                    double diff = A_in[i] - A_recon[i];
-                    sum_diff += diff * diff;
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double diff = A_in[i * lda + j] - A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
                 }
                 double norm_diff = sqrt(sum_diff);
                 double recon_error = norm_diff / norm_A;
@@ -583,7 +608,7 @@ static fb_judge_status_t run_dsyev(
         double *QtQ = (double *)malloc((size_t)(n * n) * sizeof(double));
         
         if (QtQ) {
-            atac_f64(A_cand, n, n, n, QtQ, n);
+            atac_f64(A_cand, n, n, lda, QtQ, n);
             
             /* Compute ||QtQ - I||_F / ||I||_F = ||QtQ - I||_F / sqrt(n) */
             double sum_err = 0.0;
@@ -623,6 +648,29 @@ static fb_judge_status_t run_dsyev(
     /* === PAIRS METRIC: eigenpair residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            double *At = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *wt = (double *)malloc((size_t)n * sizeof(double));
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(double)); (void)cand->dsyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            free(At); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            double *At = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *wt = (double *)malloc((size_t)n * sizeof(double));
+            if (!At || !wt) { free(At); free(wt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dsyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(wt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup:
     free(A_oracle);
     free(A_cand);
@@ -646,9 +694,9 @@ static fb_judge_status_t run_cheev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobz   = 'V';  /* compute eigenvectors */
-    char uplo   = 'U';  /* upper triangle */
+    fb_uplo_t uplo = FB_UPPER;
 
     fb_complex_float_t *A_oracle = (fb_complex_float_t *)malloc(
         (size_t)(lda * n) * sizeof(fb_complex_float_t));
@@ -707,10 +755,10 @@ static fb_judge_status_t run_cheev(
                 for (int j = 0; j < n; j++) {
                     double re_sum = 0.0, im_sum = 0.0;
                     for (int k = 0; k < n; k++) {
-                        double q_ik_re = (double)FB_CF_REAL(A_cand[i * n + k]);
-                        double q_ik_im = (double)FB_CF_IMAG(A_cand[i * n + k]);
-                        double q_jk_re = (double)FB_CF_REAL(A_cand[j * n + k]);
-                        double q_jk_im = (double)FB_CF_IMAG(A_cand[j * n + k]);
+                        double q_ik_re = (double)FB_CF_REAL(A_cand[i * lda + k]);
+                        double q_ik_im = (double)FB_CF_IMAG(A_cand[i * lda + k]);
+                        double q_jk_re = (double)FB_CF_REAL(A_cand[j * lda + k]);
+                        double q_jk_im = (double)FB_CF_IMAG(A_cand[j * lda + k]);
                         double wk = (double)w_cand[k];
                         /* Q[i,k] * w[k] * conj(Q[j,k]) */
                         re_sum += wk * (q_ik_re * q_jk_re + q_ik_im * q_jk_im);
@@ -728,7 +776,7 @@ static fb_judge_status_t run_cheev(
 
     /* === ORTHOGONALITY METRIC: ||Q^H*Q - I||_F / sqrt(n) === */
     {
-        double raw_err = ahac_cf32_ortho_error(A_cand, n, n, n);
+        double raw_err = ahac_cf32_ortho_error(A_cand, n, n, lda);
         res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
     }
 
@@ -744,6 +792,29 @@ static fb_judge_status_t run_cheev(
 
     /* === PAIRS METRIC === */
     res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *wt = (float *)malloc((size_t)n * sizeof(float));
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t)); (void)cand->cheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            free(At); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *wt = (float *)malloc((size_t)n * sizeof(float));
+            if (!At || !wt) { free(At); free(wt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(wt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
 
 cleanup_cheev:
     free(A_oracle);
@@ -768,9 +839,9 @@ static fb_judge_status_t run_zheev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobz   = 'V';
-    char uplo   = 'U';
+    fb_uplo_t uplo = FB_UPPER;
 
     fb_complex_double_t *A_oracle = (fb_complex_double_t *)malloc(
         (size_t)(lda * n) * sizeof(fb_complex_double_t));
@@ -826,10 +897,10 @@ static fb_judge_status_t run_zheev(
                 for (int j = 0; j < n; j++) {
                     double re_sum = 0.0, im_sum = 0.0;
                     for (int k = 0; k < n; k++) {
-                        double q_ik_re = FB_CD_REAL(A_cand[i * n + k]);
-                        double q_ik_im = FB_CD_IMAG(A_cand[i * n + k]);
-                        double q_jk_re = FB_CD_REAL(A_cand[j * n + k]);
-                        double q_jk_im = FB_CD_IMAG(A_cand[j * n + k]);
+                        double q_ik_re = FB_CD_REAL(A_cand[i * lda + k]);
+                        double q_ik_im = FB_CD_IMAG(A_cand[i * lda + k]);
+                        double q_jk_re = FB_CD_REAL(A_cand[j * lda + k]);
+                        double q_jk_im = FB_CD_IMAG(A_cand[j * lda + k]);
                         double wk = w_cand[k];
                         re_sum += wk * (q_ik_re * q_jk_re + q_ik_im * q_jk_im);
                         im_sum += wk * (q_ik_im * q_jk_re - q_ik_re * q_jk_im);
@@ -846,7 +917,7 @@ static fb_judge_status_t run_zheev(
 
     /* === ORTHOGONALITY METRIC: ||Q^H*Q - I||_F / sqrt(n) === */
     {
-        double raw_err = ahac_cf64_ortho_error(A_cand, n, n, n);
+        double raw_err = ahac_cf64_ortho_error(A_cand, n, n, lda);
         res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
     }
 
@@ -862,6 +933,29 @@ static fb_judge_status_t run_zheev(
 
     /* === PAIRS METRIC === */
     res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *wt = (double *)malloc((size_t)n * sizeof(double));
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t)); (void)cand->zheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            free(At); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *wt = (double *)malloc((size_t)n * sizeof(double));
+            if (!At || !wt) { free(At); free(wt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(wt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
 
 cleanup_zheev:
     free(A_oracle);
@@ -890,8 +984,7 @@ static fb_judge_status_t run_sgesvd(
     int lda = tc->lda ? tc->lda : tc->m;
     int minmn = (m < n) ? m : n;
 
-    /* Conservative defaults */
-    char layout = 'R';  /* Row-major */
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobu = 'A';    /* All left singular vectors */
     char jobvt = 'A';   /* All right singular vectors */
 
@@ -978,11 +1071,13 @@ static fb_judge_status_t run_sgesvd(
                     }
                 }
                 
-                /* Compute ||A - A_recon|| / ||A|| */
+                /* Compute ||A - A_recon|| / ||A|| (A_in has lda stride, A_recon is compact) */
                 double sum_diff = 0.0;
-                for (int i = 0; i < m * n; i++) {
-                    double diff = (double)A_in[i] - (double)A_recon[i];
-                    sum_diff += diff * diff;
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double diff = (double)A_in[i * lda + j] - (double)A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
                 }
                 double norm_diff = sqrt(sum_diff);
                 double recon_error = norm_diff / norm_A;
@@ -1063,6 +1158,38 @@ static fb_judge_status_t run_sgesvd(
     /* === PAIRS METRIC: singular triplet residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            float *At = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            float *Ut = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            float *VTt = (float *)malloc((size_t)(minmn * n) * sizeof(float));
+            float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
+            if (At && st && Ut && VTt && superbt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+                (void)cand->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            }
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+        }
+        for (int t = 0; t < 5; t++) {
+            float *At = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            float *Ut = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            float *VTt = (float *)malloc((size_t)(minmn * n) * sizeof(float));
+            float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
+            if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_svd:
     free(A_oracle);
     free(A_cand);
@@ -1091,8 +1218,7 @@ static fb_judge_status_t run_dgesvd(
     int lda = tc->lda ? tc->lda : tc->m;
     int minmn = (m < n) ? m : n;
 
-    /* Conservative defaults */
-    char layout = 'R';  /* Row-major */
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobu = 'A';    /* All left singular vectors */
     char jobvt = 'A';   /* All right singular vectors */
 
@@ -1179,11 +1305,13 @@ static fb_judge_status_t run_dgesvd(
                     }
                 }
                 
-                /* Compute ||A - A_recon|| / ||A|| */
+                /* Compute ||A - A_recon|| / ||A|| (A_in has lda stride, A_recon is compact) */
                 double sum_diff = 0.0;
-                for (int i = 0; i < m * n; i++) {
-                    double diff = A_in[i] - A_recon[i];
-                    sum_diff += diff * diff;
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double diff = A_in[i * lda + j] - A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
                 }
                 double norm_diff = sqrt(sum_diff);
                 double recon_error = norm_diff / norm_A;
@@ -1264,6 +1392,38 @@ static fb_judge_status_t run_dgesvd(
     /* === PAIRS METRIC: singular triplet residuals (deep audit only) === */
     res->pairs = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            double *At = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            double *Ut = (double *)malloc((size_t)(m * minmn) * sizeof(double));
+            double *VTt = (double *)malloc((size_t)(minmn * n) * sizeof(double));
+            double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
+            if (At && st && Ut && VTt && superbt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
+                (void)cand->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            }
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+        }
+        for (int t = 0; t < 5; t++) {
+            double *At = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            double *Ut = (double *)malloc((size_t)(m * minmn) * sizeof(double));
+            double *VTt = (double *)malloc((size_t)(minmn * n) * sizeof(double));
+            double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
+            if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_svd:
     free(A_oracle);
     free(A_cand);
@@ -1291,7 +1451,7 @@ static fb_judge_status_t run_cgesvd(
     int lda = tc->lda ? tc->lda : tc->m;
     int minmn = (m < n) ? m : n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobu   = 'A';
     char jobvt  = 'A';
 
@@ -1392,6 +1552,38 @@ static fb_judge_status_t run_cgesvd(
     /* === PAIRS METRIC === */
     res->pairs = (fb_judge_case_result_t){.digits = 16};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            fb_complex_float_t *Ut = (fb_complex_float_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VTt = (fb_complex_float_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_float_t));
+            float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
+            if (At && st && Ut && VTt && superbt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+                (void)cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            }
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            fb_complex_float_t *Ut = (fb_complex_float_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VTt = (fb_complex_float_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_float_t));
+            float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
+            if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_cgesvd:
     free(A_oracle); free(A_cand);
     free(s_oracle); free(s_cand);
@@ -1415,7 +1607,7 @@ static fb_judge_status_t run_zgesvd(
     int lda = tc->lda ? tc->lda : tc->m;
     int minmn = (m < n) ? m : n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobu   = 'A';
     char jobvt  = 'A';
 
@@ -1514,6 +1706,38 @@ static fb_judge_status_t run_zgesvd(
     /* === PAIRS METRIC === */
     res->pairs = (fb_judge_case_result_t){.digits = 16};
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            fb_complex_double_t *Ut = (fb_complex_double_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VTt = (fb_complex_double_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_double_t));
+            double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
+            if (At && st && Ut && VTt && superbt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+                (void)cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            }
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            fb_complex_double_t *Ut = (fb_complex_double_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VTt = (fb_complex_double_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_double_t));
+            double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
+            if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt); free(superbt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_zgesvd:
     free(A_oracle); free(A_cand);
     free(s_oracle); free(s_cand);
@@ -1538,7 +1762,7 @@ static fb_judge_status_t run_sgeev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobvl  = 'N';  /* no left eigenvectors */
     char jobvr  = 'V';  /* compute right eigenvectors */
 
@@ -1621,7 +1845,7 @@ static fb_judge_status_t run_sgeev(
                 for (int i = 0; i < n; i++) {
                     double av = 0.0;
                     for (int k = 0; k < n; k++)
-                        av += (double)A_copy[i * n + k] * (double)VR[k * n + j];
+                        av += (double)A_copy[i * lda + k] * (double)VR[k * n + j];
                     double r = av - wr * (double)VR[i * n + j];
                     res_sq += r * r;
                     double vri = (double)VR[i * n + j];
@@ -1640,7 +1864,7 @@ static fb_judge_status_t run_sgeev(
                 for (int i = 0; i < n; i++) {
                     double avr = 0.0, avi = 0.0;
                     for (int k = 0; k < n; k++) {
-                        double a = (double)A_copy[i * n + k];
+                        double a = (double)A_copy[i * lda + k];
                         avr += a * (double)VR[k * n + j];
                         avi += a * (double)VR[k * n + j + 1];
                     }
@@ -1680,6 +1904,36 @@ static fb_judge_status_t run_sgeev(
             res->subspace = (fb_judge_case_result_t){.digits = 16};
     }
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            float *At  = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *WRt = (float *)malloc((size_t)n * sizeof(float));
+            float *WIt = (float *)malloc((size_t)n * sizeof(float));
+            float *VRt = (float *)malloc((size_t)(n * n) * sizeof(float));
+            if (At && WRt && WIt && VRt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+                (void)cand->sgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            }
+            free(At); free(WRt); free(WIt); free(VRt);
+        }
+        for (int t = 0; t < 5; t++) {
+            float *At  = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *WRt = (float *)malloc((size_t)n * sizeof(float));
+            float *WIt = (float *)malloc((size_t)n * sizeof(float));
+            float *VRt = (float *)malloc((size_t)(n * n) * sizeof(float));
+            if (!At || !WRt || !WIt || !VRt) { free(At); free(WRt); free(WIt); free(VRt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(WRt); free(WIt); free(VRt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_sgeev:
     free(A_oracle); free(A_cand); free(A_copy);
     free(WR_oracle); free(WI_oracle);
@@ -1703,7 +1957,7 @@ static fb_judge_status_t run_dgeev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobvl  = 'N';
     char jobvr  = 'V';
 
@@ -1777,7 +2031,7 @@ static fb_judge_status_t run_dgeev(
                 for (int i = 0; i < n; i++) {
                     double av = 0.0;
                     for (int k = 0; k < n; k++)
-                        av += A_copy[i * n + k] * VR[k * n + j];
+                        av += A_copy[i * lda + k] * VR[k * n + j];
                     double r = av - wr * VR[i * n + j];
                     res_sq += r * r;
                     vr_sq  += VR[i * n + j] * VR[i * n + j];
@@ -1792,7 +2046,7 @@ static fb_judge_status_t run_dgeev(
                 for (int i = 0; i < n; i++) {
                     double avr = 0.0, avi = 0.0;
                     for (int k = 0; k < n; k++) {
-                        double a = A_copy[i * n + k];
+                        double a = A_copy[i * lda + k];
                         avr += a * VR[k * n + j];
                         avi += a * VR[k * n + j + 1];
                     }
@@ -1830,6 +2084,36 @@ static fb_judge_status_t run_dgeev(
             res->subspace = (fb_judge_case_result_t){.digits = 16};
     }
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            double *At  = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *WRt = (double *)malloc((size_t)n * sizeof(double));
+            double *WIt = (double *)malloc((size_t)n * sizeof(double));
+            double *VRt = (double *)malloc((size_t)(n * n) * sizeof(double));
+            if (At && WRt && WIt && VRt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
+                (void)cand->dgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            }
+            free(At); free(WRt); free(WIt); free(VRt);
+        }
+        for (int t = 0; t < 5; t++) {
+            double *At  = (double *)malloc((size_t)(lda * n) * sizeof(double));
+            double *WRt = (double *)malloc((size_t)n * sizeof(double));
+            double *WIt = (double *)malloc((size_t)n * sizeof(double));
+            double *VRt = (double *)malloc((size_t)(n * n) * sizeof(double));
+            if (!At || !WRt || !WIt || !VRt) { free(At); free(WRt); free(WIt); free(VRt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(WRt); free(WIt); free(VRt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_dgeev:
     free(A_oracle); free(A_cand); free(A_copy);
     free(WR_oracle); free(WI_oracle);
@@ -1853,7 +2137,7 @@ static fb_judge_status_t run_cgeev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobvl  = 'N';
     char jobvr  = 'V';
 
@@ -2002,6 +2286,34 @@ static fb_judge_status_t run_cgeev(
         }
     }
 
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_float_t *At  = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *Wt  = (fb_complex_float_t *)malloc((size_t)n * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VRt = (fb_complex_float_t *)malloc((size_t)(n * n) * sizeof(fb_complex_float_t));
+            if (At && Wt && VRt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+                (void)cand->cgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            }
+            free(At); free(Wt); free(VRt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_float_t *At  = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *Wt  = (fb_complex_float_t *)malloc((size_t)n * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VRt = (fb_complex_float_t *)malloc((size_t)(n * n) * sizeof(fb_complex_float_t));
+            if (!At || !Wt || !VRt) { free(At); free(Wt); free(VRt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(Wt); free(VRt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
 cleanup_cgeev:
     free(A_oracle);
     free(A_cand);
@@ -2028,7 +2340,7 @@ static fb_judge_status_t run_zgeev(
     int n = tc->n;
     int lda = tc->lda ? tc->lda : tc->n;
 
-    char layout = 'R';
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
     char jobvl  = 'N';
     char jobvr  = 'V';
 
@@ -2175,6 +2487,34 @@ static fb_judge_status_t run_zgeev(
         } else {
             res->subspace = (fb_judge_case_result_t){.digits = 16};
         }
+    }
+
+    /* === TIMING: 2 warm-up + 5 timed iterations, keep best === */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_double_t *At  = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *Wt  = (fb_complex_double_t *)malloc((size_t)n * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VRt = (fb_complex_double_t *)malloc((size_t)(n * n) * sizeof(fb_complex_double_t));
+            if (At && Wt && VRt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+                (void)cand->zgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            }
+            free(At); free(Wt); free(VRt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_double_t *At  = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *Wt  = (fb_complex_double_t *)malloc((size_t)n * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VRt = (fb_complex_double_t *)malloc((size_t)(n * n) * sizeof(fb_complex_double_t));
+            if (!At || !Wt || !VRt) { free(At); free(Wt); free(VRt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(Wt); free(VRt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
     }
 
 cleanup_zgeev:
