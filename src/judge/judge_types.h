@@ -90,7 +90,7 @@ typedef struct {
     uint8_t                 max_certifiable_f32; /**< Oracle ceiling, FP32 */
     uint8_t                 max_certifiable_f64; /**< Oracle ceiling, FP64 */
     float                   ortho_slack_f32;     /**< Allowed gap vs value digits */
-    float                   ortho_slack_f64;
+    double                  ortho_slack_f64;
     double                  cluster_threshold_multiplier; /**< n×eps for spectral */
     bool                    is_in_place;         /**< Input must be snapshotted */
     const char*             name;                /**< Human-readable op name */

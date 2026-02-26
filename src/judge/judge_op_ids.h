@@ -45,7 +45,9 @@
 #ifndef FB_JUDGE_OP_IDS_H
 #define FB_JUDGE_OP_IDS_H
 
+#ifndef FB_JUDGE_MAX_OPERATIONS
 #define FB_JUDGE_MAX_OPERATIONS 2400
+#endif
 
 /* Section boundary sentinels — use these instead of raw numbers. */
 #define FB_OP__BLAS_L1_BEGIN                         0
