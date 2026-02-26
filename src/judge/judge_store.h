@@ -3,7 +3,7 @@
  * @brief On-disk persistence for fb_precision_profile_t objects.
  *
  * Profiles are stored as binary blobs under:
- *   <profile_dir>/judge_profiles/op<N>_be<B>_dev<D>_sc<S>_dt<T>.fbjp
+ *   <profile_dir>/judge_profiles/<op_name>_be<B>_dev<D>_sc<S>_dt<T>.fbjp
  *
  * The file format includes a magic number, module+corpus version bytes,
  * and the raw profile struct.  Files from a different version are silently
@@ -50,7 +50,7 @@ fb_judge_status_t fb_judge_store_save(
  */
 fb_judge_status_t fb_judge_store_load(
     const char             *profile_dir,
-    uint32_t                op_id,
+    const char             *op_name,
     uint32_t                backend_id,
     uint32_t                device_id,
     uint8_t                 size_class,

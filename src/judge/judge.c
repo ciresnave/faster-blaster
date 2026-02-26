@@ -159,7 +159,8 @@ fb_judge_status_t fb_judge_run(
 
     /* Zero the output now that we have a valid input setup. */
     memset(profile_out, 0, sizeof(*profile_out));
-    profile_out->op_id      = op_id;
+    strncpy(profile_out->op_name, meta->name ? meta->name : "",
+            sizeof(profile_out->op_name) - 1);
     profile_out->backend_id = backend_id;
     profile_out->device_id  = device_id;
     profile_out->size_class = (uint8_t)size_class;
@@ -469,8 +470,10 @@ fb_judge_status_t fb_judge_load_profile(
     if (!profile_out)
         return FB_JUDGE_ERR_INVALID_OP;
 
+    const fb_op_judge_meta_t *meta = fb_judge_meta_get(op_id);
+    const char *name = (meta && meta->name) ? meta->name : "";
     return fb_judge_store_load(fb_judge_g.profile_dir,
-                               op_id, backend_id, device_id,
+                               name, backend_id, device_id,
                                (uint8_t)size_class, dtype,
                                profile_out);
 }

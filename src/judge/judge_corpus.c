@@ -485,6 +485,17 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
         }
     }
 
+    /* Populate op_name in all generated cases for display and serialization. */
+    {
+        const char *name =
+            (op_id < (uint32_t)FB_JUDGE_MAX_OPERATIONS
+             && fb_op_judge_table[op_id].name)
+            ? fb_op_judge_table[op_id].name : "";
+        for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ++ci) {
+            strncpy(cases_out[ci].meta.op_name, name,
+                    sizeof(cases_out[ci].meta.op_name) - 1);
+        }
+    }
     return FB_JUDGE_OK;
 }
 

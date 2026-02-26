@@ -6,7 +6,7 @@
  *   [4]  Magic 0x46424A50 ("FBJP")
  *   [4]  FB_JUDGE_MODULE_VERSION (uint32_t)
  *   [4]  FB_CORPUS_VERSION       (uint32_t)
- *   [4]  op_id      (uint32_t, redundant — cross-check on load)
+ *   [32] op_name    (char[32], null-terminated — serialization key, cross-check on load)
  *   [4]  backend_id (uint32_t)
  *   [4]  device_id  (uint32_t)
  *   [1]  size_class (uint8_t)
@@ -57,7 +57,7 @@ typedef struct {
     uint32_t magic;
     uint32_t module_version;
     uint32_t corpus_version;
-    uint32_t op_id;
+    char     op_name[32];    /* null-terminated operation name */
     uint32_t backend_id;
     uint32_t device_id;
     uint8_t  size_class;
@@ -80,14 +80,14 @@ static void build_subdir_path(
 /** Build path to a .fbjp profile file. */
 static void build_profile_path(
     const char *profile_dir,
-    uint32_t op_id, uint32_t backend_id, uint32_t device_id,
+    const char *op_name, uint32_t backend_id, uint32_t device_id,
     uint8_t size_class, uint8_t dtype,
     char *out, size_t out_size)
 {
     snprintf(out, out_size,
-             "%s/%s/op%u_be%u_dev%u_sc%u_dt%u.fbjp",
+             "%s/%s/%s_be%u_dev%u_sc%u_dt%u.fbjp",
              profile_dir, FB_STORE_SUBDIR_NAME,
-             op_id, backend_id, device_id, (unsigned)size_class, (unsigned)dtype);
+             op_name, backend_id, device_id, (unsigned)size_class, (unsigned)dtype);
 }
 
 /** Build path to an invalidation marker file. */
@@ -169,7 +169,7 @@ fb_judge_status_t fb_judge_store_save(
     /* Build file path. */
     char path[FB_STORE_MAX_PATH];
     build_profile_path(profile_dir,
-                       profile->op_id, profile->backend_id, profile->device_id,
+                       profile->op_name, profile->backend_id, profile->device_id,
                        profile->size_class, profile->dtype,
                        path, sizeof(path));
 
@@ -183,7 +183,8 @@ fb_judge_status_t fb_judge_store_save(
     hdr.magic          = FB_STORE_MAGIC;
     hdr.module_version = (uint32_t)FB_JUDGE_MODULE_VERSION;
     hdr.corpus_version = (uint32_t)FB_CORPUS_VERSION;
-    hdr.op_id          = profile->op_id;
+    strncpy(hdr.op_name, profile->op_name, sizeof(hdr.op_name) - 1);
+    hdr.op_name[sizeof(hdr.op_name) - 1] = '\0';
     hdr.backend_id     = profile->backend_id;
     hdr.device_id      = profile->device_id;
     hdr.size_class     = profile->size_class;
@@ -211,14 +212,14 @@ fb_judge_status_t fb_judge_store_save(
 
 fb_judge_status_t fb_judge_store_load(
     const char             *profile_dir,
-    uint32_t                op_id,
+    const char             *op_name,
     uint32_t                backend_id,
     uint32_t                device_id,
     uint8_t                 size_class,
     uint8_t                 dtype,
     fb_precision_profile_t *profile_out)
 {
-    if (!profile_dir || !profile_out)
+    if (!profile_dir || !op_name || !profile_out)
         return FB_JUDGE_ERR_IO;
 
     /* If invalidation marker is present, report missing. */
@@ -226,7 +227,7 @@ fb_judge_status_t fb_judge_store_load(
         return FB_JUDGE_ERR_NO_PROFILE;
 
     char path[FB_STORE_MAX_PATH];
-    build_profile_path(profile_dir, op_id, backend_id, device_id,
+    build_profile_path(profile_dir, op_name, backend_id, device_id,
                        size_class, dtype, path, sizeof(path));
 
     FILE *f = fopen(path, "rb");
@@ -244,7 +245,7 @@ fb_judge_status_t fb_judge_store_load(
     if (hdr.magic          != FB_STORE_MAGIC          ||
         hdr.module_version != (uint32_t)FB_JUDGE_MODULE_VERSION ||
         hdr.corpus_version != (uint32_t)FB_CORPUS_VERSION       ||
-        hdr.op_id          != op_id       ||
+        strncmp(hdr.op_name, op_name, sizeof(hdr.op_name)) != 0 ||
         hdr.backend_id     != backend_id  ||
         hdr.device_id      != device_id   ||
         hdr.size_class     != size_class  ||

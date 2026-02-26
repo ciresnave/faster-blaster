@@ -96,8 +96,8 @@ typedef struct {
     const char*             name;                /**< Human-readable op name */
 } fb_op_judge_meta_t;
 
-/* Maximum number of tracked operations (matches benchmark_cache.c MAX_OPERATIONS). */
-#define FB_JUDGE_MAX_OPERATIONS  1248
+/* Operation count is defined canonically in judge_op_ids.h. */
+#include "judge_op_ids.h"
 
 extern const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS];
 
@@ -110,7 +110,8 @@ extern const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS];
  * Corpus is generated deterministically from (op_id, size_class, dtype, seed).
  */
 typedef struct {
-    uint32_t  op_id;
+    uint32_t  op_id;         /**< Runtime dispatch identifier (not serialized) */
+    char      op_name[32];   /**< Human-readable name for display and serialization */
     uint8_t   dtype;         /**< fb_dtype_t */
     uint8_t   size_class;    /**< fb_size_class_t */
     uint64_t  seed;          /**< RNG seed for deterministic reproduction */

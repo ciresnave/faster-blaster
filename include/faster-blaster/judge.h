@@ -112,7 +112,7 @@ typedef enum {
  * ========================================================================= */
 
 /**
- * Complete profile for one (op_id, backend_id, device_id, size_class, dtype).
+ * Complete profile for one (op_name, backend_id, device_id, size_class, dtype).
  * Produced by the judge in a single pass; stored on disk between runs.
  */
 typedef struct {
@@ -135,7 +135,7 @@ typedef struct {
     uint8_t              oracle_max_certifiable; /**< Ceiling from PRECISION_GUARANTEES */
 
     /* Provenance */
-    uint32_t             op_id;
+    char                 op_name[32];     /**< Operation name — serialization key (e.g. "sgemm") */
     uint32_t             backend_id;
     uint32_t             device_id;
     uint8_t              size_class;   /**< fb_size_class_t */
