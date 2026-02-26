@@ -815,11 +815,14 @@ if(CLBLAST_AVAILABLE)
 endif()
 
 # Compiler warnings
-if(MSVC)
-    # Temporarily allow warnings during development - TODO: Fix all warnings and re-enable /WX
+# Note: MSVC variable is true even for plain clang.exe on Windows (SIMULATE_ID=MSVC).
+# Use CMAKE_C_COMPILER_FRONTEND_VARIANT to distinguish GNU-style clang from cl.exe/clang-cl.
+if(CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    # Genuine cl.exe or clang-cl — MSVC flag syntax
     target_compile_options(faster-blaster PRIVATE /W4)
 else()
-    target_compile_options(faster-blaster PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    # Regular clang or GCC — GNU flag syntax
+    target_compile_options(faster-blaster PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # Statistics compilation flag

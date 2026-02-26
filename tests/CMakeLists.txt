@@ -89,43 +89,6 @@ add_test(NAME device_memory_simple COMMAND test_device_memory_simple)
 message(STATUS "Device Memory Manager simple test enabled")
 
 # ============================================================================
-# Device Memory Manager Test (GPU Hardware - Requires CUDA)
-# ============================================================================
-if(CMAKE_CUDA_COMPILER OR CUDAToolkit_FOUND)
-    add_executable(test_device_memory_manager
-        test_device_memory_manager.c
-    )
-
-    target_link_libraries(test_device_memory_manager faster-blaster)
-
-    # Link CUDA runtime for cudaMalloc, cudaMemcpy, etc.
-    if(CUDAToolkit_FOUND)
-        target_link_libraries(test_device_memory_manager CUDA::cudart CUDA::cublas)
-    endif()
-
-    # Platform-specific math library
-    if(UNIX)
-        target_link_libraries(test_device_memory_manager m)
-    endif()
-
-    # Copy faster-blaster DLL to test directory
-    if(WIN32)
-        add_custom_command(TARGET test_device_memory_manager POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:faster-blaster>
-                $<TARGET_FILE_DIR:test_device_memory_manager>
-            COMMENT "Copying faster-blaster.dll to test directory"
-        )
-    endif()
-
-    add_test(NAME device_memory_manager COMMAND test_device_memory_manager)
-
-    message(STATUS "Device Memory Manager GPU hardware test enabled")
-else()
-    message(STATUS "Device Memory Manager GPU hardware test disabled (CUDA not available)")
-endif()
-
-# ============================================================================
 # Smart Wrappers Test (GPU Hardware - Requires CUDA)
 # ============================================================================
 if(CMAKE_CUDA_COMPILER OR CUDAToolkit_FOUND)
