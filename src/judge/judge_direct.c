@@ -5237,155 +5237,152 @@ static fb_judge_status_t run_zher2(
  * FB_JUDGE_ERR_NOT_IMPL. The table covers all op IDs up to batched GEMM.
  * ========================================================================= */
 
-#define FB_DIRECT_DISPATCH_SIZE  168
+/* Dispatch table spans all op IDs — size is FB_JUDGE_MAX_OPERATIONS */
 
-static const fb_direct_runner_fn fb_direct_dispatch[FB_DIRECT_DISPATCH_SIZE] = {
-    /* 0  */ run_saxpy,   /* FB_OP_SAXPY  */
-    /* 1  */ run_daxpy,   /* FB_OP_DAXPY  */
-    /* 2  */ run_caxpy,   /* FB_OP_CAXPY  */
-    /* 3  */ run_zaxpy,   /* FB_OP_ZAXPY  */
-    /* 4  */ run_sscal,   /* FB_OP_SSCAL  */
-    /* 5  */ run_dscal,   /* FB_OP_DSCAL  */
-    /* 6  */ run_cscal,   /* FB_OP_CSCAL  */
-    /* 7  */ run_zscal,   /* FB_OP_ZSCAL  */
-    /* 8  */ run_csscal,  /* FB_OP_CSSCAL */
-    /* 9  */ run_zdscal,  /* FB_OP_ZDSCAL */
-    /* 10 */ run_scopy,   /* FB_OP_SCOPY  */
-    /* 11 */ run_dcopy,   /* FB_OP_DCOPY  */
-    /* 12 */ run_ccopy,   /* FB_OP_CCOPY  */
-    /* 13 */ run_zcopy,   /* FB_OP_ZCOPY  */
-    /* 14 */ run_sswap,   /* FB_OP_SSWAP  */
-    /* 15 */ run_dswap,   /* FB_OP_DSWAP  */
-    /* 16 */ run_cswap,   /* FB_OP_CSWAP  */
-    /* 17 */ run_zswap,   /* FB_OP_ZSWAP  */
-    /* 18 */ run_sdot,    /* FB_OP_SDOT   */
-    /* 19 */ run_ddot,    /* FB_OP_DDOT   */
-    /* 20 */ run_cdotc,   /* FB_OP_CDOTC  */
-    /* 21 */ run_cdotu,   /* FB_OP_CDOTU  */
-    /* 22 */ run_zdotc,   /* FB_OP_ZDOTC  */
-    /* 23 */ run_zdotu,   /* FB_OP_ZDOTU  */
-    /* 24 */ run_sdsdot,  /* FB_OP_SDSDOT */
-    /* 25 */ run_dsdot,   /* FB_OP_DSDOT  */
-    /* 26 */ run_sasum,   /* FB_OP_SASUM  */
-    /* 27 */ run_dasum,   /* FB_OP_DASUM  */
-    /* 28 */ run_scasum,  /* FB_OP_SCASUM */
-    /* 29 */ run_dzasum,  /* FB_OP_DZASUM */
-    /* 30 */ run_snrm2,   /* FB_OP_SNRM2  */
-    /* 31 */ run_dnrm2,   /* FB_OP_DNRM2  */
-    /* 32 */ run_scnrm2,  /* FB_OP_SCNRM2 */
-    /* 33 */ run_dznrm2,  /* FB_OP_DZNRM2 */
-    /* 34 */ run_isamax,  /* FB_OP_ISAMAX */
-    /* 35 */ run_idamax,  /* FB_OP_IDAMAX */
-    /* 36 */ run_icamax,  /* FB_OP_ICAMAX */
-    /* 37 */ run_izamax,  /* FB_OP_IZAMAX */
-    /* 38 */ run_srot,    /* FB_OP_SROT   */
-    /* 39 */ run_drot,    /* FB_OP_DROT   */
-    /* 40 */ NULL,        /* FB_OP_CROT   — not yet implemented */
-    /* 41 */ NULL,        /* FB_OP_ZROT   — not yet implemented */
-    /* 42 */ NULL,        /* FB_OP_ZDROT  — not yet implemented */
-    /* 43 */ run_srotg,   /* FB_OP_SROTG  */
-    /* 44 */ run_drotg,   /* FB_OP_DROTG  */
-    /* 45 */ run_srotm,   /* FB_OP_SROTM  */
-    /* 46 */ run_drotm,   /* FB_OP_DROTM  */
-    /* 47 */ run_srotmg,  /* FB_OP_SROTMG */
-    /* 48 */ run_sgemv,   /* FB_OP_SGEMV  */
-    /* 49 */ run_dgemv,   /* FB_OP_DGEMV  */
-    /* 50 */ run_cgemv,   /* FB_OP_CGEMV  */
-    /* 51 */ run_zgemv,   /* FB_OP_ZGEMV  */
-    [52]  = run_ssymv,   /* FB_OP_SSYMV  */
-    [53]  = run_dsymv,   /* FB_OP_DSYMV  */
-    [54]  = run_chemv,   /* FB_OP_CHEMV  */
-    [55]  = run_zhemv,   /* FB_OP_ZHEMV  */
-    [56]  = run_strmv,   /* FB_OP_STRMV  */
-    [57]  = run_dtrmv,   /* FB_OP_DTRMV  */
-    [58]  = run_ctrmv,   /* FB_OP_CTRMV  */
-    [59]  = run_ztrmv,   /* FB_OP_ZTRMV  */
-    [60]  = run_strsv,   /* FB_OP_STRSV  */
-    [61]  = run_dtrsv,   /* FB_OP_DTRSV  */
-    [62]  = run_ctrsv,   /* FB_OP_CTRSV  */
-    [63]  = run_ztrsv,   /* FB_OP_ZTRSV  */
-    [64]  = run_sger,    /* FB_OP_SGER   */
-    [65]  = run_dger,    /* FB_OP_DGER   */
-    [66]  = run_cgeru,   /* FB_OP_CGERU  */
-    [67]  = run_cgerc,   /* FB_OP_CGERC  */
-    [68]  = run_zgeru,   /* FB_OP_ZGERU  */
-    [69]  = run_zgerc,   /* FB_OP_ZGERC  */
-    [70]  = run_ssyr,   /* FB_OP_SSYR   */
-    [71]  = run_dsyr,   /* FB_OP_DSYR   */
-    [72]  = run_cher,   /* FB_OP_CHER   */
-    [73]  = run_zher,   /* FB_OP_ZHER   */
-    [74]  = run_ssyr2,  /* FB_OP_SSYR2  */
-    [75]  = run_dsyr2,  /* FB_OP_DSYR2  */
-    [76]  = run_cher2,  /* FB_OP_CHER2  */
-    [77]  = run_zher2,  /* FB_OP_ZHER2  */
-    [78]  = run_sspmv,  /* FB_OP_SSPMV  */
-    [79]  = run_dspmv,  /* FB_OP_DSPMV  */
-    [80]  = run_chpmv,  /* FB_OP_CHPMV  */
-    [81]  = run_zhpmv,  /* FB_OP_ZHPMV  */
-    [82]  = run_ssbmv,  /* FB_OP_SSBMV  */
-    [83]  = run_dsbmv,  /* FB_OP_DSBMV  */
-    [84]  = run_chbmv,  /* FB_OP_CHBMV  */
-    [85]  = run_zhbmv,  /* FB_OP_ZHBMV  */
-    [86]  = run_stbmv,  /* FB_OP_STBMV  */
-    [87]  = run_dtbmv,  /* FB_OP_DTBMV  */
-    [88]  = run_ctbmv,  /* FB_OP_CTBMV  */
-    [89]  = run_ztbmv,  /* FB_OP_ZTBMV  */
-    [90]  = run_stbsv,  /* FB_OP_STBSV  */
-    [91]  = run_dtbsv,  /* FB_OP_DTBSV  */
-    [92]  = run_ctbsv,  /* FB_OP_CTBSV  */
-    [93]  = run_ztbsv,  /* FB_OP_ZTBSV  */
-    [94]  = run_stpmv,  /* FB_OP_STPMV  */
-    [95]  = run_dtpmv,  /* FB_OP_DTPMV  */
-    [96]  = run_ctpmv,  /* FB_OP_CTPMV  */
-    [97]  = run_ztpmv,  /* FB_OP_ZTPMV  */
-    [98]  = run_stpsv,  /* FB_OP_STPSV  */
-    [99]  = run_dtpsv,  /* FB_OP_DTPSV  */
-    [100] = run_ctpsv,  /* FB_OP_CTPSV  */
-    [101] = run_ztpsv,  /* FB_OP_ZTPSV  */
-    [102] = run_sspr,   /* FB_OP_SSPR   */
-    [103] = run_dspr,   /* FB_OP_DSPR   */
-    [104] = run_chpr,   /* FB_OP_CHPR   */
-    [105] = run_zhpr,   /* FB_OP_ZHPR   */
-    [106] = run_sspr2,  /* FB_OP_SSPR2  */
-    [107] = run_dspr2,  /* FB_OP_DSPR2  */
-    [108] = run_chpr2,  /* FB_OP_CHPR2  */
-    [109] = run_zhpr2,  /* FB_OP_ZHPR2  */ [110] = NULL, [111] = NULL,
-    [112] = NULL, [113] = NULL, [114] = NULL, [115] = NULL,
-    [116] = NULL, [117] = NULL, [118] = NULL, [119] = NULL,
-    [120] = NULL, [121] = NULL, [122] = NULL, [123] = NULL,
-    [124] = NULL, [125] = NULL, [126] = NULL, [127] = NULL,
-    [128] = NULL, [129] = NULL,
-    /* L3 */
-    [130] = run_sgemm,   /* FB_OP_SGEMM  */
-    [131] = run_dgemm,   /* FB_OP_DGEMM  */
-    [132] = run_cgemm,   /* FB_OP_CGEMM  */
-    [133] = run_zgemm,   /* FB_OP_ZGEMM  */
-    [134] = run_ssymm,   /* FB_OP_SSYMM  */
-    [135] = run_dsymm,   /* FB_OP_DSYMM  */
-    [136] = run_csymm,   /* FB_OP_CSYMM  */
-    [137] = run_zsymm,   /* FB_OP_ZSYMM  */
-    [138] = run_chemm,   /* FB_OP_CHEMM  */
-    [139] = run_zhemm,   /* FB_OP_ZHEMM  */
-    [140] = run_ssyrk,   /* FB_OP_SSYRK  */
-    [141] = run_dsyrk,   /* FB_OP_DSYRK  */
-    [142] = run_csyrk,   /* FB_OP_CSYRK  */
-    [143] = run_zsyrk,   /* FB_OP_ZSYRK  */
-    [144] = run_cherk,   /* FB_OP_CHERK  */
-    [145] = run_zherk,   /* FB_OP_ZHERK  */
-    [146] = run_ssyr2k,  /* FB_OP_SSYR2K */
-    [147] = run_dsyr2k,  /* FB_OP_DSYR2K */
-    [148] = run_csyr2k,  /* FB_OP_CSYR2K */
-    [149] = run_zsyr2k,  /* FB_OP_ZSYR2K */
-    [150] = run_cher2k,  /* FB_OP_CHER2K */
-    [151] = run_zher2k,  /* FB_OP_ZHER2K */
-    [152] = run_strmm,   /* FB_OP_STRMM  */
-    [153] = run_dtrmm,   /* FB_OP_DTRMM  */
-    [154] = run_ctrmm,   /* FB_OP_CTRMM  */
-    [155] = run_ztrmm,   /* FB_OP_ZTRMM  */
-    [156] = run_strsm,   /* FB_OP_STRSM  */
-    [157] = run_dtrsm,   /* FB_OP_DTRSM  */
-    [158] = run_ctrsm,   /* FB_OP_CTRSM  */
-    [159] = run_ztrsm,   /* FB_OP_ZTRSM  */
+static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
+    /* BLAS Level 1 */
+    [FB_OP_SAXPY] = run_saxpy,
+    [FB_OP_DAXPY] = run_daxpy,
+    [FB_OP_CAXPY] = run_caxpy,
+    [FB_OP_ZAXPY] = run_zaxpy,
+    [FB_OP_SSCAL] = run_sscal,
+    [FB_OP_DSCAL] = run_dscal,
+    [FB_OP_CSCAL] = run_cscal,
+    [FB_OP_ZSCAL] = run_zscal,
+    [FB_OP_CSSCAL] = run_csscal,
+    [FB_OP_ZDSCAL] = run_zdscal,
+    [FB_OP_SCOPY] = run_scopy,
+    [FB_OP_DCOPY] = run_dcopy,
+    [FB_OP_CCOPY] = run_ccopy,
+    [FB_OP_ZCOPY] = run_zcopy,
+    [FB_OP_SSWAP] = run_sswap,
+    [FB_OP_DSWAP] = run_dswap,
+    [FB_OP_CSWAP] = run_cswap,
+    [FB_OP_ZSWAP] = run_zswap,
+    [FB_OP_SDOT] = run_sdot,
+    [FB_OP_DDOT] = run_ddot,
+    [FB_OP_CDOTC] = run_cdotc,
+    [FB_OP_CDOTU] = run_cdotu,
+    [FB_OP_ZDOTC] = run_zdotc,
+    [FB_OP_ZDOTU] = run_zdotu,
+    [FB_OP_SDSDOT] = run_sdsdot,
+    [FB_OP_DSDOT] = run_dsdot,
+    [FB_OP_SASUM] = run_sasum,
+    [FB_OP_DASUM] = run_dasum,
+    [FB_OP_SCASUM] = run_scasum,
+    [FB_OP_DZASUM] = run_dzasum,
+    [FB_OP_SNRM2] = run_snrm2,
+    [FB_OP_DNRM2] = run_dnrm2,
+    [FB_OP_SCNRM2] = run_scnrm2,
+    [FB_OP_DZNRM2] = run_dznrm2,
+    [FB_OP_ISAMAX] = run_isamax,
+    [FB_OP_IDAMAX] = run_idamax,
+    [FB_OP_ICAMAX] = run_icamax,
+    [FB_OP_IZAMAX] = run_izamax,
+    [FB_OP_SROT] = run_srot,
+    [FB_OP_DROT] = run_drot,
+    [FB_OP_CROT] = NULL,  /* not yet implemented */
+    [FB_OP_ZROT] = NULL,  /* not yet implemented */
+    [FB_OP_ZDROT] = NULL,  /* not yet implemented */
+    [FB_OP_SROTG] = run_srotg,
+    [FB_OP_DROTG] = run_drotg,
+    [FB_OP_SROTM] = run_srotm,
+    [FB_OP_DROTM] = run_drotm,
+    [FB_OP_SROTMG] = run_srotmg,
+    /* BLAS Level 2 */
+    [FB_OP_SGEMV] = run_sgemv,
+    [FB_OP_DGEMV] = run_dgemv,
+    [FB_OP_CGEMV] = run_cgemv,
+    [FB_OP_ZGEMV] = run_zgemv,
+    [FB_OP_SSYMV] = run_ssymv,
+    [FB_OP_DSYMV] = run_dsymv,
+    [FB_OP_CHEMV] = run_chemv,
+    [FB_OP_ZHEMV] = run_zhemv,
+    [FB_OP_STRMV] = run_strmv,
+    [FB_OP_DTRMV] = run_dtrmv,
+    [FB_OP_CTRMV] = run_ctrmv,
+    [FB_OP_ZTRMV] = run_ztrmv,
+    [FB_OP_STRSV] = run_strsv,
+    [FB_OP_DTRSV] = run_dtrsv,
+    [FB_OP_CTRSV] = run_ctrsv,
+    [FB_OP_ZTRSV] = run_ztrsv,
+    [FB_OP_SGER] = run_sger,
+    [FB_OP_DGER] = run_dger,
+    [FB_OP_CGERU] = run_cgeru,
+    [FB_OP_CGERC] = run_cgerc,
+    [FB_OP_ZGERU] = run_zgeru,
+    [FB_OP_ZGERC] = run_zgerc,
+    [FB_OP_SSYR] = run_ssyr,
+    [FB_OP_DSYR] = run_dsyr,
+    [FB_OP_CHER] = run_cher,
+    [FB_OP_ZHER] = run_zher,
+    [FB_OP_SSYR2] = run_ssyr2,
+    [FB_OP_DSYR2] = run_dsyr2,
+    [FB_OP_CHER2] = run_cher2,
+    [FB_OP_ZHER2] = run_zher2,
+    [FB_OP_SSPMV] = run_sspmv,
+    [FB_OP_DSPMV] = run_dspmv,
+    [FB_OP_CHPMV] = run_chpmv,
+    [FB_OP_ZHPMV] = run_zhpmv,
+    [FB_OP_SSBMV] = run_ssbmv,
+    [FB_OP_DSBMV] = run_dsbmv,
+    [FB_OP_CHBMV] = run_chbmv,
+    [FB_OP_ZHBMV] = run_zhbmv,
+    [FB_OP_STBMV] = run_stbmv,
+    [FB_OP_DTBMV] = run_dtbmv,
+    [FB_OP_CTBMV] = run_ctbmv,
+    [FB_OP_ZTBMV] = run_ztbmv,
+    [FB_OP_STBSV] = run_stbsv,
+    [FB_OP_DTBSV] = run_dtbsv,
+    [FB_OP_CTBSV] = run_ctbsv,
+    [FB_OP_ZTBSV] = run_ztbsv,
+    [FB_OP_STPMV] = run_stpmv,
+    [FB_OP_DTPMV] = run_dtpmv,
+    [FB_OP_CTPMV] = run_ctpmv,
+    [FB_OP_ZTPMV] = run_ztpmv,
+    [FB_OP_STPSV] = run_stpsv,
+    [FB_OP_DTPSV] = run_dtpsv,
+    [FB_OP_CTPSV] = run_ctpsv,
+    [FB_OP_ZTPSV] = run_ztpsv,
+    [FB_OP_SSPR] = run_sspr,
+    [FB_OP_DSPR] = run_dspr,
+    [FB_OP_CHPR] = run_chpr,
+    [FB_OP_ZHPR] = run_zhpr,
+    [FB_OP_SSPR2] = run_sspr2,
+    [FB_OP_DSPR2] = run_dspr2,
+    [FB_OP_CHPR2] = run_chpr2,
+    [FB_OP_ZHPR2] = run_zhpr2,
+    /* BLAS Level 3 */
+    [FB_OP_SGEMM] = run_sgemm,
+    [FB_OP_DGEMM] = run_dgemm,
+    [FB_OP_CGEMM] = run_cgemm,
+    [FB_OP_ZGEMM] = run_zgemm,
+    [FB_OP_SSYMM] = run_ssymm,
+    [FB_OP_DSYMM] = run_dsymm,
+    [FB_OP_CSYMM] = run_csymm,
+    [FB_OP_ZSYMM] = run_zsymm,
+    [FB_OP_CHEMM] = run_chemm,
+    [FB_OP_ZHEMM] = run_zhemm,
+    [FB_OP_SSYRK] = run_ssyrk,
+    [FB_OP_DSYRK] = run_dsyrk,
+    [FB_OP_CSYRK] = run_csyrk,
+    [FB_OP_ZSYRK] = run_zsyrk,
+    [FB_OP_CHERK] = run_cherk,
+    [FB_OP_ZHERK] = run_zherk,
+    [FB_OP_SSYR2K] = run_ssyr2k,
+    [FB_OP_DSYR2K] = run_dsyr2k,
+    [FB_OP_CSYR2K] = run_csyr2k,
+    [FB_OP_ZSYR2K] = run_zsyr2k,
+    [FB_OP_CHER2K] = run_cher2k,
+    [FB_OP_ZHER2K] = run_zher2k,
+    [FB_OP_STRMM] = run_strmm,
+    [FB_OP_DTRMM] = run_dtrmm,
+    [FB_OP_CTRMM] = run_ctrmm,
+    [FB_OP_ZTRMM] = run_ztrmm,
+    [FB_OP_STRSM] = run_strsm,
+    [FB_OP_DTRSM] = run_dtrsm,
+    [FB_OP_CTRSM] = run_ctrsm,
+    [FB_OP_ZTRSM] = run_ztrsm,
 };
 
 /* =========================================================================
@@ -5407,7 +5404,7 @@ fb_judge_status_t fb_judge_run_direct_case(
     /* Zero the result before dispatch so partial-fill is safe. */
     *result_out = (fb_judge_case_result_t){ 0 };
 
-    if (op_id >= FB_DIRECT_DISPATCH_SIZE || fb_direct_dispatch[op_id] == NULL)
+    if (op_id >= FB_JUDGE_MAX_OPERATIONS || fb_direct_dispatch[op_id] == NULL)
         return FB_JUDGE_ERR_NOT_IMPL;
 
     return fb_direct_dispatch[op_id](
