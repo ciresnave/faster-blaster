@@ -7,20 +7,23 @@
     },
     "configurePresets": [
         {
-            "name": "vcpkg",
-            "displayName": "vcpkg Configuration",
-            "description": "Configure with vcpkg toolchain for automatic dependency discovery",
-            "generator": "Visual Studio 16 2019",
+            "name": "clang",
+            "displayName": "Clang/Ninja (Windows)",
+            "description": "Clang compiler with Ninja generator. Requires LLVM in PATH.",
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "C:/libraries/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_TARGET_TRIPLET": "x64-windows"
+                "VCPKG_TARGET_TRIPLET": "x64-windows-clang"
             }
         },
         {
-            "name": "vcpkg-release",
-            "inherits": "vcpkg",
-            "displayName": "vcpkg Release",
+            "name": "clang-release",
+            "inherits": "clang",
+            "displayName": "Clang/Ninja Release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
@@ -29,8 +32,7 @@
     "buildPresets": [
         {
             "name": "release",
-            "configurePreset": "vcpkg-release",
-            "configuration": "Release"
+            "configurePreset": "clang-release"
         }
     ]
 }

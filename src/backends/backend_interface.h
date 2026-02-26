@@ -19,19 +19,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* MSVC-compatible complex number types */
-#ifdef _MSC_VER
-typedef struct {
-  float real, imag;
-} fb_complex_float_t;
-typedef struct {
-  double real, imag;
-} fb_complex_double_t;
-#else
-#include <complex.h>
-typedef float complex fb_complex_float_t;
-typedef double complex fb_complex_double_t;
-#endif
+/* Complex scalar types and status codes — canonical definitions */
+#include <faster-blaster/fb_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,14 +82,7 @@ typedef enum {
  * Unified Operation Types (for advanced features)
  * ========================================================================= */
 
-typedef enum {
-  FB_STATUS_SUCCESS = 0,
-  FB_STATUS_ERROR = -1,
-  FB_STATUS_NOT_SUPPORTED = -2,
-  FB_STATUS_INVALID_ARGUMENT = -3,
-  FB_STATUS_OUT_OF_MEMORY = -4,
-  FB_STATUS_OVERFLOW = -5
-} fb_status_t;
+/* fb_status_t is defined in fb_types.h (included above) */
 
 typedef enum {
   FB_PREC_FP32, /* Single precision float */
@@ -1366,7 +1348,7 @@ typedef int64_t (*fb_zgelsy_fn)(const fb_layout_t layout, const int64_t m,
  * Backend Virtual Table - All 212 Operations
  * ========================================================================= */
 
-typedef struct {
+typedef struct fb_backend_vtable {
   /* Backend metadata */
   fb_backend_info_t info;
 

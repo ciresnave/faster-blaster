@@ -24,23 +24,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Forward declarations - full definitions in backend_interface.h */
-typedef struct fb_backend_vtable fb_backend_vtable_t;
-typedef struct {
-  float real, imag;
-} fb_complex_float_t;
-typedef struct {
-  double real, imag;
-} fb_complex_double_t;
+/* Canonical complex types and fb_status_t */
+#include "fb_types.h"
 
-typedef enum {
-  FB_STATUS_SUCCESS = 0,
-  FB_STATUS_ERROR = -1,
-  FB_STATUS_NOT_SUPPORTED = -2,
-  FB_STATUS_INVALID_ARGUMENT = -3,
-  FB_STATUS_OUT_OF_MEMORY = -4,
-  FB_STATUS_OVERFLOW = -5
-} fb_status_t;
+/* Opaque vtable handle — full struct defined in backend_interface.h */
+typedef struct fb_backend_vtable fb_backend_vtable_t;
 
 #ifdef __cplusplus
 extern "C" {
