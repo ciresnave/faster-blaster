@@ -2,6 +2,7 @@
 #define FASTER_BLASTER_DISPATCH_TABLES_H
 
 #include "benchmark_types.h"
+#include "../src/judge/judge_op_ids.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -22,7 +23,9 @@ extern "C" {
  * - Operation availability (some backends may crash, timeout, or be disabled)
  */
 
-#define FB_MAX_OPERATIONS 1248
+/* FB_MAX_OPERATIONS mirrors FB_JUDGE_MAX_OPERATIONS from judge_op_ids.h so
+ * both subsystems always agree on the total operation count. */
+#define FB_MAX_OPERATIONS FB_JUDGE_MAX_OPERATIONS
 #define FB_TOP_N_RANKED 5   // Keep top 5 candidates per optimization criterion
 
 /**

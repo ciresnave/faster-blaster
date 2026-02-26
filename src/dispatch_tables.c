@@ -156,7 +156,7 @@ const fb_ranked_operation_t* fb_select_operation(
     int size_class,
     int shape_class) {
     
-    if (!tables || op_id < 0 || op_id >= 1248) {
+    if (!tables || op_id < 0 || op_id >= FB_MAX_OPERATIONS) {
         return NULL;
     }
     
@@ -187,7 +187,7 @@ int fb_dispatch_tables_load(const char *cache_path, fb_dispatch_tables_t *tables
     
     // PLACEHOLDER: Implement binary format loading
     // Format: Magic + version + tables data
-    // Size: ~5MB (1248 ops × 5 criteria × 5 entries × sizeof(entry))
+    // Size: ~12MB (FB_MAX_OPERATIONS ops × 5 criteria × 5 entries × sizeof(entry))
     
     memset(tables, 0, sizeof(fb_dispatch_tables_t));
     return 0;  // TODO: Actual implementation
