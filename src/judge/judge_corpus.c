@@ -343,9 +343,9 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
     fb_corpus_dims_for_size_class(size_class, &m, &n, &k);
 
     /* Level-1 ops use vectors only */
-    if (op_id < 48u)               { n = 0; k = 0; }
+    if (op_id < FB_OP__BLAS_L2_BEGIN)               { n = 0; k = 0; }
     /* Level-2 ops use matrix-vector */
-    else if (op_id < 130u)         { k = 0; }
+    else if (op_id < FB_OP__BLAS_L3_BEGIN)           { k = 0; }
 
     int out_idx = 0;
 
