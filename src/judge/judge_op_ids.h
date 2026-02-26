@@ -229,22 +229,40 @@
 #define FB_OP_ZGETRF 253
 #define FB_OP_SGETRS 254
 #define FB_OP_DGETRS 255
+#define FB_OP_CGETRS 256
+#define FB_OP_ZGETRS 257
+/* 258-259 reserved */
 #define FB_OP_SPOTRF 260
 #define FB_OP_DPOTRF 261
+#define FB_OP_CPOTRF 262
+#define FB_OP_ZPOTRF 263
 #define FB_OP_SPOTRS 264
 #define FB_OP_DPOTRS 265
+#define FB_OP_CPOTRS 266
+#define FB_OP_ZPOTRS 267
+/* 268-269 reserved */
 #define FB_OP_SGEQRF 270
 #define FB_OP_DGEQRF 271
+#define FB_OP_CGEQRF 272
+#define FB_OP_ZGEQRF 273
+/* 274-279 reserved */
 #define FB_OP_SGESV  280
 #define FB_OP_DGESV  281
 #define FB_OP_SPOSV  282
 #define FB_OP_DPOSV  283
 #define FB_OP_SGELS  284
 #define FB_OP_DGELS  285
+#define FB_OP_CGESV  286
+#define FB_OP_ZGESV  287
+#define FB_OP_CPOSV  288
+#define FB_OP_ZPOSV  289
 #define FB_OP_SSYEV  290
 #define FB_OP_DSYEV  291
 #define FB_OP_CHEEV  292
 #define FB_OP_ZHEEV  293
+#define FB_OP_CGELS  294
+#define FB_OP_ZGELS  295
+/* 296-299 reserved */
 #define FB_OP_SGESVD 300
 #define FB_OP_DGESVD 301
 #define FB_OP_CGESVD 302
