@@ -31,14 +31,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Platform-specific headers for directory creation. */
+/* Platform-specific headers for directory creation and scanning. */
 #ifdef _WIN32
 #  include <direct.h>   /* _mkdir */
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>  /* FindFirstFile, FindNextFile */
 #  define FB_MKDIR(path)  _mkdir(path)
 #else
 #  include <sys/stat.h>
+#  include <dirent.h>   /* opendir, readdir, closedir */
 #  define FB_MKDIR(path)  mkdir((path), 0755)
 #endif
+
+#include "judge_types.h"     /* fb_op_judge_table, FB_JUDGE_MAX_OPERATIONS */
 
 /* =========================================================================
  * Constants
@@ -316,3 +321,122 @@ bool fb_judge_store_profiles_are_current(
  * NOTE: fb_judge_profiles_are_current() and fb_judge_invalidate() are
  * implemented in judge.c (the module singleton) which holds the profile_dir.
  * ========================================================================= */
+
+/* =========================================================================
+ * fb_judge_store_list_profiled_ops
+ * ========================================================================= */
+
+/** Reverse-lookup op_id from op_name by scanning the metadata table. */
+static uint32_t meta_id_from_name(const char *op_name)
+{
+    for (uint32_t id = 0; id < FB_JUDGE_MAX_OPERATIONS; id++) {
+        const fb_op_judge_meta_t *m = &fb_op_judge_table[id];
+        if (m->name && strcmp(m->name, op_name) == 0)
+            return id;
+    }
+    return UINT32_MAX;  /* not found */
+}
+
+uint32_t fb_judge_store_list_profiled_ops(
+    const char *profile_dir,
+    uint32_t    backend_id,
+    uint32_t    device_id,
+    uint32_t   *op_ids_out,
+    uint32_t    max_ops)
+{
+    if (!profile_dir) return 0;
+
+    char subdir[FB_STORE_MAX_PATH];
+    build_subdir_path(profile_dir, subdir, sizeof(subdir));
+
+    /* Build the backend/device infix we filter on. */
+    char filter[64];
+    snprintf(filter, sizeof(filter), "_be%u_dev%u_", backend_id, device_id);
+
+    uint32_t count = 0;
+
+#ifdef _WIN32
+    char pattern[FB_STORE_MAX_PATH];
+    snprintf(pattern, sizeof(pattern), "%s\\*.fbjp", subdir);
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+        if (!strstr(fd.cFileName, filter)) continue;
+
+        char full[FB_STORE_MAX_PATH];
+        snprintf(full, sizeof(full), "%s\\%s", subdir, fd.cFileName);
+        FILE *f = fopen(full, "rb");
+        if (!f) continue;
+
+        fb_store_header_t hdr;
+        size_t nr = fread(&hdr, sizeof(hdr), 1, f);
+        fclose(f);
+        if (nr != 1 || hdr.magic != FB_STORE_MAGIC) continue;
+        if (hdr.backend_id != backend_id || hdr.device_id != device_id) continue;
+
+        hdr.op_name[sizeof(hdr.op_name) - 1] = '\0';
+        uint32_t id = meta_id_from_name(hdr.op_name);
+        if (id == UINT32_MAX) continue;
+
+        /* Deduplicate: each op can have multiple profiles (size_class, dtype). */
+        bool already = false;
+        if (op_ids_out) {
+            for (uint32_t i = 0; i < count && i < max_ops; i++) {
+                if (op_ids_out[i] == id) { already = true; break; }
+            }
+        }
+        if (!already) {
+            if (op_ids_out && count < max_ops)
+                op_ids_out[count] = id;
+            count++;
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+
+#else /* POSIX */
+    DIR *d = opendir(subdir);
+    if (!d) return 0;
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        const char *name = ent->d_name;
+        size_t nlen = strlen(name);
+        if (nlen < 5 || strcmp(name + nlen - 5, ".fbjp") != 0) continue;
+        if (!strstr(name, filter)) continue;
+
+        char full[FB_STORE_MAX_PATH];
+        snprintf(full, sizeof(full), "%s/%s", subdir, name);
+        FILE *f = fopen(full, "rb");
+        if (!f) continue;
+
+        fb_store_header_t hdr;
+        size_t nr = fread(&hdr, sizeof(hdr), 1, f);
+        fclose(f);
+        if (nr != 1 || hdr.magic != FB_STORE_MAGIC) continue;
+        if (hdr.backend_id != backend_id || hdr.device_id != device_id) continue;
+
+        hdr.op_name[sizeof(hdr.op_name) - 1] = '\0';
+        uint32_t id = meta_id_from_name(hdr.op_name);
+        if (id == UINT32_MAX) continue;
+
+        bool already = false;
+        if (op_ids_out) {
+            for (uint32_t i = 0; i < count && i < max_ops; i++) {
+                if (op_ids_out[i] == id) { already = true; break; }
+            }
+        }
+        if (!already) {
+            if (op_ids_out && count < max_ops)
+                op_ids_out[count] = id;
+            count++;
+        }
+    }
+    closedir(d);
+#endif /* _WIN32 */
+
+    return count;
+}

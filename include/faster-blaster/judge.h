@@ -21,6 +21,10 @@
 #include <stdbool.h>
 #include "../benchmark_types.h"  /* fb_size_class_t */
 
+/* For backend selection API (fb_judge_select_best_backend, FB_SELECT_* presets,
+ * fb_judge_build_dispatch_table), include "judge_select.h" which builds on
+ * this header.  They are kept separate to avoid circular inclusion. */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

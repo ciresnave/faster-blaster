@@ -1938,6 +1938,255 @@ static fb_judge_status_t run_drot(
     return FB_JUDGE_OK;
 }
 
+/* ---- CROT: complex float Givens rotation (real c, complex s) ----------- */
+static fb_judge_status_t run_crot(const fb_backend_vtable_t *oracle,
+                                  const fb_backend_vtable_t *cand,
+                                  const fb_corpus_case_t *tc,
+                                  fb_judge_case_result_t *res,
+                                  uint64_t *ns_out) {
+  if (!oracle->crot || !cand->crot)
+    return FB_JUDGE_ERR_NOT_IMPL;
+  int64_t n = (int64_t)tc->n;
+  float c = (float)tc->alpha;
+  fb_complex_float_t s;
+  s.real = (float)tc->beta;
+  s.imag = 0.0f;
+  const fb_complex_float_t *x_in = (const fb_complex_float_t *)tc->A;
+  const fb_complex_float_t *y_in = (const fb_complex_float_t *)tc->B;
+
+  fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_float_t));
+  fb_complex_float_t *yo = (fb_complex_float_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_float_t));
+  if (!xo || !yo) {
+    free(xo);
+    free(yo);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  oracle->crot(n, xo, 1, yo, 1, c, s);
+  if (fb_judge_has_nan_inf(yo, (size_t)n, FB_DTYPE_CF32)) {
+    free(xo);
+    free(yo);
+    result_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+  fb_complex_float_t *xc = (fb_complex_float_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_float_t));
+  fb_complex_float_t *yc = (fb_complex_float_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_float_t));
+  if (!xc || !yc) {
+    free(xo);
+    free(yo);
+    free(xc);
+    free(yc);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  cand->crot(n, xc, 1, yc, 1, c, s);
+  double scale = fb_norm_frob_cf32((const float *)yo, (size_t)n);
+  double ey = fb_judge_relerr(yc, yo, (size_t)n, FB_DTYPE_CF32, scale);
+  double ex = fb_judge_relerr(xc, xo, (size_t)n, FB_DTYPE_CF32,
+                              fb_norm_frob_cf32((const float *)xo, (size_t)n));
+  result_from_relerr(res, (ey > ex) ? ey : ex);
+  if (fb_judge_has_nan_inf(yc, (size_t)n, FB_DTYPE_CF32) ||
+      fb_judge_has_nan_inf(xc, (size_t)n, FB_DTYPE_CF32))
+    res->is_fatal = true;
+  free(xc);
+  free(yc);
+  if (ns_out) {
+    fb_complex_float_t *xt = (fb_complex_float_t *)clone_buf(
+        x_in, (size_t)n, sizeof(fb_complex_float_t));
+    fb_complex_float_t *yt = (fb_complex_float_t *)clone_buf(
+        y_in, (size_t)n, sizeof(fb_complex_float_t));
+    if (xt && yt) {
+      for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+        cand->crot(n, xt, 1, yt, 1, c, s);
+      uint64_t best = UINT64_MAX;
+      for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+        uint64_t t0 = fb_judge_time_ns();
+        cand->crot(n, xt, 1, yt, 1, c, s);
+        uint64_t dt = fb_judge_time_ns() - t0;
+        if (dt < best)
+          best = dt;
+      }
+      *ns_out = best;
+    } else {
+      *ns_out = 0;
+    }
+    free(xt);
+    free(yt);
+  }
+  free(xo);
+  free(yo);
+  return FB_JUDGE_OK;
+}
+
+/* ---- ZROT: complex double Givens rotation (real c, complex double s) --- */
+static fb_judge_status_t run_zrot(const fb_backend_vtable_t *oracle,
+                                  const fb_backend_vtable_t *cand,
+                                  const fb_corpus_case_t *tc,
+                                  fb_judge_case_result_t *res,
+                                  uint64_t *ns_out) {
+  if (!oracle->zrot || !cand->zrot)
+    return FB_JUDGE_ERR_NOT_IMPL;
+  int64_t n = (int64_t)tc->n;
+  double c = tc->alpha;
+  fb_complex_double_t s;
+  s.real = tc->beta;
+  s.imag = 0.0;
+  const fb_complex_double_t *x_in = (const fb_complex_double_t *)tc->A;
+  const fb_complex_double_t *y_in = (const fb_complex_double_t *)tc->B;
+
+  fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_double_t));
+  fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_double_t));
+  if (!xo || !yo) {
+    free(xo);
+    free(yo);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  oracle->zrot(n, xo, 1, yo, 1, c, s);
+  if (fb_judge_has_nan_inf(yo, (size_t)n, FB_DTYPE_CF64)) {
+    free(xo);
+    free(yo);
+    result_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+  fb_complex_double_t *xc = (fb_complex_double_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_double_t));
+  fb_complex_double_t *yc = (fb_complex_double_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_double_t));
+  if (!xc || !yc) {
+    free(xo);
+    free(yo);
+    free(xc);
+    free(yc);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  cand->zrot(n, xc, 1, yc, 1, c, s);
+  double scale = fb_norm_frob_cf64((const double *)yo, (size_t)n);
+  double ey = fb_judge_relerr(yc, yo, (size_t)n, FB_DTYPE_CF64, scale);
+  double ex = fb_judge_relerr(xc, xo, (size_t)n, FB_DTYPE_CF64,
+                              fb_norm_frob_cf64((const double *)xo, (size_t)n));
+  result_from_relerr(res, (ey > ex) ? ey : ex);
+  if (fb_judge_has_nan_inf(yc, (size_t)n, FB_DTYPE_CF64) ||
+      fb_judge_has_nan_inf(xc, (size_t)n, FB_DTYPE_CF64))
+    res->is_fatal = true;
+  free(xc);
+  free(yc);
+  if (ns_out) {
+    fb_complex_double_t *xt = (fb_complex_double_t *)clone_buf(
+        x_in, (size_t)n, sizeof(fb_complex_double_t));
+    fb_complex_double_t *yt = (fb_complex_double_t *)clone_buf(
+        y_in, (size_t)n, sizeof(fb_complex_double_t));
+    if (xt && yt) {
+      for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+        cand->zrot(n, xt, 1, yt, 1, c, s);
+      uint64_t best = UINT64_MAX;
+      for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+        uint64_t t0 = fb_judge_time_ns();
+        cand->zrot(n, xt, 1, yt, 1, c, s);
+        uint64_t dt = fb_judge_time_ns() - t0;
+        if (dt < best)
+          best = dt;
+      }
+      *ns_out = best;
+    } else {
+      *ns_out = 0;
+    }
+    free(xt);
+    free(yt);
+  }
+  free(xo);
+  free(yo);
+  return FB_JUDGE_OK;
+}
+
+/* ---- ZDROT: complex double vectors, real double Givens rotation --------- */
+static fb_judge_status_t run_zdrot(const fb_backend_vtable_t *oracle,
+                                   const fb_backend_vtable_t *cand,
+                                   const fb_corpus_case_t *tc,
+                                   fb_judge_case_result_t *res,
+                                   uint64_t *ns_out) {
+  if (!oracle->zdrot || !cand->zdrot)
+    return FB_JUDGE_ERR_NOT_IMPL;
+  int64_t n = (int64_t)tc->n;
+  double c = tc->alpha, s = tc->beta;
+  const fb_complex_double_t *x_in = (const fb_complex_double_t *)tc->A;
+  const fb_complex_double_t *y_in = (const fb_complex_double_t *)tc->B;
+
+  fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_double_t));
+  fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_double_t));
+  if (!xo || !yo) {
+    free(xo);
+    free(yo);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  oracle->zdrot(n, xo, 1, yo, 1, c, s);
+  if (fb_judge_has_nan_inf(yo, (size_t)n, FB_DTYPE_CF64)) {
+    free(xo);
+    free(yo);
+    result_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+  fb_complex_double_t *xc = (fb_complex_double_t *)clone_buf(
+      x_in, (size_t)n, sizeof(fb_complex_double_t));
+  fb_complex_double_t *yc = (fb_complex_double_t *)clone_buf(
+      y_in, (size_t)n, sizeof(fb_complex_double_t));
+  if (!xc || !yc) {
+    free(xo);
+    free(yo);
+    free(xc);
+    free(yc);
+    result_fatal(res);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  cand->zdrot(n, xc, 1, yc, 1, c, s);
+  double scale = fb_norm_frob_cf64((const double *)yo, (size_t)n);
+  double ey = fb_judge_relerr(yc, yo, (size_t)n, FB_DTYPE_CF64, scale);
+  double ex = fb_judge_relerr(xc, xo, (size_t)n, FB_DTYPE_CF64,
+                              fb_norm_frob_cf64((const double *)xo, (size_t)n));
+  result_from_relerr(res, (ey > ex) ? ey : ex);
+  if (fb_judge_has_nan_inf(yc, (size_t)n, FB_DTYPE_CF64) ||
+      fb_judge_has_nan_inf(xc, (size_t)n, FB_DTYPE_CF64))
+    res->is_fatal = true;
+  free(xc);
+  free(yc);
+  if (ns_out) {
+    fb_complex_double_t *xt = (fb_complex_double_t *)clone_buf(
+        x_in, (size_t)n, sizeof(fb_complex_double_t));
+    fb_complex_double_t *yt = (fb_complex_double_t *)clone_buf(
+        y_in, (size_t)n, sizeof(fb_complex_double_t));
+    if (xt && yt) {
+      for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+        cand->zdrot(n, xt, 1, yt, 1, c, s);
+      uint64_t best = UINT64_MAX;
+      for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+        uint64_t t0 = fb_judge_time_ns();
+        cand->zdrot(n, xt, 1, yt, 1, c, s);
+        uint64_t dt = fb_judge_time_ns() - t0;
+        if (dt < best)
+          best = dt;
+      }
+      *ns_out = best;
+    } else {
+      *ns_out = 0;
+    }
+    free(xt);
+    free(yt);
+  }
+  free(xo);
+  free(yo);
+  return FB_JUDGE_OK;
+}
+
 /* ---- SROTG / DROTG ----------------------------------------------------- */
 static fb_judge_status_t run_srotg(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
@@ -5281,9 +5530,9 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_IZAMAX] = run_izamax,
     [FB_OP_SROT] = run_srot,
     [FB_OP_DROT] = run_drot,
-    [FB_OP_CROT] = NULL,  /* not yet implemented */
-    [FB_OP_ZROT] = NULL,  /* not yet implemented */
-    [FB_OP_ZDROT] = NULL,  /* not yet implemented */
+    [FB_OP_CROT] = run_crot,
+    [FB_OP_ZROT] = run_zrot,
+    [FB_OP_ZDROT] = run_zdrot,
     [FB_OP_SROTG] = run_srotg,
     [FB_OP_DROTG] = run_drotg,
     [FB_OP_SROTM] = run_srotm,

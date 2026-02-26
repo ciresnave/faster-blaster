@@ -78,6 +78,29 @@ bool fb_judge_store_profiles_are_current(
     uint32_t    device_id
 );
 
+/**
+ * Enumerate all operation IDs that have at least one profile stored on disk
+ * for the given (backend_id, device_id) pair.  Scans the profiles subdirectory
+ * for .fbjp files and reverse-maps their op_name to an op_id via the metadata
+ * table.
+ *
+ * @param profile_dir  Root directory passed to fb_judge_store_save().
+ * @param backend_id   Backend filter.
+ * @param device_id    Device filter.
+ * @param op_ids_out   Caller-owned buffer to receive op IDs.  May be NULL to
+ *                     count only (useful for a two-pass allocation pattern).
+ * @param max_ops      Capacity of op_ids_out in elements (ignored when NULL).
+ * @return             Number of distinct profiled ops found.  When greater than
+ *                     max_ops, only the first max_ops entries are written.
+ */
+uint32_t fb_judge_store_list_profiled_ops(
+    const char *profile_dir,
+    uint32_t    backend_id,
+    uint32_t    device_id,
+    uint32_t   *op_ids_out,
+    uint32_t    max_ops
+);
+
 #ifdef __cplusplus
 }
 #endif

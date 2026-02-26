@@ -47,17 +47,18 @@
  * ========================================================================= */
 
 const fb_select_criteria_t FB_SELECT_MAX_PRECISION = {
-    .objective          = FB_SELECT_MAXIMIZE_PRECISION,
-    .min_digits         = 0,
-    .min_pass_rate      = 0.0f,
-    .required_metrics   = (uint32_t)(FB_JUDGE_LIMIT_DIRECT |
-                                     FB_JUDGE_LIMIT_VALUES  |
-                                     FB_JUDGE_LIMIT_RECONSTRUCTION),
-    .max_latency_ns     = 0,
-    .latency_size_class = 0,    /* unused */
-    .precision_weight   = 0.0f,
-    .speed_weight       = 0.0f,
-    .allow_degraded     = true,
+    .objective = FB_SELECT_MAXIMIZE_PRECISION,
+    .min_digits = 0,
+    .min_pass_rate = 0.0f,
+    .required_metrics =
+        (uint32_t)(FB_JUDGE_LIMIT_DIRECT | FB_JUDGE_LIMIT_VALUES |
+                   FB_JUDGE_LIMIT_RECONSTRUCTION),
+    .max_latency_ns = 0,
+    .latency_size_class =
+        FB_SIZE_MEDIUM, /* use medium-matrix timing for tie-breaks */
+    .precision_weight = 0.0f,
+    .speed_weight = 0.0f,
+    .allow_degraded = true,
 };
 
 const fb_select_criteria_t FB_SELECT_MAX_SPEED = {

@@ -222,6 +222,9 @@ typedef void (*fb_zrot_fn)(const int64_t n, fb_complex_double_t *x,
                            const int64_t incx, fb_complex_double_t *y,
                            const int64_t incy, const double c,
                            const fb_complex_double_t s);
+typedef void (*fb_zdrot_fn)(const int64_t n, fb_complex_double_t *x,
+                            const int64_t incx, fb_complex_double_t *y,
+                            const int64_t incy, const double c, const double s);
 
 /* ROTM - Apply modified plane rotation */
 typedef void (*fb_srotm_fn)(const int64_t n, float *x, const int64_t incx,
@@ -1382,6 +1385,7 @@ typedef struct {
   fb_drot_fn drot;
   fb_crot_fn crot;
   fb_zrot_fn zrot;
+  fb_zdrot_fn zdrot;
   fb_srotm_fn srotm;
   fb_drotm_fn drotm;
 

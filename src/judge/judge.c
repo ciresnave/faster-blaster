@@ -443,10 +443,10 @@ fb_judge_status_t fb_judge_run(
             fb_judge_meta_oracle_ceiling(op_id, (fb_dtype_t)dtype);
 
     } else {
-        /* Other archetypes (FACTORIZATION, SOLVE, SPECTRAL) stub for Phase 2. */
-        for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++)
-            fb_corpus_case_free(&cases[ci]);
-        return FB_JUDGE_ERR_NOT_IMPL;
+      /* Unknown archetype value — not implemented. */
+      for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++)
+        fb_corpus_case_free(&cases[ci]);
+      return FB_JUDGE_ERR_NOT_IMPL;
     }
 
     /* Save profile. */
