@@ -35,6 +35,9 @@
 #include "compute_manager.h"
 #include "backend_instance.h"
 #include "backends/backend_interface.h"
+#include "backend_ids.h"   /* FB_BACKEND_ID_* and FB_BACKEND_ID_NONE */
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -149,6 +152,37 @@ void fb_print_status(void);
  * @param enable true to enable verbose output
  */
 void fb_set_verbose(bool enable);
+
+/* =========================================================================
+ * Judge Dispatch Accessors
+ * ========================================================================= */
+
+/**
+ * Override the profile directory used by the judge dispatch system.
+ * Must be called BEFORE fb_init().  Has no effect after initialization.
+ *
+ * Default: "judge_profiles" (relative to the working directory).
+ */
+void fb_judge_set_profile_dir(const char *dir);
+
+/**
+ * Return true if a judge-driven dispatch table was successfully loaded
+ * from stored profiles during fb_init().  When false, the system falls
+ * back to probe-score (hardware-affinity) backend selection.
+ */
+bool fb_judge_dispatch_is_loaded(void);
+
+/**
+ * Return the judge-selected backend ID for a single operation.
+ *
+ * @param op_id  Operation identifier (FB_OP_* from judge_op_ids.h).
+ * @return       Winning backend ID, or FB_BACKEND_ID_NONE if the dispatch
+ *               table is not loaded or op_id is out of range.
+ *
+ * Use FB_BACKEND_ID_NONE as the sentinel — the caller should fall back to
+ * fb_get_backend_for_operation() when this returns FB_BACKEND_ID_NONE.
+ */
+uint32_t fb_judge_get_routed_backend_id(uint32_t op_id);
 
 #ifdef __cplusplus
 }

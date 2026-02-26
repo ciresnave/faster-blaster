@@ -11,9 +11,12 @@
 #include "faster-blaster/backend_plugin.h"
 #include "faster-blaster/device_registry.h"
 #include "faster-blaster/compute_manager.h"
+#include "faster-blaster/judge_select.h"  /* fb_judge_build_dispatch_table, FB_SELECT_BALANCED */
+#include "faster-blaster/backend_ids.h"   /* FB_BACKEND_ID_* stable constants */
 #include "device_detection/cpu_detect.h"
 #include "device_detection/gpu_detect.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 
 /* Global state */
@@ -21,9 +24,43 @@ static bool g_initialized = false;
 static bool g_verbose = false;
 static fb_compute_device_t* g_pinned_device = NULL;  /* Manual device selection */
 
+/* Judge-driven dispatch table — populated from stored profiles at startup.
+ * g_judge_profile_dir may be overridden via fb_judge_set_profile_dir()
+ * before calling fb_init(). */
+static uint32_t g_judge_dispatch[FB_JUDGE_MAX_OPERATIONS];
+static bool     g_judge_dispatch_loaded = false;
+static char     g_judge_profile_dir[512] = "judge_profiles";
+
 /* External plugin registration functions */
 extern void fb_register_all_plugins(void);
 extern const fb_backend_vtable_t* fb_reference_get_vtable(void);
+
+/**
+ * Map a plugin metadata name to its stable FB_BACKEND_ID_* constant.
+ * Unknown names get a djb2 hash shifted above the reserved range so that
+ * stored profiles don't collide with known backends.
+ */
+static uint32_t backend_name_to_id(const char *name)
+{
+    if (!name) return FB_BACKEND_ID_NONE;
+    if (strcmp(name, "aocl-blis")  == 0) return FB_BACKEND_ID_AOCL_BLIS;
+    if (strcmp(name, "blis")       == 0) return FB_BACKEND_ID_BLIS;
+    if (strcmp(name, "openblas")   == 0) return FB_BACKEND_ID_OPENBLAS;
+    if (strcmp(name, "mkl")        == 0) return FB_BACKEND_ID_MKL;
+    if (strcmp(name, "accelerate") == 0) return FB_BACKEND_ID_ACCELERATE;
+    if (strcmp(name, "cublas")     == 0) return FB_BACKEND_ID_CUBLAS;
+    if (strcmp(name, "rocblas")    == 0) return FB_BACKEND_ID_ROCBLAS;
+    if (strcmp(name, "onemkl")     == 0) return FB_BACKEND_ID_ONEMKL;
+    if (strcmp(name, "metal")      == 0) return FB_BACKEND_ID_METAL;
+    if (strcmp(name, "clblast")    == 0) return FB_BACKEND_ID_CLBLAST;
+    if (strcmp(name, "clblas")     == 0) return FB_BACKEND_ID_CLBLAS;
+    if (strcmp(name, "reference")  == 0) return FB_BACKEND_ID_REFERENCE;
+    /* Unknown plugin — produce a stable hash in the range [0x80000000, 0xFFFFFFFE]. */
+    uint32_t h = 5381u;
+    for (const char *p = name; *p; p++)
+        h = h * 33u ^ (uint32_t)(unsigned char)*p;
+    return (h & 0x0FFFFFFFu) | 0x80000000u;
+}
 
 /* ============================================================================
  * Initialization
@@ -70,10 +107,60 @@ int fb_init(void) {
     /* Step 5: Print detected devices */
     printf("[5/5] System ready!\n\n");
     fb_print_devices();
-    
+
+    /* Step 6: Build judge-driven per-operation dispatch table from stored
+     * profiles.  Best-effort: failure does not block initialization.  On
+     * first run (no profiles) probe-score selection remains in effect. */
+    {
+        fb_judge_init(g_judge_profile_dir);
+
+        /* Collect IDs for all currently registered plugins. */
+        uint32_t backend_ids[32];
+        uint32_t n_backends = 0;
+        const fb_plugin_registry_entry_t *pe = fb_get_registered_plugins();
+        while (pe && n_backends < 31u) {
+            if (pe->plugin && pe->plugin->metadata && pe->plugin->metadata->name)
+                backend_ids[n_backends++] =
+                    backend_name_to_id(pe->plugin->metadata->name);
+            pe = pe->next;
+        }
+        /* Always include the reference backend as the guaranteed fallback. */
+        backend_ids[n_backends++] = FB_BACKEND_ID_REFERENCE;
+
+        if (g_verbose)
+            printf("[Judge] Building dispatch table from '%s' (%u backends)...\n",
+                   g_judge_profile_dir, n_backends);
+
+        /* FB_DTYPE_F32 = 0 (see src/judge/judge_types.h). */
+        fb_select_status_t jst = fb_judge_build_dispatch_table(
+            g_judge_profile_dir,
+            /*device_id=*/0,
+            /*primary_dtype=*/(uint8_t)0,  /* FB_DTYPE_F32 */
+            &FB_SELECT_BALANCED,
+            /*overrides=*/NULL, /*n_overrides=*/0u,
+            backend_ids, n_backends,
+            /*fallback=*/FB_BACKEND_ID_REFERENCE,
+            g_judge_dispatch);
+
+        if (jst == FB_SELECT_OK || jst == FB_SELECT_WARN_DEGRADED) {
+            g_judge_dispatch_loaded = true;
+            if (g_verbose || jst == FB_SELECT_WARN_DEGRADED)
+                printf("[Judge] Dispatch table loaded%s.\n",
+                       jst == FB_SELECT_WARN_DEGRADED
+                           ? " (some ops fell back to reference)" : "");
+        } else if (jst == FB_SELECT_ERR_NO_PROFILES) {
+            if (g_verbose)
+                printf("[Judge] No profiles in '%s' — probe-score selection active.\n",
+                       g_judge_profile_dir);
+        } else {
+            fprintf(stderr, "[WARN] fb_judge_build_dispatch_table() returned %d — "
+                    "using probe-score selection.\n", (int)jst);
+        }
+    }
+
     g_initialized = true;
     printf("\n[SUCCESS] faster-blaster initialized successfully\n\n");
-    
+
     return 0;
 }
 
@@ -86,10 +173,13 @@ void fb_shutdown(void) {
         printf("\n[INFO] Shutting down faster-blaster...\n");
     }
     
+    fb_judge_shutdown();
+    g_judge_dispatch_loaded = false;
+
     fb_backend_instance_manager_shutdown();
     fb_compute_manager_shutdown();
     fb_registry_shutdown();
-    
+
     g_initialized = false;
     g_pinned_device = NULL;
     
@@ -291,8 +381,53 @@ void fb_print_status(void) {
         }
     }
     
+    /* Judge dispatch */
+    printf("\n--- Judge Dispatch Table ---\n");
+    if (g_judge_dispatch_loaded) {
+        printf("  Profile-driven dispatch: ACTIVE  (profile dir: %s)\n",
+               g_judge_profile_dir);
+    } else {
+        printf("  Profile-driven dispatch: NOT LOADED\n");
+        printf("  Profile dir: %s\n", g_judge_profile_dir);
+        printf("  (Run bench to generate profiles; dispatch uses probe-score selection.)\n");
+    }
+
     printf("\n");
     printf("=============================================================\n\n");
+}
+
+/* ============================================================================
+ * Judge Dispatch Accessors
+ * ========================================================================== */
+
+/**
+ * Override the profile directory before calling fb_init().
+ * Has no effect after initialization.
+ */
+void fb_judge_set_profile_dir(const char *dir)
+{
+    if (!dir || g_initialized) return;
+    snprintf(g_judge_profile_dir, sizeof(g_judge_profile_dir), "%s", dir);
+}
+
+/** Return true if a judge dispatch table was successfully loaded at startup. */
+bool fb_judge_dispatch_is_loaded(void)
+{
+    return g_judge_dispatch_loaded;
+}
+
+/**
+ * Return the judge-selected backend ID for a specific operation.
+ *
+ * Returns FB_BACKEND_ID_NONE when the dispatch table is not loaded or
+ * the op_id is out of range.  The caller falls back to probe-score
+ * selection in that case.
+ */
+uint32_t fb_judge_get_routed_backend_id(uint32_t op_id)
+{
+    if (!g_judge_dispatch_loaded || op_id >= (uint32_t)FB_JUDGE_MAX_OPERATIONS)
+        return FB_BACKEND_ID_NONE;
+    return g_judge_dispatch[op_id];
 }
 
 /* ============================================================================

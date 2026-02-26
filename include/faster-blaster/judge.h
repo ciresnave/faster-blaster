@@ -35,6 +35,14 @@ extern "C" {
 
 #define FB_JUDGE_MODULE_VERSION  1
 
+/**
+ * Maximum number of distinct operation IDs tracked by the judge.
+ * Must match FB_JUDGE_MAX_OPERATIONS in src/judge/judge_op_ids.h.
+ * The dispatch table allocated by fb_judge_build_dispatch_table() has this
+ * many uint32_t slots.
+ */
+#define FB_JUDGE_MAX_OPERATIONS  2400u
+
 /* =========================================================================
  * Accuracy curve
  * ========================================================================= */
