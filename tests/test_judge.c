@@ -22,7 +22,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <math.h>
 
 /* Judge public API */
 #include "../include/faster-blaster/judge.h"
@@ -49,19 +48,14 @@ static int g_fail = 0;
         }                                                                   \
     } while (0)
 
-/* Make a flat temporary directory path (process-unique). */
+/* Make a flat temporary directory path.  Uses only getenv() — no platform
+ * headers beyond <stdlib.h> are required. */
 static void make_temp_dir(char *out, size_t sz)
 {
-#ifdef _WIN32
-    char tmp[260];
-    DWORD n = GetTempPathA((DWORD)sizeof(tmp), tmp);
-    if (n == 0) { snprintf(out, sz, "test_judge_temp"); return; }
-    /* Remove trailing backslash. */
-    if (n > 0 && tmp[n-1] == '\\') tmp[n-1] = '\0';
-    snprintf(out, sz, "%s\\test_judge_%u", tmp, (unsigned)GetCurrentProcessId());
-#else
-    snprintf(out, sz, "/tmp/test_judge_%u", (unsigned)getpid());
-#endif
+    const char *base = getenv("TEMP");    /* Windows */
+    if (!base) base  = getenv("TMPDIR");  /* macOS / Linux */
+    if (!base) base  = "/tmp";            /* POSIX last resort */
+    snprintf(out, sz, "%s/test_judge_tmp", base);
 }
 
 /* Build a synthetic fb_precision_profile_t with specified op_name, backends,
@@ -139,8 +133,9 @@ static void test_corpus_reproducibility(void)
                 cases_a[i].k != cases_b[i].k) {
                 dims_match = false; break;
             }
-            if (fabs(cases_a[i].alpha - cases_b[i].alpha) > 1e-15 ||
-                fabs(cases_a[i].beta  - cases_b[i].beta)  > 1e-15) {
+            /* Corpus is deterministic — bit-identical scalars required. */
+            if (cases_a[i].alpha != cases_b[i].alpha ||
+                cases_a[i].beta  != cases_b[i].beta) {
                 scalars_match = false; break;
             }
             /* Compare raw contents of the A buffer. */
