@@ -260,6 +260,28 @@ add_test(NAME blas_level1_reference_expanded COMMAND test_blas_level1_reference_
 message(STATUS "Reference BLAS Level 1 expanded test enabled")
 
 # ============================================================================
+# Judge Module Tests (corpus, store, selection, dispatch)
+# ============================================================================
+add_executable(test_judge
+    test_judge.c
+)
+
+target_link_libraries(test_judge faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_judge POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_judge>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME judge_module COMMAND test_judge)
+
+message(STATUS "Judge module tests enabled")
+
+# ============================================================================
 # Backend Loader Integration Test
 # ============================================================================
 if(TRUE)
