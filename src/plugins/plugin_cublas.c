@@ -16,18 +16,6 @@
 extern "C" {
 #endif
 
-/* Forward declare CUDA types to avoid requiring CUDA headers when not available */
-#ifndef CUDA_SUCCESS
-#define CUDA_SUCCESS 0
-typedef int cudaError_t;
-typedef void* cudaDeviceProp_t;
-#endif
-
-/* External functions for cuBLAS smart wrappers */
-extern void cublas_populate_vtable(fb_backend_vtable_t* vtable);
-extern int fb_cublas_smart_init(int device_id, void* lib_handle);
-extern void fb_cublas_smart_shutdown(void);
-
 /* Try to include CUDA headers if available */
 #ifdef FB_ENABLE_CUDA
     #include <cuda_runtime.h>
@@ -35,6 +23,12 @@ extern void fb_cublas_smart_shutdown(void);
     #pragma message("FB_ENABLE_CUDA is defined - CUBLAS_AVAILABLE = 1")
 #else
     #define CUBLAS_AVAILABLE 0
+    /* Fallback type stubs when CUDA is not available */
+    #ifndef CUDA_SUCCESS
+    #define CUDA_SUCCESS 0
+    typedef int cudaError_t;
+    typedef void* cudaDeviceProp_t;
+    #endif
     #pragma message("FB_ENABLE_CUDA is NOT defined - CUBLAS_AVAILABLE = 0")
 #endif
 
@@ -46,16 +40,23 @@ extern void fb_cublas_smart_shutdown(void);
     #define FB_GET_PROC_ADDRESS(handle, name) dlsym(handle, name)
 #endif
 
+/* External functions for cuBLAS smart wrappers */
+extern void cublas_populate_vtable(fb_backend_vtable_t* vtable);
+extern int fb_cublas_smart_init(int device_id, void* lib_handle);
+extern void fb_cublas_smart_shutdown(void);
+extern void cublas_wrappers_set_handle(void* handle);
+extern void* g_cublas_handle;  /* Initialized by fb_cublas_smart_init */
+
 /* GPU vendor detection */
 static int is_nvidia_gpu_available(void) {
 #if CUBLAS_AVAILABLE
     int device_count = 0;
     cudaError_t err = cudaGetDeviceCount(&device_count);
-    if (err == CUDA_SUCCESS && device_count > 0) {
+    if (err == cudaSuccess && device_count > 0) {
         /* Verify it's actually an NVIDIA GPU */
         struct cudaDeviceProp prop;
         err = cudaGetDeviceProperties(&prop, 0);
-        if (err == CUDA_SUCCESS) {
+        if (err == cudaSuccess) {
             /* NVIDIA GPUs have compute capability */
             return (prop.major > 0);
         }
@@ -205,7 +206,7 @@ static const fb_plugin_metadata_t g_cublas_metadata = {
 /* Note: GPU backends currently use the trait interface, not direct vtable wrappers */
 /* These would need to be implemented to fully integrate with the plugin system */
 
-static fb_plugin_probe_result_t cublas_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t cublas_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #if !CUBLAS_AVAILABLE
@@ -297,7 +298,7 @@ static int cublas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out
     /* Get device count */
     cudaError_t err = cudaGetDeviceCount(&ctx->device_count);
     fprintf(stderr, "[cuBLAS Plugin] cudaGetDeviceCount returned %d, count=%d\n", err, ctx->device_count);
-    if (err != CUDA_SUCCESS || ctx->device_count == 0) {
+    if (err != cudaSuccess || ctx->device_count == 0) {
         fprintf(stderr, "[cuBLAS Plugin] No CUDA devices or cudaGetDeviceCount failed\n");
         free(ctx);
         return -3;
@@ -319,6 +320,11 @@ static int cublas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out
         free(ctx);
         return -4;
     }
+    
+    /* Set the backend handle for vtable wrapper functions (mem_alloc, mem_free, etc.)
+     * g_cublas_handle is set by fb_cublas_smart_init via fb_cublas_trait.init */
+    cublas_wrappers_set_handle(g_cublas_handle);
+    fprintf(stderr, "[cuBLAS Plugin] cublas_wrappers_set_handle called with %p\n", g_cublas_handle);
     
     fprintf(stderr, "[cuBLAS Plugin] Init completed successfully\n");
     *ctx_out = (fb_plugin_context_t*)ctx;

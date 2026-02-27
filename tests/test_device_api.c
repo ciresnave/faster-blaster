@@ -19,6 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Plugin registration - declared in src/core/plugin_init.c */
+extern void fb_register_all_plugins(void);
+
 #define TEST_SIZE 1024
 #define TEST_PASSED "\033[32mPASS\033[0m"
 #define TEST_FAILED "\033[31mFAIL\033[0m"

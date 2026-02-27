@@ -80,6 +80,10 @@ static void cublas_shutdown(void* backend_handle) {
     cublas_context_t* ctx = (cublas_context_t*)backend_handle;
     
     if (ctx->cublas_handle) {
+        /* Ensure all pending GPU operations complete before destroying cuBLAS handle.
+         * Without this, cublasDestroy may crash if async ops are still in flight. */
+        cudaSetDevice(ctx->device_id);
+        cudaDeviceSynchronize();
         cublasDestroy(ctx->cublas_handle);
     }
     if (ctx->cusolver_handle) {

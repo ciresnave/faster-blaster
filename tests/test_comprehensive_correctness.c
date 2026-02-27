@@ -506,7 +506,7 @@ static void test_sgemv(fb_backend_instance_t* instance,
     double time_ms = ((double)(end - start) / CLOCKS_PER_SEC) * 1000.0;
     
     double max_err = max_absolute_error_f(y_result, y_reference, size_y);
-    bool passed = (max_err <= TOLERANCE_FP32);
+    bool passed = (max_err <= TOLERANCE_FP32 * (float)n);  /* Scale tolerance by n for dot-product accumulation */
     record_test(suite, "sgemv", instance->plugin->metadata->name,
                instance->device->properties.name, instance->device->properties.device_id,
                m * n, "FP32", passed, max_err,

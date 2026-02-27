@@ -30,17 +30,30 @@ fb_backend_instance_t* fb_device_get_backend_instance(fb_compute_device_t* devic
     return fb_get_backend_for_device(device);
 }
 
+/* Forward declaration for proper vtable access (sets up active instance for GPU backends) */
+extern const fb_backend_vtable_t* fb_backend_get_vtable(fb_backend_instance_t* instance);
+
+/**
+ * @brief Get the backend vtable, setting up active instance context for GPU backends
+ * 
+ * This helper MUST be used instead of instance->vtable directly for operations that
+ * need the active GPU instance set (e.g., CLBlast memory/stream ops).
+ */
+static const fb_backend_vtable_t* get_vtable_with_active(fb_backend_instance_t* instance) {
+    return fb_backend_get_vtable(instance);
+}
+
 /**
  * @brief Allocate device memory
  */
 int fb_device_alloc(fb_compute_device_t* device, void** ptr, size_t size) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->mem_alloc) {
-        return instance->vtable->mem_alloc(instance->plugin_ctx, ptr, size);
+    if (vtable->mem_alloc) {
+        return vtable->mem_alloc(instance->plugin_ctx, ptr, size);
     }
     
     /* CPU backends may not implement mem_alloc (uses system malloc) */
@@ -52,12 +65,12 @@ int fb_device_alloc(fb_compute_device_t* device, void** ptr, size_t size) {
  */
 void fb_device_free(fb_compute_device_t* device, void* ptr) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return;
-    }
+    if (!instance) return;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return;
     
-    if (instance->vtable->mem_free) {
-        instance->vtable->mem_free(instance->plugin_ctx, ptr);
+    if (vtable->mem_free) {
+        vtable->mem_free(instance->plugin_ctx, ptr);
     }
 }
 
@@ -66,12 +79,12 @@ void fb_device_free(fb_compute_device_t* device, void* ptr) {
  */
 int fb_device_upload(fb_compute_device_t* device, void* dst, const void* src, size_t size) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->mem_upload) {
-        return instance->vtable->mem_upload(instance->plugin_ctx, dst, src, size);
+    if (vtable->mem_upload) {
+        return vtable->mem_upload(instance->plugin_ctx, dst, src, size);
     }
     
     /* CPU backends: no-op (data already accessible) */
@@ -83,12 +96,12 @@ int fb_device_upload(fb_compute_device_t* device, void* dst, const void* src, si
  */
 int fb_device_download(fb_compute_device_t* device, void* dst, const void* src, size_t size) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->mem_download) {
-        return instance->vtable->mem_download(instance->plugin_ctx, dst, src, size);
+    if (vtable->mem_download) {
+        return vtable->mem_download(instance->plugin_ctx, dst, src, size);
     }
     
     /* CPU backends: no-op (data already accessible) */
@@ -100,12 +113,12 @@ int fb_device_download(fb_compute_device_t* device, void* dst, const void* src, 
  */
 int fb_device_copy(fb_compute_device_t* device, void* dst, const void* src, size_t size) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->mem_copy) {
-        return instance->vtable->mem_copy(instance->plugin_ctx, dst, src, size);
+    if (vtable->mem_copy) {
+        return vtable->mem_copy(instance->plugin_ctx, dst, src, size);
     }
     
     /* CPU backends: no-op or could use memcpy */
@@ -117,12 +130,12 @@ int fb_device_copy(fb_compute_device_t* device, void* dst, const void* src, size
  */
 int fb_device_stream_create(fb_compute_device_t* device, void** stream) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->stream_create) {
-        return instance->vtable->stream_create(instance->plugin_ctx, stream);
+    if (vtable->stream_create) {
+        return vtable->stream_create(instance->plugin_ctx, stream);
     }
     
     /* CPU backends: no streams (operations are synchronous) */
@@ -137,12 +150,12 @@ int fb_device_stream_create(fb_compute_device_t* device, void** stream) {
  */
 void fb_device_stream_destroy(fb_compute_device_t* device, void* stream) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return;
-    }
+    if (!instance) return;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return;
     
-    if (instance->vtable->stream_destroy) {
-        instance->vtable->stream_destroy(instance->plugin_ctx, stream);
+    if (vtable->stream_destroy) {
+        vtable->stream_destroy(instance->plugin_ctx, stream);
     }
 }
 
@@ -151,12 +164,12 @@ void fb_device_stream_destroy(fb_compute_device_t* device, void* stream) {
  */
 int fb_device_sync(fb_compute_device_t* device, void* stream) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->stream_sync) {
-        return instance->vtable->stream_sync(instance->plugin_ctx, stream);
+    if (vtable->stream_sync) {
+        return vtable->stream_sync(instance->plugin_ctx, stream);
     }
     
     /* CPU backends: already synchronous, nothing to do */
@@ -168,12 +181,12 @@ int fb_device_sync(fb_compute_device_t* device, void* stream) {
  */
 void fb_device_stream_set(fb_compute_device_t* device, void* stream) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return;
-    }
+    if (!instance) return;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return;
     
-    if (instance->vtable->stream_set) {
-        instance->vtable->stream_set(instance->plugin_ctx, stream);
+    if (vtable->stream_set) {
+        vtable->stream_set(instance->plugin_ctx, stream);
     }
 }
 
@@ -182,12 +195,12 @@ void fb_device_stream_set(fb_compute_device_t* device, void* stream) {
  */
 uint32_t fb_device_get_capabilities(fb_compute_device_t* device) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return 0;
-    }
+    if (!instance) return 0;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return 0;
     
-    if (instance->vtable->get_capabilities) {
-        return instance->vtable->get_capabilities(instance->plugin_ctx);
+    if (vtable->get_capabilities) {
+        return vtable->get_capabilities(instance->plugin_ctx);
     }
     
     return 0;
@@ -198,12 +211,12 @@ uint32_t fb_device_get_capabilities(fb_compute_device_t* device) {
  */
 int fb_device_get_num_threads(fb_compute_device_t* device) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return -1;
-    }
+    if (!instance) return -1;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return -1;
     
-    if (instance->vtable->get_num_threads) {
-        return instance->vtable->get_num_threads(instance->plugin_ctx);
+    if (vtable->get_num_threads) {
+        return vtable->get_num_threads(instance->plugin_ctx);
     }
     
     /* GPU backends may not have thread control */
@@ -215,11 +228,11 @@ int fb_device_get_num_threads(fb_compute_device_t* device) {
  */
 void fb_device_set_num_threads(fb_compute_device_t* device, int num_threads) {
     fb_backend_instance_t* instance = fb_device_get_backend_instance(device);
-    if (!instance || !instance->vtable) {
-        return;
-    }
+    if (!instance) return;
+    const fb_backend_vtable_t* vtable = get_vtable_with_active(instance);
+    if (!vtable) return;
     
-    if (instance->vtable->set_num_threads) {
-        instance->vtable->set_num_threads(instance->plugin_ctx, num_threads);
+    if (vtable->set_num_threads) {
+        vtable->set_num_threads(instance->plugin_ctx, num_threads);
     }
 }

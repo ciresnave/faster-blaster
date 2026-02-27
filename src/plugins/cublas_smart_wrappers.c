@@ -132,13 +132,15 @@ static int get_device_buffer_output(
 }
 
 /**
- * @brief Mark output buffer as dirty (needs D2H sync before host reads it)
+ * @brief Sync output buffer to host immediately after GPU operation.
+ * Mark dirty first (dirty=1) so sync_to_host proceeds, then sync.
+ * Without marking dirty first, sync_to_host skips due to dirty==0 guard.
  */
 static void mark_output_dirty(void* host_ptr) {
     fb_device_memory_manager_t* manager = get_device_manager();
-    if (manager) {
-        fb_device_memory_mark_dirty(manager, host_ptr, FB_GPU_BACKEND_CUBLAS);
-    }
+    if (!manager) return;
+    fb_device_memory_mark_dirty(manager, host_ptr, FB_GPU_BACKEND_CUBLAS);
+    fb_device_memory_sync_to_host(manager, &fb_cublas_trait, g_cublas_handle, host_ptr);
 }
 
 /**

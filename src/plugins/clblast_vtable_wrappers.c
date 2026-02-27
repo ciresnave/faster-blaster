@@ -4,7 +4,7 @@
  * 
  * Bridges the gap between:
  * - GPU trait signature: (void* handle, stream, int, float, fb_gpu_ptr_t, ...)
- * - Unified vtable:      (int64_t, float, float*, ...)
+ * - Unified vtable:      (int, float, float*, ...)
  * 
  * Also handles layout translation since CLBlast only supports column-major.
  */
@@ -166,9 +166,9 @@ static int clblast_copy_from_device(clblast_context_t* ctx,
  * Level 1 BLAS Wrappers
  * ========================================================================== */
 
-static void clblast_saxpy_wrapper(const int64_t n, const float alpha,
-                                  const float *x, const int64_t incx,
-                                  float *y, const int64_t incy) {
+static void clblast_saxpy_wrapper(const int n, const float alpha,
+                                  const float *x, const int incx,
+                                  float *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!backend_handle || !fb_clblast_trait.saxpy) {
         return;
@@ -215,9 +215,9 @@ static void clblast_saxpy_wrapper(const int64_t n, const float alpha,
     clReleaseMemObject(y_device);
 }
 
-static void clblast_daxpy_wrapper(const int64_t n, const double alpha,
-                                  const double *x, const int64_t incx,
-                                  double *y, const int64_t incy) {
+static void clblast_daxpy_wrapper(const int n, const double alpha,
+                                  const double *x, const int incx,
+                                  double *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!backend_handle || !fb_clblast_trait.daxpy) {
         return;
@@ -254,8 +254,8 @@ static void clblast_daxpy_wrapper(const int64_t n, const double alpha,
     clReleaseMemObject(y_device);
 }
 
-static void clblast_sscal_wrapper(const int64_t n, const float alpha,
-                                  float *x, const int64_t incx) {
+static void clblast_sscal_wrapper(const int n, const float alpha,
+                                  float *x, const int incx) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.sscal || !backend_handle) return;
     
@@ -275,8 +275,8 @@ static void clblast_sscal_wrapper(const int64_t n, const float alpha,
     clReleaseMemObject(x_device);
 }
 
-static void clblast_dscal_wrapper(const int64_t n, const double alpha,
-                                  double *x, const int64_t incx) {
+static void clblast_dscal_wrapper(const int n, const double alpha,
+                                  double *x, const int incx) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.dscal || !backend_handle) return;
     
@@ -296,8 +296,8 @@ static void clblast_dscal_wrapper(const int64_t n, const double alpha,
     clReleaseMemObject(x_device);
 }
 
-static void clblast_scopy_wrapper(const int64_t n, const float *x, const int64_t incx,
-                                  float *y, const int64_t incy) {
+static void clblast_scopy_wrapper(const int n, const float *x, const int incx,
+                                  float *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.scopy || !backend_handle) return;
     
@@ -325,8 +325,8 @@ static void clblast_scopy_wrapper(const int64_t n, const float *x, const int64_t
     clReleaseMemObject(y_device);
 }
 
-static void clblast_dcopy_wrapper(const int64_t n, const double *x, const int64_t incx,
-                                  double *y, const int64_t incy) {
+static void clblast_dcopy_wrapper(const int n, const double *x, const int incx,
+                                  double *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.dcopy || !backend_handle) return;
     
@@ -359,10 +359,10 @@ static void clblast_dcopy_wrapper(const int64_t n, const double *x, const int64_
  * ========================================================================== */
 
 static void clblast_sgemv_wrapper(const fb_layout_t layout, const fb_transpose_t trans,
-                                  const int64_t m, const int64_t n,
-                                  const float alpha, const float *a, const int64_t lda,
-                                  const float *x, const int64_t incx,
-                                  const float beta, float *y, const int64_t incy) {
+                                  const int m, const int n,
+                                  const float alpha, const float *a, const int lda,
+                                  const float *x, const int incx,
+                                  const float beta, float *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.sgemv || !backend_handle) return;
     
@@ -409,10 +409,10 @@ static void clblast_sgemv_wrapper(const fb_layout_t layout, const fb_transpose_t
 }
 
 static void clblast_dgemv_wrapper(const fb_layout_t layout, const fb_transpose_t trans,
-                                  const int64_t m, const int64_t n,
-                                  const double alpha, const double *a, const int64_t lda,
-                                  const double *x, const int64_t incx,
-                                  const double beta, double *y, const int64_t incy) {
+                                  const int m, const int n,
+                                  const double alpha, const double *a, const int lda,
+                                  const double *x, const int incx,
+                                  const double beta, double *y, const int incy) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.dgemv || !backend_handle) return;
     
@@ -464,10 +464,10 @@ static void clblast_dgemv_wrapper(const fb_layout_t layout, const fb_transpose_t
 
 static void clblast_sgemm_wrapper(const fb_layout_t layout,
                                   const fb_transpose_t transa, const fb_transpose_t transb,
-                                  const int64_t m, const int64_t n, const int64_t k,
-                                  const float alpha, const float *a, const int64_t lda,
-                                  const float *b, const int64_t ldb,
-                                  const float beta, float *c, const int64_t ldc) {
+                                  const int m, const int n, const int k,
+                                  const float alpha, const float *a, const int lda,
+                                  const float *b, const int ldb,
+                                  const float beta, float *c, const int ldc) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.sgemm || !backend_handle) return;
     
@@ -521,10 +521,10 @@ static void clblast_sgemm_wrapper(const fb_layout_t layout,
 
 static void clblast_dgemm_wrapper(const fb_layout_t layout,
                                   const fb_transpose_t transa, const fb_transpose_t transb,
-                                  const int64_t m, const int64_t n, const int64_t k,
-                                  const double alpha, const double *a, const int64_t lda,
-                                  const double *b, const int64_t ldb,
-                                  const double beta, double *c, const int64_t ldc) {
+                                  const int m, const int n, const int k,
+                                  const double alpha, const double *a, const int lda,
+                                  const double *b, const int ldb,
+                                  const double beta, double *c, const int ldc) {
     void* backend_handle = clblast_get_handle_for_vtable(NULL);
     if (!fb_clblast_trait.dgemm || !backend_handle) return;
     
@@ -581,9 +581,11 @@ static void clblast_dgemm_wrapper(const fb_layout_t layout,
  * ========================================================================== */
 
 static int clblast_mem_alloc(void* handle, void** ptr, size_t size) {
-    if (!fb_clblast_trait.malloc || !handle) return -1;
+    (void)handle;  /* handle = plugin_ctx, not the CLBlast backend; use registry lookup */
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.malloc || !bh) return -1;
     fb_gpu_ptr_t gpu_ptr;
-    int result = fb_clblast_trait.malloc(handle, &gpu_ptr, size);
+    int result = fb_clblast_trait.malloc(bh, &gpu_ptr, size);
     if (result == 0) {
         *ptr = (void*)gpu_ptr;
     }
@@ -591,24 +593,32 @@ static int clblast_mem_alloc(void* handle, void** ptr, size_t size) {
 }
 
 static void clblast_mem_free(void* handle, void* ptr) {
-    if (fb_clblast_trait.free && handle) {
-        fb_clblast_trait.free(handle, (fb_gpu_ptr_t)ptr);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (fb_clblast_trait.free && bh) {
+        fb_clblast_trait.free(bh, (fb_gpu_ptr_t)ptr);
     }
 }
 
 static int clblast_mem_upload(void* handle, void* dst, const void* src, size_t size) {
-    if (!fb_clblast_trait.memcpy_h2d || !handle) return -1;
-    return fb_clblast_trait.memcpy_h2d(handle, (fb_gpu_ptr_t)dst, src, size);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.memcpy_h2d || !bh) return -1;
+    return fb_clblast_trait.memcpy_h2d(bh, (fb_gpu_ptr_t)dst, src, size);
 }
 
 static int clblast_mem_download(void* handle, void* dst, const void* src, size_t size) {
-    if (!fb_clblast_trait.memcpy_d2h || !handle) return -1;
-    return fb_clblast_trait.memcpy_d2h(handle, dst, (fb_gpu_ptr_t)src, size);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.memcpy_d2h || !bh) return -1;
+    return fb_clblast_trait.memcpy_d2h(bh, dst, (fb_gpu_ptr_t)src, size);
 }
 
 static int clblast_mem_copy(void* handle, void* dst, const void* src, size_t size) {
-    if (!fb_clblast_trait.memcpy_d2d || !handle) return -1;
-    return fb_clblast_trait.memcpy_d2d(handle, (fb_gpu_ptr_t)dst, (fb_gpu_ptr_t)src, size);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.memcpy_d2d || !bh) return -1;
+    return fb_clblast_trait.memcpy_d2d(bh, (fb_gpu_ptr_t)dst, (fb_gpu_ptr_t)src, size);
 }
 
 /* ============================================================================
@@ -616,9 +626,11 @@ static int clblast_mem_copy(void* handle, void* dst, const void* src, size_t siz
  * ========================================================================== */
 
 static int clblast_stream_create(void* handle, void** stream) {
-    if (!fb_clblast_trait.stream_create || !handle) return -1;
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.stream_create || !bh) return -1;
     fb_gpu_stream_t gpu_stream;
-    int result = fb_clblast_trait.stream_create(handle, &gpu_stream);
+    int result = fb_clblast_trait.stream_create(bh, &gpu_stream);
     if (result == 0) {
         *stream = (void*)gpu_stream;
     }
@@ -626,14 +638,18 @@ static int clblast_stream_create(void* handle, void** stream) {
 }
 
 static void clblast_stream_destroy(void* handle, void* stream) {
-    if (fb_clblast_trait.stream_destroy && handle) {
-        fb_clblast_trait.stream_destroy(handle, (fb_gpu_stream_t)stream);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (fb_clblast_trait.stream_destroy && bh) {
+        fb_clblast_trait.stream_destroy(bh, (fb_gpu_stream_t)stream);
     }
 }
 
 static int clblast_stream_sync(void* handle, void* stream) {
-    if (!fb_clblast_trait.stream_synchronize || !handle) return -1;
-    return fb_clblast_trait.stream_synchronize(handle, (fb_gpu_stream_t)stream);
+    (void)handle;
+    void* bh = clblast_get_handle_for_vtable(NULL);
+    if (!fb_clblast_trait.stream_synchronize || !bh) return -1;
+    return fb_clblast_trait.stream_synchronize(bh, (fb_gpu_stream_t)stream);
 }
 
 static int clblast_stream_set(void* handle, void* stream) {

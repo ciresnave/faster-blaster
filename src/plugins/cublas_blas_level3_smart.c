@@ -61,8 +61,13 @@ static int get_device_buffer_inout(void* host_ptr, size_t size, fb_gpu_ptr_t* de
 }
 
 static void mark_output_dirty(void* host_ptr) {
+    /* Mark dirty first (device has authoritative data from GPU op), THEN sync.
+     * Without marking dirty first, sync_to_host returns early (dirty==0 guard).
+     * This ensures callers immediately see GPU results without an explicit sync. */
     fb_device_memory_manager_t* manager = get_device_manager();
-    if (manager) fb_device_memory_mark_dirty(manager, host_ptr, FB_GPU_BACKEND_CUBLAS);
+    if (!manager) return;
+    fb_device_memory_mark_dirty(manager, host_ptr, FB_GPU_BACKEND_CUBLAS);
+    fb_device_memory_sync_to_host(manager, &fb_cublas_trait, g_cublas_handle, host_ptr);
 }
 
 static void release_device_buffer(const void* host_ptr) {

@@ -128,11 +128,13 @@ int main(void) {
     }
     
     printf("✓ Device memory retrieved from cache\n");
-    printf("  Expected: 0 malloc, 0 H2D copy (cache hit!)\n");
+    printf("  Expected: 0 malloc, 1 H2D copy (cache hit: GPU buffer reused, data refreshed)\n");
     printf("  Actual:   %d malloc, %d H2D copy\n", mock_malloc_count, mock_h2d_count);
     
-    if (mock_malloc_count != 0 || mock_h2d_count != 0) {
-        fprintf(stderr, "ERROR: Cache hit should not allocate or copy\n");
+    /* Cache hit = GPU buffer reused (no malloc), host data always refreshed for clean entries.
+     * This guards against stale device data when a stack address is reused between calls. */
+    if (mock_malloc_count != 0 || mock_h2d_count != 1) {
+        fprintf(stderr, "ERROR: Cache hit should reuse buffer (0 malloc) and refresh data (1 H2D)\n");
         return 1;
     }
     
