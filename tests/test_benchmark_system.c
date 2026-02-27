@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
         printf("  ✓ Loaded existing cache\n");
     } else {
         printf("  Cache doesn't exist (expected for first run)\n");
-        // Create new cache
-        cache = calloc(1, sizeof(fb_benchmark_stats_t) * 1248 * 64 * 5 * 5);
+        // Create new empty cache
+        cache = fb_benchmark_cache_create();
         if (cache) {
             printf("  ✓ Created new cache structure\n");
         }

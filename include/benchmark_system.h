@@ -115,6 +115,13 @@ bool fb_fingerprints_match(const fb_hardware_fingerprint_t* a,
 void* fb_benchmark_cache_load(const char* cache_path);
 
 /**
+ * Create a new empty benchmark cache in memory
+ * 
+ * @return Benchmark cache handle, or NULL on allocation failure
+ */
+void* fb_benchmark_cache_create(void);
+
+/**
  * Save benchmark cache to disk
  * 
  * @param cache Benchmark cache handle

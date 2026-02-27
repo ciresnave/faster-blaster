@@ -153,6 +153,25 @@ void* fb_benchmark_cache_load(const char* cache_path) {
     return cache;
 }
 
+void* fb_benchmark_cache_create(void) {
+    fb_benchmark_cache_internal_t* cache =
+        (fb_benchmark_cache_internal_t*)calloc(1, sizeof(fb_benchmark_cache_internal_t));
+    if (!cache) {
+        return NULL;
+    }
+
+    cache->data_size = MAX_OPERATIONS * MAX_BACKENDS * SIZE_CLASSES * SHAPE_CLASSES
+                      * sizeof(fb_benchmark_stats_t);
+    cache->data = (fb_benchmark_stats_t*)calloc(1, cache->data_size);
+    if (!cache->data) {
+        free(cache);
+        return NULL;
+    }
+
+    cache->modified = false;
+    return cache;
+}
+
 int fb_benchmark_cache_save(void* cache, const char* cache_path) {
     if (!cache) {
         return -1;
@@ -184,7 +203,7 @@ int fb_benchmark_cache_save(void* cache, const char* cache_path) {
     internal->header.backend_device_count = MAX_BACKENDS;
     internal->header.size_class_count = SIZE_CLASSES;
     internal->header.shape_class_count = SHAPE_CLASSES;
-    internal->header.timestamp_modified = (uint64_t)time(NULL);
+    internal->header.timestamp_modified = (unsigned int)time(NULL);
     internal->header.compression_type = 0; // No compression yet
     internal->header.checksum = 0; // TODO: Calculate CRC32
     
