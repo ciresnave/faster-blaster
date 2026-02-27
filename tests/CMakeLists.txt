@@ -529,26 +529,58 @@ if(ENABLE_ONEMKL)
 endif()
 
 # ============================================================================
-# MKL CPU Tests - OBSOLETE (replaced by plugin architecture)
+# MKL CPU Tests
 # ============================================================================
-# if(ENABLE_MKL)
-#     add_executable(test_mkl_backend test_mkl_backend.c)
-#     target_include_directories(test_mkl_backend PRIVATE ${CMAKE_SOURCE_DIR}/include)
-#     target_link_libraries(test_mkl_backend faster-blaster)
-#     add_test(NAME MKL_Backend_Tests COMMAND test_mkl_backend)
-#     message(STATUS "MKL CPU tests enabled")
-# endif()
+if(ENABLE_MKL)
+    # MKL backend library
+    add_library(mkl_backend_lib STATIC
+        ${CMAKE_SOURCE_DIR}/src/backends/mkl_backend.c
+    )
+
+    target_include_directories(mkl_backend_lib PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    # MKL test executable
+    add_executable(test_mkl_backend test_mkl_backend.c)
+
+    target_link_libraries(test_mkl_backend mkl_backend_lib)
+
+    if(UNIX)
+        target_link_libraries(test_mkl_backend m dl pthread)
+    endif()
+
+    add_test(NAME MKL_Backend_Tests COMMAND test_mkl_backend)
+    message(STATUS "MKL CPU tests enabled")
+endif()
 
 # ============================================================================
-# OpenBLAS CPU Tests - OBSOLETE (replaced by plugin architecture)
+# OpenBLAS CPU Tests
 # ============================================================================
-# if(ENABLE_OPENBLAS)
-#     add_executable(test_openblas_backend test_openblas_backend.c)
-#     target_include_directories(test_openblas_backend PRIVATE ${CMAKE_SOURCE_DIR}/include)
-#     target_link_libraries(test_openblas_backend faster-blaster)
-#     add_test(NAME OpenBLAS_Backend_Tests COMMAND test_openblas_backend)
-#     message(STATUS "OpenBLAS CPU tests enabled")
-# endif()
+if(ENABLE_OPENBLAS)
+    # OpenBLAS backend library
+    add_library(openblas_backend_lib STATIC
+        ${CMAKE_SOURCE_DIR}/src/backends/openblas_backend.c
+    )
+
+    target_include_directories(openblas_backend_lib PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    # OpenBLAS test executable
+    add_executable(test_openblas_backend test_openblas_backend.c)
+
+    target_link_libraries(test_openblas_backend openblas_backend_lib)
+
+    if(UNIX)
+        target_link_libraries(test_openblas_backend m dl pthread)
+    endif()
+
+    add_test(NAME OpenBLAS_Backend_Tests COMMAND test_openblas_backend)
+    message(STATUS "OpenBLAS CPU tests enabled")
+endif()
 
 # ============================================================================
 # rocBLAS GPU Tests (AMD) - Requires ROCm installed

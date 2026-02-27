@@ -72,7 +72,13 @@ static void test_mkl_saxpy(void) {
     float y[] = {5.0f, 4.0f, 3.0f, 2.0f, 1.0f};
     float expected[] = {7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
     
-    fb_mkl_saxpy(n, alpha, x, 1, y, 1);
+    const fb_backend_vtable_t* vtable = fb_mkl_get_vtable();
+    if (!vtable || !vtable->saxpy) {
+        printf("  ⚠️  SAXPY not available in vtable\n");
+        report_test("SAXPY operation", false);
+        return;
+    }
+    vtable->saxpy(n, alpha, x, 1, y, 1);
     
     bool passed = true;
     for (int i = 0; i < n; i++) {

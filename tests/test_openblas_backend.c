@@ -53,9 +53,9 @@ static void test_openblas_availability(void) {
         return;
     }
     
-    char* config = fb_openblas_get_config();
-    if (config) {
-        printf("  Config: %s\n", config);
+    const char* version = fb_openblas_get_version();
+    if (version) {
+        printf("  Version: %s\n", version);
     }
     
     report_test("OpenBLAS availability check", available);
@@ -77,7 +77,13 @@ static void test_openblas_saxpy(void) {
     float y[] = {5.0f, 4.0f, 3.0f, 2.0f, 1.0f};
     float expected[] = {7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
     
-    fb_openblas_saxpy(n, alpha, x, 1, y, 1);
+    const fb_backend_vtable_t* vtable = fb_openblas_get_vtable();
+    if (!vtable || !vtable->saxpy) {
+        printf("  ⚠️  SAXPY not available in vtable\n");
+        report_test("SAXPY operation", false);
+        return;
+    }
+    vtable->saxpy(n, alpha, x, 1, y, 1);
     
     bool passed = true;
     for (int i = 0; i < n; i++) {

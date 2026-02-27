@@ -25,6 +25,9 @@ set(OPENBLAS_SEARCH_PATHS
     "C:/dev/vcpkg/installed/x64-windows"
     
     # Windows default locations
+    "C:/libraries/OpenBLAS-0.3.30-x64"
+    "C:/libraries/OpenBLAS-0.3.29-x64"
+    "C:/libraries/OpenBLAS-0.3.28-x64"
     "C:/Program Files/OpenBLAS"
     "C:/Program Files (x86)/OpenBLAS"
     "C:/OpenBLAS"
