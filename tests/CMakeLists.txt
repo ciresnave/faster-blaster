@@ -453,11 +453,9 @@ if(ENABLE_BLIS)
     endif()
     
     add_test(NAME BLIS_Backend_Tests COMMAND test_blis_backend)
-    # KNOWN ISSUE: This test crashes on initialization (Windows SEH exception before main())
-    # BLIS functionality works through the plugin system, direct backend access has issues
-    # WILL_FAIL TRUE doesn't work correctly with SEH exceptions on Windows (CMake bug),
-    # so we DISABLE the test to prevent it from affecting test counts.
-    set_tests_properties(BLIS_Backend_Tests PROPERTIES DISABLED TRUE)
+    # FIXED: Level 2/3 BLAS wrappers (sgemv, dgemv, sgemm, dgemm) now use CBLAS
+    # as the primary path (stable API, plain int params, no LP64/LLP64 ABI issues).
+    # All 9 BLIS backend tests pass on Windows.
     
     message(STATUS "BLIS tests enabled")
 endif()
