@@ -9,59 +9,31 @@ option(AUTO_INSTALL_BACKENDS "Prompt to install missing backends" ON)
 option(BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with full features" ON)
 option(INTERACTIVE_BACKEND_SETUP "Prompt for backend installation decisions" ON)
 
-# Detect CPU vendor
-# Result is cached in CACHE INTERNAL variables so subsequent cmake reconfigures
-# skip the subprocess entirely (avoids 5-30 s WMI query on every cmake ..).
+# Detect CPU vendor.
+# Uses cmake_host_system_information — a built-in zero-subprocess CMake query.
+# No PowerShell, no WMI, no wmic, no subprocess hang risk.  Runs instantly on
+# every reconfigure and always reflects the actual current machine.
 function(detect_cpu_vendor OUT_VENDOR OUT_MODEL)
-    # Return cached result immediately on second+ cmake run.
-    if(DEFINED FB_CACHED_CPU_VENDOR AND DEFINED FB_CACHED_CPU_MODEL)
-        set(${OUT_VENDOR} "${FB_CACHED_CPU_VENDOR}" PARENT_SCOPE)
-        set(${OUT_MODEL}  "${FB_CACHED_CPU_MODEL}"  PARENT_SCOPE)
-        return()
+    # PROCESSOR_DESCRIPTION (CMake 3.10+) gives the full marketing name string,
+    # e.g. "Intel(R) Core(TM) i7-12700K" or "AMD Ryzen 9 7950X".
+    cmake_host_system_information(RESULT _cpu_info QUERY PROCESSOR_DESCRIPTION)
+    if(NOT _cpu_info)
+        # Fallback for older CMake or unusual platforms.
+        cmake_host_system_information(RESULT _cpu_info QUERY PROCESSOR_NAME)
     endif()
-
-    set(_cpu_info "")
-    set(_vendor "Unknown")
-
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|x86")
-        if(WIN32)
-            # wmic launches in ~200 ms — far faster than powershell + WMI.
-            # TIMEOUT prevents a hung WMI service from blocking cmake forever.
-            execute_process(
-                COMMAND wmic cpu get Name /value
-                OUTPUT_VARIABLE _cpu_info
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
-                TIMEOUT 10
-            )
-            # wmic output format: "Name=Intel(R) Core(TM)..."
-            string(REGEX REPLACE ".*Name=" "" _cpu_info "${_cpu_info}")
-        else()
-            execute_process(
-                COMMAND sh -c "grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2"
-                OUTPUT_VARIABLE _cpu_info
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-                ERROR_QUIET
-                TIMEOUT 5
-            )
-        endif()
-
-        string(STRIP "${_cpu_info}" _cpu_info)
-
-        if(_cpu_info MATCHES "AMD|Ryzen|Threadripper|EPYC")
-            set(_vendor "AMD")
-        elseif(_cpu_info MATCHES "Intel|Core|Xeon|Pentium|Celeron")
-            set(_vendor "Intel")
-        else()
-            set(_vendor "Unknown")
-        endif()
-    else()
+    if(NOT _cpu_info)
         set(_cpu_info "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
 
-    # Persist to CMake cache — zero cost on all future reconfigures.
-    set(FB_CACHED_CPU_VENDOR "${_vendor}"  CACHE INTERNAL "Detected CPU vendor (AMD/Intel/Unknown)")
-    set(FB_CACHED_CPU_MODEL  "${_cpu_info}" CACHE INTERNAL "Detected CPU model string")
+    string(STRIP "${_cpu_info}" _cpu_info)
+
+    if(_cpu_info MATCHES "AMD|Ryzen|Threadripper|EPYC")
+        set(_vendor "AMD")
+    elseif(_cpu_info MATCHES "Intel|Core|Xeon|Pentium|Celeron")
+        set(_vendor "Intel")
+    else()
+        set(_vendor "Unknown")
+    endif()
 
     set(${OUT_VENDOR} "${_vendor}"  PARENT_SCOPE)
     set(${OUT_MODEL}  "${_cpu_info}" PARENT_SCOPE)
