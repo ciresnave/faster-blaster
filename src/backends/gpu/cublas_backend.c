@@ -80,6 +80,14 @@ typedef cublasStatus_t (*cublasDgemv_t)(cublasHandle_t, cublasOperation_t, int, 
 /* cuBLAS Level 3 BLAS function pointers */
 typedef cublasStatus_t (*cublasSgemm_t)(cublasHandle_t, cublasOperation_t, cublasOperation_t, int, int, int, const float*, const float*, int, const float*, int, const float*, float*, int);
 typedef cublasStatus_t (*cublasDgemm_t)(cublasHandle_t, cublasOperation_t, cublasOperation_t, int, int, int, const double*, const double*, int, const double*, int, const double*, double*, int);
+typedef cublasStatus_t (*cublasSsymm_t)(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, int, int, const float*, const float*, int, const float*, int, const float*, float*, int);
+typedef cublasStatus_t (*cublasDsymm_t)(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, int, int, const double*, const double*, int, const double*, int, const double*, double*, int);
+typedef cublasStatus_t (*cublasStrsm_t)(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, int, int, const float*, const float*, int, float*, int);
+typedef cublasStatus_t (*cublasDtrsm_t)(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t, int, int, const double*, const double*, int, double*, int);
+typedef cublasStatus_t (*cublasSsyrk_t)(cublasHandle_t, cublasFillMode_t, cublasOperation_t, int, int, const float*, const float*, int, const float*, float*, int);
+typedef cublasStatus_t (*cublasDsyrk_t)(cublasHandle_t, cublasFillMode_t, cublasOperation_t, int, int, const double*, const double*, int, const double*, double*, int);
+typedef cublasStatus_t (*cublasSgemm_strided_batched_t)(cublasHandle_t, cublasOperation_t, cublasOperation_t, int, int, int, const float*, const float*, int, long long, const float*, int, long long, const float*, float*, int, long long, int);
+typedef cublasStatus_t (*cublasDgemm_strided_batched_t)(cublasHandle_t, cublasOperation_t, cublasOperation_t, int, int, int, const double*, const double*, int, long long, const double*, int, long long, const double*, double*, int, long long, int);
 
 /* CUDA runtime function pointers */
 typedef int (*cudaGetDeviceCount_t)(int*);
@@ -99,11 +107,45 @@ static struct {
     void* cuda_handle;
     void* cublas_handle;
     
-    /* cuBLAS functions */
+    /* cuBLAS lifecycle */
     cublasCreate_t cublasCreate;
     cublasDestroy_t cublasDestroy;
     cublasSetStream_t cublasSetStream;
-    
+
+    /* BLAS Level 1 */
+    cublasSasum_t  Sasum;
+    cublasDasum_t  Dasum;
+    cublasSaxpy_t  Saxpy;
+    cublasDaxpy_t  Daxpy;
+    cublasSdot_t   Sdot;
+    cublasDdot_t   Ddot;
+    cublasScopy_t  Scopy;
+    cublasDcopy_t  Dcopy;
+    cublasSscal_t  Sscal;
+    cublasDscal_t  Dscal;
+    cublasSnrm2_t  Snrm2;
+    cublasDnrm2_t  Dnrm2;
+    cublasSswap_t  Sswap;
+    cublasDswap_t  Dswap;
+    cublasIsamax_t Isamax;
+    cublasIdamax_t Idamax;
+
+    /* BLAS Level 2 */
+    cublasSgemv_t  Sgemv;
+    cublasDgemv_t  Dgemv;
+
+    /* BLAS Level 3 */
+    cublasSgemm_t  Sgemm;
+    cublasDgemm_t  Dgemm;
+    cublasSsymm_t  Ssymm;
+    cublasDsymm_t  Dsymm;
+    cublasStrsm_t  Strsm;
+    cublasDtrsm_t  Dtrsm;
+    cublasSsyrk_t  Ssyrk;
+    cublasDsyrk_t  Dsyrk;
+    cublasSgemm_strided_batched_t  Sgemm_strided_batched;
+    cublasDgemm_strided_batched_t  Dgemm_strided_batched;
+
     /* CUDA runtime functions */
     cudaGetDeviceCount_t cudaGetDeviceCount;
     cudaSetDevice_t cudaSetDevice;
@@ -119,6 +161,10 @@ static struct {
     
     bool initialized;
 } g_cublas_api;
+
+/* Default per-process cuBLAS handle (device 0).  Created once in
+ * cublas_load_api() and used by the vtable shim functions. */
+static cublasHandle_t g_cublas_default_handle = NULL;
 
 /* cuBLAS context structure */
 typedef struct {
@@ -176,9 +222,45 @@ static int cublas_load_api(void) {
     }
     
     /* Load function pointers */
-    g_cublas_api.cublasCreate = (cublasCreate_t)GET_PROC(g_cublas_api.cublas_handle, cublasCreate_v2);
-    g_cublas_api.cublasDestroy = (cublasDestroy_t)GET_PROC(g_cublas_api.cublas_handle, cublasDestroy_v2);
+    g_cublas_api.cublasCreate    = (cublasCreate_t)   GET_PROC(g_cublas_api.cublas_handle, cublasCreate_v2);
+    g_cublas_api.cublasDestroy   = (cublasDestroy_t)  GET_PROC(g_cublas_api.cublas_handle, cublasDestroy_v2);
     g_cublas_api.cublasSetStream = (cublasSetStream_t)GET_PROC(g_cublas_api.cublas_handle, cublasSetStream_v2);
+
+    /* BLAS Level 1 */
+    g_cublas_api.Sasum   = (cublasSasum_t) GET_PROC(g_cublas_api.cublas_handle, cublasSasum_v2);
+    g_cublas_api.Dasum   = (cublasDasum_t) GET_PROC(g_cublas_api.cublas_handle, cublasDasum_v2);
+    g_cublas_api.Saxpy   = (cublasSaxpy_t) GET_PROC(g_cublas_api.cublas_handle, cublasSaxpy_v2);
+    g_cublas_api.Daxpy   = (cublasDaxpy_t) GET_PROC(g_cublas_api.cublas_handle, cublasDaxpy_v2);
+    g_cublas_api.Sdot    = (cublasSdot_t)  GET_PROC(g_cublas_api.cublas_handle, cublasSdot_v2);
+    g_cublas_api.Ddot    = (cublasDdot_t)  GET_PROC(g_cublas_api.cublas_handle, cublasDdot_v2);
+    g_cublas_api.Scopy   = (cublasScopy_t) GET_PROC(g_cublas_api.cublas_handle, cublasScopy_v2);
+    g_cublas_api.Dcopy   = (cublasDcopy_t) GET_PROC(g_cublas_api.cublas_handle, cublasDcopy_v2);
+    g_cublas_api.Sscal   = (cublasSscal_t) GET_PROC(g_cublas_api.cublas_handle, cublasSscal_v2);
+    g_cublas_api.Dscal   = (cublasDscal_t) GET_PROC(g_cublas_api.cublas_handle, cublasDscal_v2);
+    g_cublas_api.Snrm2   = (cublasSnrm2_t) GET_PROC(g_cublas_api.cublas_handle, cublasSnrm2_v2);
+    g_cublas_api.Dnrm2   = (cublasDnrm2_t) GET_PROC(g_cublas_api.cublas_handle, cublasDnrm2_v2);
+    g_cublas_api.Sswap   = (cublasSswap_t) GET_PROC(g_cublas_api.cublas_handle, cublasSswap_v2);
+    g_cublas_api.Dswap   = (cublasDswap_t) GET_PROC(g_cublas_api.cublas_handle, cublasDswap_v2);
+    g_cublas_api.Isamax  = (cublasIsamax_t)GET_PROC(g_cublas_api.cublas_handle, cublasIsamax_v2);
+    g_cublas_api.Idamax  = (cublasIdamax_t)GET_PROC(g_cublas_api.cublas_handle, cublasIdamax_v2);
+
+    /* BLAS Level 2 */
+    g_cublas_api.Sgemv   = (cublasSgemv_t) GET_PROC(g_cublas_api.cublas_handle, cublasSgemv_v2);
+    g_cublas_api.Dgemv   = (cublasDgemv_t) GET_PROC(g_cublas_api.cublas_handle, cublasDgemv_v2);
+
+    /* BLAS Level 3 */
+    g_cublas_api.Sgemm   = (cublasSgemm_t) GET_PROC(g_cublas_api.cublas_handle, cublasSgemm_v2);
+    g_cublas_api.Dgemm   = (cublasDgemm_t) GET_PROC(g_cublas_api.cublas_handle, cublasDgemm_v2);
+    g_cublas_api.Ssymm   = (cublasSsymm_t) GET_PROC(g_cublas_api.cublas_handle, cublasSsymm_v2);
+    g_cublas_api.Dsymm   = (cublasDsymm_t) GET_PROC(g_cublas_api.cublas_handle, cublasDsymm_v2);
+    g_cublas_api.Strsm   = (cublasStrsm_t) GET_PROC(g_cublas_api.cublas_handle, cublasStrsm_v2);
+    g_cublas_api.Dtrsm   = (cublasDtrsm_t) GET_PROC(g_cublas_api.cublas_handle, cublasDtrsm_v2);
+    g_cublas_api.Ssyrk   = (cublasSsyrk_t) GET_PROC(g_cublas_api.cublas_handle, cublasSsyrk_v2);
+    g_cublas_api.Dsyrk   = (cublasDsyrk_t) GET_PROC(g_cublas_api.cublas_handle, cublasDsyrk_v2);
+    g_cublas_api.Sgemm_strided_batched =
+        (cublasSgemm_strided_batched_t)GET_PROC(g_cublas_api.cublas_handle, cublasSgemmStridedBatched);
+    g_cublas_api.Dgemm_strided_batched =
+        (cublasDgemm_strided_batched_t)GET_PROC(g_cublas_api.cublas_handle, cublasDgemmStridedBatched);
     
     g_cublas_api.cudaGetDeviceCount = (cudaGetDeviceCount_t)GET_PROC(g_cublas_api.cuda_handle, cudaGetDeviceCount);
     g_cublas_api.cudaSetDevice = (cudaSetDevice_t)GET_PROC(g_cublas_api.cuda_handle, cudaSetDevice);
@@ -193,6 +275,14 @@ static int cublas_load_api(void) {
     g_cublas_api.cudaStreamSynchronize = (cudaStreamSynchronize_t)GET_PROC(g_cublas_api.cuda_handle, cudaStreamSynchronize);
     
     g_cublas_api.initialized = true;
+
+    /* Create the default handle used by vtable shims (device 0). */
+    if (g_cublas_api.cublasCreate) {
+        if (g_cublas_api.cublasCreate(&g_cublas_default_handle) != CUBLAS_STATUS_SUCCESS) {
+            g_cublas_default_handle = NULL;
+        }
+    }
+
     return 0;
 }
 
@@ -358,28 +448,280 @@ static const fb_gpu_backend_t g_cublas_backend = {
     .memcpy_d2d = cublas_memcpy_d2d,
     .memset = cublas_memset_impl,
     .device_synchronize = cublas_device_synchronize,
-    .blas_vtable = NULL  /* TODO: Implement cuBLAS BLAS wrappers */
+    .blas_vtable = NULL  /* filled in fb_cublas_get_vtable() */
+};
+
+/* -------------------------------------------------------------------------
+ * CBLAS-style shims
+ * Each shim captures g_cublas_default_handle (device 0) and adapts the
+ * CBLAS signature expected by fb_backend_vtable_t to the cuBLAS v2 API
+ * which requires a handle as its first argument.
+ * ------------------------------------------------------------------------- */
+
+static float cublas_sasum(int n, const float* x, int incx) {
+    float r = 0.0f;
+    if (g_cublas_api.Sasum) g_cublas_api.Sasum(g_cublas_default_handle, n, x, incx, &r);
+    return r;
+}
+static double cublas_dasum(int n, const double* x, int incx) {
+    double r = 0.0;
+    if (g_cublas_api.Dasum) g_cublas_api.Dasum(g_cublas_default_handle, n, x, incx, &r);
+    return r;
+}
+static void cublas_saxpy(int n, float a, const float* x, int incx, float* y, int incy) {
+    if (g_cublas_api.Saxpy) g_cublas_api.Saxpy(g_cublas_default_handle, n, &a, x, incx, y, incy);
+}
+static void cublas_daxpy(int n, double a, const double* x, int incx, double* y, int incy) {
+    if (g_cublas_api.Daxpy) g_cublas_api.Daxpy(g_cublas_default_handle, n, &a, x, incx, y, incy);
+}
+static float cublas_sdot(int n, const float* x, int incx, const float* y, int incy) {
+    float r = 0.0f;
+    if (g_cublas_api.Sdot) g_cublas_api.Sdot(g_cublas_default_handle, n, x, incx, y, incy, &r);
+    return r;
+}
+static double cublas_ddot(int n, const double* x, int incx, const double* y, int incy) {
+    double r = 0.0;
+    if (g_cublas_api.Ddot) g_cublas_api.Ddot(g_cublas_default_handle, n, x, incx, y, incy, &r);
+    return r;
+}
+static void cublas_scopy(int n, const float* x, int incx, float* y, int incy) {
+    if (g_cublas_api.Scopy) g_cublas_api.Scopy(g_cublas_default_handle, n, x, incx, y, incy);
+}
+static void cublas_dcopy(int n, const double* x, int incx, double* y, int incy) {
+    if (g_cublas_api.Dcopy) g_cublas_api.Dcopy(g_cublas_default_handle, n, x, incx, y, incy);
+}
+static void cublas_sscal(int n, float a, float* x, int incx) {
+    if (g_cublas_api.Sscal) g_cublas_api.Sscal(g_cublas_default_handle, n, &a, x, incx);
+}
+static void cublas_dscal(int n, double a, double* x, int incx) {
+    if (g_cublas_api.Dscal) g_cublas_api.Dscal(g_cublas_default_handle, n, &a, x, incx);
+}
+static float cublas_snrm2(int n, const float* x, int incx) {
+    float r = 0.0f;
+    if (g_cublas_api.Snrm2) g_cublas_api.Snrm2(g_cublas_default_handle, n, x, incx, &r);
+    return r;
+}
+static double cublas_dnrm2(int n, const double* x, int incx) {
+    double r = 0.0;
+    if (g_cublas_api.Dnrm2) g_cublas_api.Dnrm2(g_cublas_default_handle, n, x, incx, &r);
+    return r;
+}
+static void cublas_sswap(int n, float* x, int incx, float* y, int incy) {
+    if (g_cublas_api.Sswap) g_cublas_api.Sswap(g_cublas_default_handle, n, x, incx, y, incy);
+}
+static void cublas_dswap(int n, double* x, int incx, double* y, int incy) {
+    if (g_cublas_api.Dswap) g_cublas_api.Dswap(g_cublas_default_handle, n, x, incx, y, incy);
+}
+static int cublas_isamax(int n, const float* x, int incx) {
+    int r = 0;
+    if (g_cublas_api.Isamax) g_cublas_api.Isamax(g_cublas_default_handle, n, x, incx, &r);
+    return r - 1; /* cuBLAS returns 1-based index; CBLAS is 0-based */
+}
+static int cublas_idamax(int n, const double* x, int incx) {
+    int r = 0;
+    if (g_cublas_api.Idamax) g_cublas_api.Idamax(g_cublas_default_handle, n, x, incx, &r);
+    return r - 1;
+}
+
+/* Level 2 */
+static void cublas_sgemv(int order, int transA, int m, int n,
+                          float alpha, const float* A, int lda,
+                          const float* x, int incx, float beta, float* y, int incy) {
+    if (!g_cublas_api.Sgemv) return;
+    /* CBLAS CblasRowMajor = 101; cuBLAS is column-major — swap dimensions & transpose */
+    cublasOperation_t op = (transA == 111) ? CUBLAS_OP_T : CUBLAS_OP_N; /* 111=NoTrans */
+    int cm = (order == 102) ? m : n; /* 102=ColMajor */
+    int cn = (order == 102) ? n : m;
+    if (order != 102) { int tmp = cm; cm = cn; cn = tmp; }
+    g_cublas_api.Sgemv(g_cublas_default_handle, op, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
+}
+static void cublas_dgemv(int order, int transA, int m, int n,
+                          double alpha, const double* A, int lda,
+                          const double* x, int incx, double beta, double* y, int incy) {
+    if (!g_cublas_api.Dgemv) return;
+    cublasOperation_t op = (transA == 111) ? CUBLAS_OP_T : CUBLAS_OP_N;
+    g_cublas_api.Dgemv(g_cublas_default_handle, op, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
+}
+
+/* Level 3 */
+static void cublas_sgemm(int order, int transA, int transB, int m, int n, int k,
+                          float alpha, const float* A, int lda,
+                          const float* B, int ldb, float beta, float* C, int ldc) {
+    if (!g_cublas_api.Sgemm) return;
+    cublasOperation_t opA = (transA == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    cublasOperation_t opB = (transB == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    /* Row-major: swap A/B and m/n to convert to column-major */
+    if (order == 101) { /* CblasRowMajor */
+        g_cublas_api.Sgemm(g_cublas_default_handle, opB, opA, n, m, k,
+                            &alpha, B, ldb, A, lda, &beta, C, ldc);
+    } else {
+        g_cublas_api.Sgemm(g_cublas_default_handle, opA, opB, m, n, k,
+                            &alpha, A, lda, B, ldb, &beta, C, ldc);
+    }
+}
+static void cublas_dgemm(int order, int transA, int transB, int m, int n, int k,
+                          double alpha, const double* A, int lda,
+                          const double* B, int ldb, double beta, double* C, int ldc) {
+    if (!g_cublas_api.Dgemm) return;
+    cublasOperation_t opA = (transA == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    cublasOperation_t opB = (transB == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    if (order == 101) {
+        g_cublas_api.Dgemm(g_cublas_default_handle, opB, opA, n, m, k,
+                            &alpha, B, ldb, A, lda, &beta, C, ldc);
+    } else {
+        g_cublas_api.Dgemm(g_cublas_default_handle, opA, opB, m, n, k,
+                            &alpha, A, lda, B, ldb, &beta, C, ldc);
+    }
+}
+static void cublas_strsm(int order, int side, int uplo, int transA, int diag,
+                          int m, int n, float alpha, const float* A, int lda, float* B, int ldb) {
+    if (!g_cublas_api.Strsm) return;
+    cublasSideMode_t s = (side == 141) ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT; /* 141=Left */
+    cublasFillMode_t u = (uplo == 121) ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER;
+    cublasOperation_t op = (transA == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    cublasDiagType_t dt = (diag == 131) ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT;
+    g_cublas_api.Strsm(g_cublas_default_handle, s, u, op, dt, m, n, &alpha, A, lda, B, ldb);
+}
+static void cublas_dtrsm(int order, int side, int uplo, int transA, int diag,
+                          int m, int n, double alpha, const double* A, int lda, double* B, int ldb) {
+    if (!g_cublas_api.Dtrsm) return;
+    cublasSideMode_t s = (side == 141) ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT;
+    cublasFillMode_t u = (uplo == 121) ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER;
+    cublasOperation_t op = (transA == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    cublasDiagType_t dt = (diag == 131) ? CUBLAS_DIAG_NON_UNIT : CUBLAS_DIAG_UNIT;
+    g_cublas_api.Dtrsm(g_cublas_default_handle, s, u, op, dt, m, n, &alpha, A, lda, B, ldb);
+}
+static void cublas_ssyrk(int order, int uplo, int trans, int n, int k,
+                          float alpha, const float* A, int lda, float beta, float* C, int ldc) {
+    if (!g_cublas_api.Ssyrk) return;
+    cublasFillMode_t u = (uplo == 121) ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER;
+    cublasOperation_t op = (trans == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    g_cublas_api.Ssyrk(g_cublas_default_handle, u, op, n, k, &alpha, A, lda, &beta, C, ldc);
+}
+static void cublas_dsyrk(int order, int uplo, int trans, int n, int k,
+                          double alpha, const double* A, int lda, double beta, double* C, int ldc) {
+    if (!g_cublas_api.Dsyrk) return;
+    cublasFillMode_t u = (uplo == 121) ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER;
+    cublasOperation_t op = (trans == 111) ? CUBLAS_OP_N : CUBLAS_OP_T;
+    g_cublas_api.Dsyrk(g_cublas_default_handle, u, op, n, k, &alpha, A, lda, &beta, C, ldc);
+}
+
+/* Memory management — forward to CUDA runtime */
+static int cublas_mem_alloc(void* bh, void** ptr, size_t sz) {
+    (void)bh;
+    return (g_cublas_api.cudaMalloc && g_cublas_api.cudaMalloc(ptr, sz) == 0) ? 0 : -1;
+}
+static void cublas_mem_free(void* bh, void* ptr) {
+    (void)bh;
+    if (g_cublas_api.cudaFree) g_cublas_api.cudaFree(ptr);
+}
+static int cublas_mem_upload(void* bh, void* dst, const void* src, size_t sz) {
+    (void)bh;
+    return g_cublas_api.cudaMemcpy ? g_cublas_api.cudaMemcpy(dst, src, sz, 1) : -1; /* H2D=1 */
+}
+static int cublas_mem_download(void* bh, void* dst, const void* src, size_t sz) {
+    (void)bh;
+    return g_cublas_api.cudaMemcpy ? g_cublas_api.cudaMemcpy(dst, src, sz, 2) : -1; /* D2H=2 */
+}
+static int cublas_mem_copy_dev(void* bh, void* dst, const void* src, size_t sz) {
+    (void)bh;
+    return g_cublas_api.cudaMemcpy ? g_cublas_api.cudaMemcpy(dst, src, sz, 3) : -1; /* D2D=3 */
+}
+
+/* Stream management */
+static int cublas_stream_create_vt(void* bh, void** stream) {
+    (void)bh;
+    return g_cublas_api.cudaStreamCreate((cudaStream_t*)stream);
+}
+static void cublas_stream_destroy_vt(void* bh, void* stream) {
+    (void)bh;
+    if (g_cublas_api.cudaStreamDestroy) g_cublas_api.cudaStreamDestroy((cudaStream_t)stream);
+}
+static int cublas_stream_sync_vt(void* bh, void* stream) {
+    (void)bh;
+    return g_cublas_api.cudaStreamSynchronize ? g_cublas_api.cudaStreamSynchronize((cudaStream_t)stream) : 0;
+}
+static int cublas_stream_set_vt(void* bh, void* stream) {
+    (void)bh;
+    return (g_cublas_default_handle && g_cublas_api.cublasSetStream)
+               ? (int)g_cublas_api.cublasSetStream(g_cublas_default_handle, (cudaStream_t)stream)
+               : -1;
+}
+
+static uint32_t cublas_get_capabilities(void* bh) {
+    (void)bh;
+    return FB_CAP_GPU | FB_CAP_LEVEL1 | FB_CAP_LEVEL2 | FB_CAP_LEVEL3
+         | FB_CAP_SINGLE | FB_CAP_DOUBLE;
+}
+
+/* The static vtable that gets_vtable() returns */
+static fb_backend_vtable_t g_cublas_vtable = {
+    /* BLAS L1 */
+    .sasum  = cublas_sasum,
+    .dasum  = cublas_dasum,
+    .saxpy  = cublas_saxpy,
+    .daxpy  = cublas_daxpy,
+    .sdot   = cublas_sdot,
+    .ddot   = cublas_ddot,
+    .scopy  = cublas_scopy,
+    .dcopy  = cublas_dcopy,
+    .sscal  = cublas_sscal,
+    .dscal  = cublas_dscal,
+    .snrm2  = cublas_snrm2,
+    .dnrm2  = cublas_dnrm2,
+    .sswap  = cublas_sswap,
+    .dswap  = cublas_dswap,
+    .isamax = cublas_isamax,
+    .idamax = cublas_idamax,
+
+    /* BLAS L2 */
+    .sgemv  = cublas_sgemv,
+    .dgemv  = cublas_dgemv,
+
+    /* BLAS L3 */
+    .sgemm  = cublas_sgemm,
+    .dgemm  = cublas_dgemm,
+    .strsm  = cublas_strsm,
+    .dtrsm  = cublas_dtrsm,
+    .ssyrk  = cublas_ssyrk,
+    .dsyrk  = cublas_dsyrk,
+
+    /* Memory / streams */
+    .mem_alloc    = cublas_mem_alloc,
+    .mem_free     = cublas_mem_free,
+    .mem_upload   = cublas_mem_upload,
+    .mem_download = cublas_mem_download,
+    .mem_copy     = cublas_mem_copy_dev,
+    .stream_create  = cublas_stream_create_vt,
+    .stream_destroy = cublas_stream_destroy_vt,
+    .stream_sync    = cublas_stream_sync_vt,
+    .stream_set     = cublas_stream_set_vt,
+
+    /* Backend properties */
+    .get_capabilities = cublas_get_capabilities,
+    .get_num_threads  = NULL,  /* GPU kernels have their own parallelism */
+    .set_num_threads  = NULL,
 };
 
 const fb_gpu_backend_trait_t* fb_cublas_get_backend(void) {
     if (!fb_cublas_is_available()) {
         return NULL;
     }
-    /* TODO: Return proper trait implementation */
-    return NULL;
+    return NULL; /* fb_gpu_backend_trait_t layer not yet implemented */
 }
 
 const fb_backend_vtable_t* fb_cublas_get_vtable(void) {
-    static fb_backend_vtable_t cublas_vtable = {0};
-    
-    /* Return empty vtable - actual BLAS operations implemented by dispatch system */
-    /* Old vtable_wrappers implementation disabled to use pure dynamic loading */
-    return &cublas_vtable;
-    
-    return &cublas_vtable;
+    if (!fb_cublas_is_available() || !g_cublas_default_handle) {
+        return NULL;
+    }
+    /* ext_ops[] NOTE: cuBLAS v2 symbols take cublasHandle_t as first arg,
+     * which is incompatible with the no-handle CBLAS signature expected by
+     * fb_auto_populate_ext_ops().  Extended GPU ops (cuSOLVER, batched GEMM
+     * variants, etc.) will be added via purpose-built handles when needed. */
+    return &g_cublas_vtable;
 }
 
 int fb_cublas_get_device_info(int device_id, fb_gpu_device_info_t* info) {
-    /* TODO: Query CUDA device properties */
-    return -1;
+    /* TODO: Query CUDA device properties via cuDeviceGetAttribute */
+    (void)device_id; (void)info;    return -1;
 }

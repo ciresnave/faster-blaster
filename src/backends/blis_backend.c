@@ -7,6 +7,8 @@
  */
 
 #include "blis_backend.h"
+#include "backend_auto_detect.h"     /* fb_auto_populate_ext_ops       */
+#include "sym_tables/sym_tables.h"   /* k_lapacke_symbols, k_cblas_ext */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2179,6 +2181,17 @@ static fb_backend_vtable_t g_blis_vtable = {
 const fb_backend_vtable_t* fb_blis_get_vtable(void) {
     if (!fb_blis_is_available()) {
         return NULL;
+    }
+    /* Lazily populate ext_ops[] via dlsym for any CBLAS/LAPACK symbols BLIS exports.
+     * BLIS is primarily BLAS-only, so most LAPACK slots will resolve to NULL.
+     * Only NULL slots are touched — typed wrappers (BLAS L1/L2/L3) win. */
+    static bool g_ext_ops_populated = false;
+    if (!g_ext_ops_populated) {
+        fb_auto_populate_ext_ops(&g_blis_vtable, g_blis.handle,
+                                 k_lapacke_symbols, k_lapacke_symbols_count);
+        fb_auto_populate_ext_ops(&g_blis_vtable, g_blis.handle,
+                                 k_cblas_ext_symbols, k_cblas_ext_symbols_count);
+        g_ext_ops_populated = true;
     }
     return &g_blis_vtable;
 }

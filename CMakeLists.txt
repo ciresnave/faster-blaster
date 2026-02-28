@@ -611,32 +611,18 @@ if(ACCELERATE_CPU_AVAILABLE)
     message(STATUS "Adding Apple Accelerate backend source")
 endif()
 
-if(CUDA_AVAILABLE)
-    # Add GPU backend trait implementations
-    file(GLOB CUBLAS_SOURCES src/backends/gpu/*cublas*.c)
-    # Exclude trait_impl files - they use static linking and are only for tests
-    # Exclude vtable_wrappers and smart wrapper files - they require fb_cublas_trait which would create static CUDA imports
-    # Use only cublas_backend.c which uses pure dynamic loading for CUDA functions
-    list(FILTER CUBLAS_SOURCES EXCLUDE REGEX "trait_impl\\.c$|vtable_wrappers\\.c$|smart.*\\.c$")
-    list(APPEND BACKEND_SOURCES ${CUBLAS_SOURCES})
-endif()
+# cuBLAS: pure dynamic loading — no CUDA headers required at compile time
+file(GLOB CUBLAS_SOURCES src/backends/gpu/*cublas*.c)
+# Exclude trait_impl/vtable_wrappers which statically link CUDA symbols
+list(FILTER CUBLAS_SOURCES EXCLUDE REGEX "trait_impl\.c$|vtable_wrappers\.c$|smart.*\.c$")
+list(APPEND BACKEND_SOURCES ${CUBLAS_SOURCES})
 
-if(ROCM_AVAILABLE AND HIP_COMPILER_AVAILABLE)
-    # rocBLAS backend compilation attempted but rocSOLVER API differs significantly from cuSOLVER
-    # Completed conversions:
-    #   - CUDA → HIP runtime types (cudaMalloc → hipMalloc, etc.)
-    #   - cuBLAS → rocBLAS API  (cublasSgemm → rocblas_sgemm, etc.)
-    #   - Complex types (cuDoubleComplex → rocblas_double_complex)
-    #   - Constants (CUBLAS_OP_N → rocblas_operation_none, etc.)
-    #   - HIP compilation setup (add_custom_command for clang)
-    #
-    # rocBLAS backend enabled with BLAS support
-    # LAPACK support temporarily disabled pending complete rocSOLVER API conversion
-    # (rocSOLVER API differs from cuSOLVER - no _bufferSize functions, simpler workspace management)
-    
-    message(STATUS "rocBLAS backend enabled (BLAS Level 1-3 + LAPACK via rocSOLVER)")
-    message(STATUS "   Note: rocSOLVER provides LU, Cholesky, QR, SVD, and eigenvalue solvers")
-endif()
+# rocBLAS: pure dynamic loading — no HIP/ROCm headers required at compile time
+# Only rocblas_backend.c uses dynamic loading; legacy step1/trait_impl files need HIP headers
+file(GLOB ROCBLAS_SOURCES src/backends/gpu/*rocblas*.c)
+list(FILTER ROCBLAS_SOURCES EXCLUDE REGEX "trait_impl.*\\.c$|step[0-9]+\\.c$")
+list(APPEND BACKEND_SOURCES ${ROCBLAS_SOURCES})
+message(STATUS "rocBLAS backend included (dynamic loading, deferred to runtime availability)")
 
 if(ONEMKL_AVAILABLE)
     # Add oneMKL GPU backend trait implementations
