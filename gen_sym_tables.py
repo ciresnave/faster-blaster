@@ -60,7 +60,7 @@ def write_table(filename, varname, entries, comment):
         f.write(C_INCLUDES)
         f.write(f"const fb_sym_entry_t {varname}[] = {{\n")
         for (macro, sym) in entries:
-            f.write(f'    {{ {macro:<48s} "{sym}" }},\n')
+            f.write(f'    {{ {macro:<48s}, "{sym}" }},\n')
         f.write("};\n\n")
         # Use sizeof so count stays correct if anyone manually adds entries.
         f.write(
