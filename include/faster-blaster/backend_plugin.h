@@ -234,6 +234,21 @@ void fb_register_blas_lapack_reference_plugin(void);
  */
 void fb_init_plugins(void);
 
+/**
+ * Return the vtable for the backend at the given scoreable registry position.
+ *
+ * The id matches the backend_id values assigned by the DAG planner
+ * (exec_dag.c): 0 = first registered plugin with score>0, 1 = second, etc.
+ *
+ * The plugin is initialised lazily on first access if not already loaded.
+ * Falls back to fb_get_active_vtable() when the id is out of range or
+ * the backend library is unavailable.
+ *
+ * @param id  Backend position index from fb_exec_dag_plan() plan step.
+ * @return    Vtable pointer, or the globally active vtable as fallback.
+ */
+const struct fb_backend_vtable *fb_get_vtable_by_id(uint32_t id);
+
 #ifdef __cplusplus
 }
 #endif

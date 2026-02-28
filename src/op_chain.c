@@ -26,6 +26,7 @@
 #endif
 
 #include "../include/faster-blaster/op_chain.h"
+#include "../include/faster-blaster/backend_plugin.h"   /* fb_get_vtable_by_id */
 
 /* Include real op-id constants so fusion heuristics use the canonical values. */
 #include "judge/judge_op_ids.h"
@@ -333,10 +334,18 @@ int fb_op_sequence_execute(fb_op_sequence_t *seq)
         return -1;
     }
 
-    const fb_backend_vtable_t *vtable = fb_get_active_vtable();
-
     for (uint32_t i = 0; i < seq->step_count; i++) {
         const fb_seq_step_t *s = &seq->steps[i];
+
+        /* Resolve the vtable for THIS step's selected backend.
+         * fb_get_vtable_by_id() returns the per-backend vtable chosen by the
+         * DAG planner; it falls back to the global active vtable when the
+         * backend hasn't been lazily initialised yet. */
+        const fb_backend_vtable_t *vtable =
+            fb_get_vtable_by_id(s->selected_backend_id);
+        if (!vtable) {
+            vtable = fb_get_active_vtable(); /* last-resort fallback */
+        }
 
         /* Log transfer requirement.
          * A full implementation would execute the transfer here using the
