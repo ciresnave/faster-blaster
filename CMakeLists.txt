@@ -434,6 +434,7 @@ set(BENCHMARK_SOURCES
     src/op_chain.c
     src/core/exec_dag.c
     src/auto_benchmark.c
+    src/core/data_tracker.c
 )
 
 # API wrapper sources

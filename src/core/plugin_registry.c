@@ -8,6 +8,8 @@
 
 #include "../../include/faster-blaster/backend_plugin.h"
 #include "../../include/faster-blaster/vtable_autofill.h"
+#include "../../include/faster-blaster/backend_ids.h"
+#include "../../include/faster-blaster/data_tracker.h"
 #include "../backends/backend_interface.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +50,38 @@ typedef struct {
 } fb_vtable_cache_entry_t;
 
 static fb_vtable_cache_entry_t g_vtable_cache[FB_MAX_CACHED_BACKENDS];
+
+/* ============================================================================
+ * Stable-ID vtable cache
+ *
+ * Indexed by FB_BACKEND_ID_* constants (0..FB_BACKEND_ID__NEXT_FREE-1).
+ * Populated on first use by fb_get_vtable_by_backend_id(), or eagerly by
+ * fb_load_best_plugin() for the elected backend.
+ * ========================================================================= */
+static fb_vtable_cache_entry_t g_id_vtable_cache[FB_BACKEND_ID__NEXT_FREE];
+
+/**
+ * Static table: FB_BACKEND_ID_* → plugin metadata name string.
+ * Must stay in sync with backend_ids.h and the plugin name fields.
+ */
+typedef struct { uint32_t id; const char *name; } fb_backend_id_name_t;
+static const fb_backend_id_name_t k_backend_id_names[] = {
+    { FB_BACKEND_ID_AOCL_BLIS,    "aocl-blis"              },
+    { FB_BACKEND_ID_BLIS,         "blis"                   },
+    { FB_BACKEND_ID_OPENBLAS,     "openblas"               },
+    { FB_BACKEND_ID_MKL,          "mkl"                    },
+    { FB_BACKEND_ID_ACCELERATE,   "accelerate"             },
+    { FB_BACKEND_ID_CUBLAS,       "cublas"                 },
+    { FB_BACKEND_ID_ROCBLAS,      "rocblas"                },
+    { FB_BACKEND_ID_ONEMKL,       "onemkl"                 },
+    { FB_BACKEND_ID_METAL,        "metal"                  },
+    { FB_BACKEND_ID_CLBLAST,      "clblast"                },
+    { FB_BACKEND_ID_CLBLAS,       "clblas"                 },
+    { FB_BACKEND_ID_REFERENCE,    "reference"              },
+    { FB_BACKEND_ID_BLR,          "blas-lapack-reference"  },
+};
+#define K_BACKEND_ID_NAMES_COUNT \
+    (sizeof(k_backend_id_names)/sizeof(k_backend_id_names[0]))
 
 /**
  * Walk the registry (same filter as snapshot_backends) and return the
@@ -166,6 +200,21 @@ const fb_backend_plugin_t *fb_load_best_plugin(const char *backend_name,
         g_vtable_cache[slot].ctx    = *ctx_out;
         g_vtable_cache[slot].vtable = vtable;
       }
+
+      /* Also populate the stable-ID cache for fb_get_vtable_by_backend_id() */
+      const char *best_name = best_plugin->metadata ? best_plugin->metadata->name : NULL;
+      if (best_name) {
+        for (size_t ni = 0; ni < K_BACKEND_ID_NAMES_COUNT; ni++) {
+          if (strcmp(k_backend_id_names[ni].name, best_name) == 0) {
+            uint32_t bid = k_backend_id_names[ni].id;
+            if (bid < FB_BACKEND_ID__NEXT_FREE) {
+              g_id_vtable_cache[bid].ctx    = *ctx_out;
+              g_id_vtable_cache[bid].vtable = vtable;
+            }
+            break;
+          }
+        }
+      }
     }
 
     return best_plugin;
@@ -274,7 +323,75 @@ const fb_backend_vtable_t *fb_get_vtable_by_id(uint32_t id)
     return fb_get_active_vtable();
 }
 
+/**
+ * Return the vtable for the backend identified by a stable FB_BACKEND_ID_*
+ * constant.
+ *
+ * Lookup order:
+ *   1. g_id_vtable_cache[id] if already initialised (common case after
+ *      fb_load_best_plugin has run for this backend).
+ *   2. Lazy init: walk the registry matching plugin metadata name, then
+ *      probe/init/get_vtable if score > 0.
+ *   3. Fallback: fb_get_active_vtable().
+ *
+ * @param fb_backend_id  One of FB_BACKEND_ID_AOCL_BLIS … FB_BACKEND_ID_BLR.
+ * @return               Vtable pointer, or active vtable as fallback.
+ */
+const fb_backend_vtable_t *fb_get_vtable_by_backend_id(uint32_t fb_backend_id)
+{
+    if (fb_backend_id >= FB_BACKEND_ID__NEXT_FREE)
+        return fb_get_active_vtable();
+
+    /* Fast path: already cached */
+    if (g_id_vtable_cache[fb_backend_id].vtable)
+        return g_id_vtable_cache[fb_backend_id].vtable;
+
+    /* Look up the canonical plugin name for this stable ID */
+    const char *target_name = NULL;
+    for (size_t i = 0; i < K_BACKEND_ID_NAMES_COUNT; i++) {
+        if (k_backend_id_names[i].id == fb_backend_id) {
+            target_name = k_backend_id_names[i].name;
+            break;
+        }
+    }
+    if (!target_name)
+        return fb_get_active_vtable();
+
+    /* Walk registry; lazy-init the matching plugin */
+    for (fb_plugin_registry_entry_t *e = g_plugin_registry; e; e = e->next) {
+        const fb_backend_plugin_t *p = e->plugin;
+        if (!p || !p->metadata || !p->probe || !p->init || !p->get_vtable)
+            continue;
+        if (strcmp(p->metadata->name, target_name) != 0)
+            continue;
+
+        /* Found the right plugin — probe to check availability */
+        fb_plugin_probe_result_t r = p->probe(NULL, NULL);
+        if (r.score <= 0)
+            break; /* Incompatible hardware — fall back to active */
+
+        fb_plugin_context_t *ctx = NULL;
+        if (p->init(NULL, &ctx) != 0)
+            break;
+
+        const fb_backend_vtable_t *vt = p->get_vtable(ctx);
+        if (!vt) {
+            if (p->shutdown) p->shutdown(ctx);
+            break;
+        }
+
+        fb_finalize_plugin_vtable((fb_backend_vtable_t *)vt);
+        g_id_vtable_cache[fb_backend_id].ctx    = ctx;
+        g_id_vtable_cache[fb_backend_id].vtable = vt;
+        return vt;
+    }
+
+    return fb_get_active_vtable();
+}
+
 void fb_init_plugins(void) {
+  /* Initialise data-location tracking before any plugin is loaded */
+  fb_data_tracker_init();
   /* Register all built-in CPU plugins */
   fb_register_aocl_plugin();
   fb_register_standard_blis_plugin();

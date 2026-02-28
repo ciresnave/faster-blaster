@@ -24,6 +24,35 @@ extern "C" {
 #endif
 
 /* ============================================================================
+ * Data Location Types
+ * ========================================================================== */
+
+/**
+ * @brief Where a data buffer lives.
+ */
+typedef enum {
+    FB_DATA_HOST    = 0,   /**< CPU-accessible host / system memory */
+    FB_DATA_DEVICE  = 1,   /**< Device-local memory (GPU VRAM, etc.)  */
+    FB_DATA_UNIFIED = 2,   /**< Unified / managed memory (CUDA UVM, etc.) */
+    FB_DATA_UNKNOWN = 3,   /**< Location not yet tracked */
+} fb_data_location_type_t;
+
+/**
+ * @brief Data location descriptor: memory type + device index.
+ */
+typedef struct {
+    fb_data_location_type_t type;  /**< Memory class: host / device / unified */
+    int device_id;                 /**< Device index when type == FB_DATA_DEVICE */
+} fb_data_location_t;
+
+/* Convenience aliases so data_tracker.c can compare against device->type
+ * (fb_compute_device_t uses fb_device_type_t from compute_device.h).  */
+#ifndef FB_DEVICE_CPU
+#define FB_DEVICE_CPU  FB_DEVICE_TYPE_CPU
+#define FB_DEVICE_GPU  FB_DEVICE_TYPE_GPU
+#endif
+
+/* ============================================================================
  * Data Tracking
  * ========================================================================== */
 

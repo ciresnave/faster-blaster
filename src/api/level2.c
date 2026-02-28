@@ -8,25 +8,26 @@
 
 #include "faster_blaster.h"
 #include "dispatch.h"
+#include "op_dispatch.h"
 #include <stdio.h>
 
 /* ==== GEMV: y := alpha*A*x + beta*y or y := alpha*A^T*x + beta*y ==== */
 
 void fb_sgemv(
-    const fb_layout_t layout,
-    const fb_transpose_t trans,
-    const int64_t m,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const FB_TRANSPOSE trans,
+    const int m,
+    const int n,
     const float alpha,
     const float *A,
-    const int64_t lda,
+    const int lda,
     const float *x,
-    const int64_t incx,
+    const int incx,
     const float beta,
     float *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SGEMV);
     if (backend && backend->sgemv) {
         backend->sgemv(layout, trans, m, n, alpha, A, lda, x, incx, beta, y, incy);
     } else {
@@ -35,20 +36,20 @@ void fb_sgemv(
 }
 
 void fb_dgemv(
-    const fb_layout_t layout,
-    const fb_transpose_t trans,
-    const int64_t m,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const FB_TRANSPOSE trans,
+    const int m,
+    const int n,
     const double alpha,
     const double *A,
-    const int64_t lda,
+    const int lda,
     const double *x,
-    const int64_t incx,
+    const int incx,
     const double beta,
     double *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DGEMV);
     if (backend && backend->dgemv) {
         backend->dgemv(layout, trans, m, n, alpha, A, lda, x, incx, beta, y, incy);
     } else {
@@ -59,18 +60,18 @@ void fb_dgemv(
 /* ==== GER: A := alpha*x*y^T + A ==== */
 
 void fb_sger(
-    const fb_layout_t layout,
-    const int64_t m,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const int m,
+    const int n,
     const float alpha,
     const float *x,
-    const int64_t incx,
+    const int incx,
     const float *y,
-    const int64_t incy,
+    const int incy,
     float *A,
-    const int64_t lda)
+    const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SGER);
     if (backend && backend->sger) {
         backend->sger(layout, m, n, alpha, x, incx, y, incy, A, lda);
     } else {
@@ -79,18 +80,18 @@ void fb_sger(
 }
 
 void fb_dger(
-    const fb_layout_t layout,
-    const int64_t m,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const int m,
+    const int n,
     const double alpha,
     const double *x,
-    const int64_t incx,
+    const int incx,
     const double *y,
-    const int64_t incy,
+    const int incy,
     double *A,
-    const int64_t lda)
+    const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DGER);
     if (backend && backend->dger) {
         backend->dger(layout, m, n, alpha, x, incx, y, incy, A, lda);
     } else {
@@ -101,17 +102,17 @@ void fb_dger(
 /* ==== TRMV: x := A*x or x := A^T*x (A triangular) ==== */
 
 void fb_strmv(
-    const fb_layout_t layout,
-    const fb_uplo_t uplo,
-    const fb_transpose_t trans,
-    const fb_diag_t diag,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const FB_UPLO uplo,
+    const FB_TRANSPOSE trans,
+    const FB_DIAG diag,
+    const int n,
     const float *A,
-    const int64_t lda,
+    const int lda,
     float *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STRMV);
     if (backend && backend->strmv) {
         backend->strmv(layout, uplo, trans, diag, n, A, lda, x, incx);
     } else {
@@ -120,17 +121,17 @@ void fb_strmv(
 }
 
 void fb_dtrmv(
-    const fb_layout_t layout,
-    const fb_uplo_t uplo,
-    const fb_transpose_t trans,
-    const fb_diag_t diag,
-    const int64_t n,
+    const FB_LAYOUT layout,
+    const FB_UPLO uplo,
+    const FB_TRANSPOSE trans,
+    const FB_DIAG diag,
+    const int n,
     const double *A,
-    const int64_t lda,
+    const int lda,
     double *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTRMV);
     if (backend && backend->dtrmv) {
         backend->dtrmv(layout, uplo, trans, diag, n, A, lda, x, incx);
     } else {
@@ -153,7 +154,7 @@ void fb_ssymv(
     float *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYMV);
     if (backend && backend->ssymv) {
         backend->ssymv(Layout, Uplo, N, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -174,7 +175,7 @@ void fb_dsymv(
     double *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYMV);
     if (backend && backend->dsymv) {
         backend->dsymv(Layout, Uplo, N, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -200,7 +201,7 @@ void fb_sgbmv(
     float *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SGBMV);
     if (backend && backend->sgbmv) {
         backend->sgbmv(Layout, TransA, M, N, kl, ku, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -224,7 +225,7 @@ void fb_dgbmv(
     double *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DGBMV);
     if (backend && backend->dgbmv) {
         backend->dgbmv(Layout, TransA, M, N, kl, ku, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -248,7 +249,7 @@ void fb_ssbmv(
     float *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSBMV);
     if (backend && backend->ssbmv) {
         backend->ssbmv(Layout, Uplo, N, k, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -270,7 +271,7 @@ void fb_dsbmv(
     double *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSBMV);
     if (backend && backend->dsbmv) {
         backend->dsbmv(Layout, Uplo, N, k, alpha, A, lda, X, incX, beta, Y, incY);
     } else {
@@ -292,7 +293,7 @@ void fb_sspmv(
     float *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSPMV);
     if (backend && backend->sspmv) {
         backend->sspmv(Layout, Uplo, N, alpha, Ap, X, incX, beta, Y, incY);
     } else {
@@ -312,7 +313,7 @@ void fb_dspmv(
     double *Y,
     const int incY)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSPMV);
     if (backend && backend->dspmv) {
         backend->dspmv(Layout, Uplo, N, alpha, Ap, X, incX, beta, Y, incY);
     } else {
@@ -334,7 +335,7 @@ void fb_stbmv(
     float *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STBMV);
     if (backend && backend->stbmv) {
         backend->stbmv(Layout, Uplo, TransA, Diag, N, k, A, lda, X, incX);
     } else {
@@ -354,7 +355,7 @@ void fb_dtbmv(
     double *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTBMV);
     if (backend && backend->dtbmv) {
         backend->dtbmv(Layout, Uplo, TransA, Diag, N, k, A, lda, X, incX);
     } else {
@@ -374,7 +375,7 @@ void fb_stpmv(
     float *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STPMV);
     if (backend && backend->stpmv) {
         backend->stpmv(Layout, Uplo, TransA, Diag, N, Ap, X, incX);
     } else {
@@ -392,7 +393,7 @@ void fb_dtpmv(
     double *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTPMV);
     if (backend && backend->dtpmv) {
         backend->dtpmv(Layout, Uplo, TransA, Diag, N, Ap, X, incX);
     } else {
@@ -413,7 +414,7 @@ void fb_strsv(
     float *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STRSV);
     if (backend && backend->strsv) {
         backend->strsv(Layout, Uplo, TransA, Diag, N, A, lda, X, incX);
     } else {
@@ -432,7 +433,7 @@ void fb_dtrsv(
     double *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTRSV);
     if (backend && backend->dtrsv) {
         backend->dtrsv(Layout, Uplo, TransA, Diag, N, A, lda, X, incX);
     } else {
@@ -454,7 +455,7 @@ void fb_stbsv(
     float *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STBSV);
     if (backend && backend->stbsv) {
         backend->stbsv(Layout, Uplo, TransA, Diag, N, k, A, lda, X, incX);
     } else {
@@ -474,7 +475,7 @@ void fb_dtbsv(
     double *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTBSV);
     if (backend && backend->dtbsv) {
         backend->dtbsv(Layout, Uplo, TransA, Diag, N, k, A, lda, X, incX);
     } else {
@@ -494,7 +495,7 @@ void fb_stpsv(
     float *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STPSV);
     if (backend && backend->stpsv) {
         backend->stpsv(Layout, Uplo, TransA, Diag, N, Ap, X, incX);
     } else {
@@ -512,7 +513,7 @@ void fb_dtpsv(
     double *X,
     const int incX)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTPSV);
     if (backend && backend->dtpsv) {
         backend->dtpsv(Layout, Uplo, TransA, Diag, N, Ap, X, incX);
     } else {
@@ -532,7 +533,7 @@ void fb_ssyr(
     float *A,
     const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYR);
     if (backend && backend->ssyr) {
         backend->ssyr(Layout, Uplo, N, alpha, X, incX, A, lda);
     } else {
@@ -550,7 +551,7 @@ void fb_dsyr(
     double *A,
     const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYR);
     if (backend && backend->dsyr) {
         backend->dsyr(Layout, Uplo, N, alpha, X, incX, A, lda);
     } else {
@@ -569,7 +570,7 @@ void fb_sspr(
     const int incX,
     float *Ap)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSPR);
     if (backend && backend->sspr) {
         backend->sspr(Layout, Uplo, N, alpha, X, incX, Ap);
     } else {
@@ -586,7 +587,7 @@ void fb_dspr(
     const int incX,
     double *Ap)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSPR);
     if (backend && backend->dspr) {
         backend->dspr(Layout, Uplo, N, alpha, X, incX, Ap);
     } else {
@@ -608,7 +609,7 @@ void fb_ssyr2(
     float *A,
     const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYR2);
     if (backend && backend->ssyr2) {
         backend->ssyr2(Layout, Uplo, N, alpha, X, incX, Y, incY, A, lda);
     } else {
@@ -628,7 +629,7 @@ void fb_dsyr2(
     double *A,
     const int lda)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYR2);
     if (backend && backend->dsyr2) {
         backend->dsyr2(Layout, Uplo, N, alpha, X, incX, Y, incY, A, lda);
     } else {
@@ -649,7 +650,7 @@ void fb_sspr2(
     const int incY,
     float *Ap)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSPR2);
     if (backend && backend->sspr2) {
         backend->sspr2(Layout, Uplo, N, alpha, X, incX, Y, incY, Ap);
     } else {
@@ -668,7 +669,7 @@ void fb_dspr2(
     const int incY,
     double *Ap)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSPR2);
     if (backend && backend->dspr2) {
         backend->dspr2(Layout, Uplo, N, alpha, X, incX, Y, incY, Ap);
     } else {

@@ -8,19 +8,20 @@
 
 #include "faster_blaster.h"
 #include "dispatch.h"
+#include "op_dispatch.h"
 #include <stdio.h>
 
 /* ==== AXPY: y := alpha*x + y ==== */
 
 void fb_saxpy(
-    const int64_t n,
+    const int n,
     const float alpha,
     const float *x,
-    const int64_t incx,
+    const int incx,
     float *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SAXPY);
     if (backend && backend->saxpy) {
         backend->saxpy(n, alpha, x, incx, y, incy);
     } else {
@@ -29,14 +30,14 @@ void fb_saxpy(
 }
 
 void fb_daxpy(
-    const int64_t n,
+    const int n,
     const double alpha,
     const double *x,
-    const int64_t incx,
+    const int incx,
     double *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DAXPY);
     if (backend && backend->daxpy) {
         backend->daxpy(n, alpha, x, incx, y, incy);
     } else {
@@ -47,13 +48,13 @@ void fb_daxpy(
 /* ==== COPY: y := x ==== */
 
 void fb_scopy(
-    const int64_t n,
+    const int n,
     const float *x,
-    const int64_t incx,
+    const int incx,
     float *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SCOPY);
     if (backend && backend->scopy) {
         backend->scopy(n, x, incx, y, incy);
     } else {
@@ -62,13 +63,13 @@ void fb_scopy(
 }
 
 void fb_dcopy(
-    const int64_t n,
+    const int n,
     const double *x,
-    const int64_t incx,
+    const int incx,
     double *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DCOPY);
     if (backend && backend->dcopy) {
         backend->dcopy(n, x, incx, y, incy);
     } else {
@@ -79,13 +80,13 @@ void fb_dcopy(
 /* ==== DOT: result := x^T * y ==== */
 
 float fb_sdot(
-    const int64_t n,
+    const int n,
     const float *x,
-    const int64_t incx,
+    const int incx,
     const float *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SDOT);
     if (backend && backend->sdot) {
         return backend->sdot(n, x, incx, y, incy);
     } else {
@@ -95,13 +96,13 @@ float fb_sdot(
 }
 
 double fb_ddot(
-    const int64_t n,
+    const int n,
     const double *x,
-    const int64_t incx,
+    const int incx,
     const double *y,
-    const int64_t incy)
+    const int incy)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DDOT);
     if (backend && backend->ddot) {
         return backend->ddot(n, x, incx, y, incy);
     } else {
@@ -113,11 +114,11 @@ double fb_ddot(
 /* ==== NRM2: result := ||x||_2 ==== */
 
 float fb_snrm2(
-    const int64_t n,
+    const int n,
     const float *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SNRM2);
     if (backend && backend->snrm2) {
         return backend->snrm2(n, x, incx);
     } else {
@@ -127,11 +128,11 @@ float fb_snrm2(
 }
 
 double fb_dnrm2(
-    const int64_t n,
+    const int n,
     const double *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DNRM2);
     if (backend && backend->dnrm2) {
         return backend->dnrm2(n, x, incx);
     } else {
@@ -143,12 +144,12 @@ double fb_dnrm2(
 /* ==== SCAL: x := alpha*x ==== */
 
 void fb_sscal(
-    const int64_t n,
+    const int n,
     const float alpha,
     float *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSCAL);
     if (backend && backend->sscal) {
         backend->sscal(n, alpha, x, incx);
     } else {
@@ -157,12 +158,12 @@ void fb_sscal(
 }
 
 void fb_dscal(
-    const int64_t n,
+    const int n,
     const double alpha,
     double *x,
-    const int64_t incx)
+    const int incx)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSCAL);
     if (backend && backend->dscal) {
         backend->dscal(n, alpha, x, incx);
     } else {
@@ -181,7 +182,7 @@ void fb_srot(
     const float c,
     const float s)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SROT);
     if (backend && backend->srot) {
         backend->srot(n, x, incx, y, incy, c, s);
     } else {
@@ -198,7 +199,7 @@ void fb_drot(
     const double c,
     const double s)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DROT);
     if (backend && backend->drot) {
         backend->drot(n, x, incx, y, incy, c, s);
     } else {
@@ -210,7 +211,7 @@ void fb_drot(
 
 void fb_srotg(float *a, float *b, float *c, float *s)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SROTG);
     if (backend && backend->srotg) {
         backend->srotg(a, b, c, s);
     } else {
@@ -220,7 +221,7 @@ void fb_srotg(float *a, float *b, float *c, float *s)
 
 void fb_drotg(double *a, double *b, double *c, double *s)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DROTG);
     if (backend && backend->drotg) {
         backend->drotg(a, b, c, s);
     } else {
@@ -238,7 +239,7 @@ void fb_srotm(
     const int incy,
     const float *param)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SROTM);
     if (backend && backend->srotm) {
         backend->srotm(n, x, incx, y, incy, param);
     } else {
@@ -254,7 +255,7 @@ void fb_drotm(
     const int incy,
     const double *param)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DROTM);
     if (backend && backend->drotm) {
         backend->drotm(n, x, incx, y, incy, param);
     } else {
@@ -271,7 +272,7 @@ void fb_srotmg(
     const float y1,
     float *param)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SROTMG);
     if (backend && backend->srotmg) {
         backend->srotmg(d1, d2, x1, y1, param);
     } else {
@@ -286,7 +287,7 @@ void fb_drotmg(
     const double y1,
     double *param)
 {
-    const fb_backend_vtable_t *backend = fb_dispatch_get_backend(fb_dispatch_global());
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DROTMG);
     if (backend && backend->drotmg) {
         backend->drotmg(d1, d2, x1, y1, param);
     } else {

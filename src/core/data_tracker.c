@@ -1,360 +1,178 @@
 /**
  * @file data_tracker.c
- * @brief Data Location Tracking Implementation
+ * @brief Data Location Tracking (matches data_tracker.h API)
  */
 
-#include "core/data_tracker.h"
+#include "faster-blaster/data_tracker.h"
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
-// Simple hash table for pointer tracking
-#define TRACKER_HASH_SIZE 4096
+#define FB_DEVICE_ID_HOST (-1)
+#define TRACKER_HASH_SIZE 4096u
 
 typedef struct data_entry {
-    const void* ptr;
-    fb_data_location_t location;
-    size_t size_bytes;
-    uint64_t last_access_time;
-    uint32_t access_count;
-    struct data_entry* next;
+    const void       *ptr;
+    fb_data_info_t    info;
+    struct data_entry *next;
 } data_entry_t;
 
 typedef struct {
-    data_entry_t* buckets[TRACKER_HASH_SIZE];
-    uint64_t time_counter;
-    bool initialized;
+    data_entry_t *buckets[TRACKER_HASH_SIZE];
+    bool          initialized;
 } data_tracker_state_t;
 
 static data_tracker_state_t g_tracker = {0};
 
-// ============================================================================
-// Hash Function
-// ============================================================================
-
-static uint32_t hash_ptr(const void* ptr) {
+static uint32_t hash_ptr(const void *ptr) {
     uintptr_t p = (uintptr_t)ptr;
-    // Simple hash: mix bits
-    p = ((p >> 16) ^ p) * 0x45d9f3b;
-    p = ((p >> 16) ^ p) * 0x45d9f3b;
-    p = (p >> 16) ^ p;
-    return p % TRACKER_HASH_SIZE;
+    p = ((p >> 16) ^ p) * 0x45d9f3bu;
+    p = ((p >> 16) ^ p) * 0x45d9f3bu;
+    return (uint32_t)((p >> 16) ^ p) % TRACKER_HASH_SIZE;
 }
 
-// ============================================================================
-// Initialization
-// ============================================================================
-
 int fb_data_tracker_init(void) {
-    if (g_tracker.initialized) {
-        return 0;
-    }
-    
+    if (g_tracker.initialized) return 0;
     memset(&g_tracker, 0, sizeof(g_tracker));
-    g_tracker.time_counter = 0;
     g_tracker.initialized = true;
-    
     return 0;
 }
 
 void fb_data_tracker_shutdown(void) {
     if (!g_tracker.initialized) return;
-    
-    // Free all entries
     for (uint32_t i = 0; i < TRACKER_HASH_SIZE; i++) {
-        data_entry_t* entry = g_tracker.buckets[i];
-        while (entry) {
-            data_entry_t* next = entry->next;
-            free(entry);
-            entry = next;
-        }
+        data_entry_t *e = g_tracker.buckets[i];
+        while (e) { data_entry_t *n = e->next; free(e); e = n; }
+        g_tracker.buckets[i] = NULL;
     }
-    
-    memset(&g_tracker, 0, sizeof(g_tracker));
+    g_tracker.initialized = false;
 }
 
-// ============================================================================
-// Registration
-// ============================================================================
-
-int fb_data_register(const void* ptr, fb_data_location_t location, size_t size_bytes) {
-    if (!g_tracker.initialized) {
-        fb_data_tracker_init();
-    }
-    
+void fb_data_register(const void *ptr, size_t size, int device_id,
+                      bool is_pinned, bool is_managed) {
+    if (!ptr) return;
+    if (!g_tracker.initialized) fb_data_tracker_init();
     uint32_t bucket = hash_ptr(ptr);
-    
-    // Check if already registered
-    data_entry_t* entry = g_tracker.buckets[bucket];
-    while (entry) {
-        if (entry->ptr == ptr) {
-            // Update existing entry
-            entry->location = location;
-            entry->size_bytes = size_bytes;
-            entry->last_access_time = g_tracker.time_counter++;
-            return 0;
-        }
-        entry = entry->next;
-    }
-    
-    // Create new entry
-    entry = (data_entry_t*)malloc(sizeof(data_entry_t));
-    if (!entry) return -1;
-    
-    entry->ptr = ptr;
-    entry->location = location;
-    entry->size_bytes = size_bytes;
-    entry->last_access_time = g_tracker.time_counter++;
-    entry->access_count = 0;
-    entry->next = g_tracker.buckets[bucket];
-    
-    g_tracker.buckets[bucket] = entry;
-    
-    return 0;
-}
-
-int fb_data_unregister(const void* ptr) {
-    if (!g_tracker.initialized) return -1;
-    
-    uint32_t bucket = hash_ptr(ptr);
-    data_entry_t** prev = &g_tracker.buckets[bucket];
-    data_entry_t* entry = *prev;
-    
-    while (entry) {
-        if (entry->ptr == ptr) {
-            *prev = entry->next;
-            free(entry);
-            return 0;
-        }
-        prev = &entry->next;
-        entry = entry->next;
-    }
-    
-    return -1; // Not found
-}
-
-// ============================================================================
-// Queries
-// ============================================================================
-
-fb_data_location_t fb_data_get_location(const void* ptr) {
-    if (!g_tracker.initialized) {
-        fb_data_tracker_init();
-    }
-    
-    uint32_t bucket = hash_ptr(ptr);
-    data_entry_t* entry = g_tracker.buckets[bucket];
-    
-    while (entry) {
-        if (entry->ptr == ptr) {
-            entry->access_count++;
-            entry->last_access_time = g_tracker.time_counter++;
-            return entry->location;
-        }
-        entry = entry->next;
-    }
-    
-    // Unknown location - assume host
-    return FB_DATA_HOST;
-}
-
-bool fb_data_is_on_device(const void* ptr, fb_compute_device_t* device) {
-    fb_data_location_t location = fb_data_get_location(ptr);
-    
-    if (location.type == FB_DATA_HOST && device->type == FB_DEVICE_CPU) {
-        return true;
-    }
-    
-    if (location.type == FB_DATA_DEVICE && device->type == FB_DEVICE_GPU) {
-        return location.device_id == device->device_id;
-    }
-    
-    if (location.type == FB_DATA_UNIFIED) {
-        return true; // Accessible from all devices
-    }
-    
-    return false;
-}
-
-size_t fb_data_get_size(const void* ptr) {
-    if (!g_tracker.initialized) return 0;
-    
-    uint32_t bucket = hash_ptr(ptr);
-    data_entry_t* entry = g_tracker.buckets[bucket];
-    
-    while (entry) {
-        if (entry->ptr == ptr) {
-            return entry->size_bytes;
-        }
-        entry = entry->next;
-    }
-    
-    return 0;
-}
-
-// ============================================================================
-// Transfer Cost Estimation
-// ============================================================================
-
-double fb_estimate_transfer_cost(const void* ptr, fb_compute_device_t* target_device) {
-    fb_data_location_t current_loc = fb_data_get_location(ptr);
-    size_t size = fb_data_get_size(ptr);
-    
-    if (size == 0) {
-        size = 1024 * 1024; // Default estimate: 1 MB
-    }
-    
-    // Already on target device?
-    if (fb_data_is_on_device(ptr, target_device)) {
-        return 0.0; // No transfer needed
-    }
-    
-    // Unified memory - small cost
-    if (current_loc.type == FB_DATA_UNIFIED) {
-        return size / (100.0 * 1024.0 * 1024.0 * 1024.0); // 100 GB/s
-    }
-    
-    // Estimate PCIe transfer time
-    double bandwidth_gbps;
-    
-    if (current_loc.type == FB_DATA_HOST && target_device->type == FB_DEVICE_GPU) {
-        // Host -> GPU (PCIe)
-        bandwidth_gbps = 16.0; // PCIe 4.0 x16
-    } else if (current_loc.type == FB_DATA_DEVICE && target_device->type == FB_DEVICE_CPU) {
-        // GPU -> Host (PCIe)
-        bandwidth_gbps = 16.0;
-    } else if (current_loc.type == FB_DATA_DEVICE && target_device->type == FB_DEVICE_GPU) {
-        // GPU -> GPU (P2P or via host)
-        // TODO: Check if P2P is available
-        bandwidth_gbps = 16.0; // Conservative estimate
-    } else {
-        bandwidth_gbps = 10.0; // Generic estimate
-    }
-    
-    // Transfer time in seconds
-    double size_gb = size / (1024.0 * 1024.0 * 1024.0);
-    double transfer_time_s = size_gb / bandwidth_gbps;
-    
-    return transfer_time_s;
-}
-
-double fb_estimate_prefetch_benefit(const void* ptr, fb_compute_device_t* device) {
-    // Estimate benefit of prefetching data to device
-    // Returns expected time saved (in seconds)
-    
-    double transfer_cost = fb_estimate_transfer_cost(ptr, device);
-    
-    // If data is already on device, no benefit
-    if (transfer_cost == 0.0) return 0.0;
-    
-    // Benefit is avoiding blocking transfer later
-    // Assume 80% of transfer cost can be hidden by async prefetch
-    return transfer_cost * 0.8;
-}
-
-// ============================================================================
-// Access Pattern Tracking
-// ============================================================================
-
-uint32_t fb_data_get_access_count(const void* ptr) {
-    if (!g_tracker.initialized) return 0;
-    
-    uint32_t bucket = hash_ptr(ptr);
-    data_entry_t* entry = g_tracker.buckets[bucket];
-    
-    while (entry) {
-        if (entry->ptr == ptr) {
-            return entry->access_count;
-        }
-        entry = entry->next;
-    }
-    
-    return 0;
-}
-
-void fb_data_record_access(const void* ptr) {
-    if (!g_tracker.initialized) {
-        fb_data_tracker_init();
-    }
-    
-    uint32_t bucket = hash_ptr(ptr);
-    data_entry_t* entry = g_tracker.buckets[bucket];
-    
-    while (entry) {
-        if (entry->ptr == ptr) {
-            entry->access_count++;
-            entry->last_access_time = g_tracker.time_counter++;
-            return;
-        }
-        entry = entry->next;
-    }
-    
-    // Not registered - register as host memory
-    fb_data_location_t loc = { FB_DATA_HOST, 0 };
-    fb_data_register(ptr, loc, 0);
-}
-
-// ============================================================================
-// Bulk Operations
-// ============================================================================
-
-int fb_data_mark_transfer(const void* ptr, fb_compute_device_t* new_device) {
-    fb_data_location_t new_loc;
-    
-    if (new_device->type == FB_DEVICE_CPU) {
-        new_loc.type = FB_DATA_HOST;
-        new_loc.device_id = 0;
-    } else {
-        new_loc.type = FB_DATA_DEVICE;
-        new_loc.device_id = new_device->device_id;
-    }
-    
-    size_t size = fb_data_get_size(ptr);
-    return fb_data_register(ptr, new_loc, size);
-}
-
-void fb_data_clear_all(void) {
-    fb_data_tracker_shutdown();
-    fb_data_tracker_init();
-}
-
-// ============================================================================
-// Debug/Stats
-// ============================================================================
-
-void fb_data_print_stats(void) {
-    if (!g_tracker.initialized) {
-        printf("Data tracker not initialized\n");
+    for (data_entry_t *e = g_tracker.buckets[bucket]; e; e = e->next) {
+        if (e->ptr != ptr) continue;
+        e->info.size = size; e->info.device_id = device_id;
+        e->info.is_pinned = is_pinned; e->info.is_managed = is_managed;
         return;
     }
-    
-    uint32_t total_entries = 0;
-    uint32_t host_entries = 0;
-    uint32_t device_entries = 0;
-    uint32_t unified_entries = 0;
-    size_t total_bytes = 0;
-    
-    for (uint32_t i = 0; i < TRACKER_HASH_SIZE; i++) {
-        data_entry_t* entry = g_tracker.buckets[i];
-        while (entry) {
-            total_entries++;
-            total_bytes += entry->size_bytes;
-            
-            switch (entry->location.type) {
-                case FB_DATA_HOST: host_entries++; break;
-                case FB_DATA_DEVICE: device_entries++; break;
-                case FB_DATA_UNIFIED: unified_entries++; break;
-                default: break;
-            }
-            
-            entry = entry->next;
+    data_entry_t *entry = (data_entry_t *)malloc(sizeof(data_entry_t));
+    if (!entry) return;
+    entry->ptr = ptr;
+    entry->info.ptr = ptr; entry->info.size = size;
+    entry->info.device_id = device_id; entry->info.is_pinned = is_pinned;
+    entry->info.is_managed = is_managed; entry->info.last_access_time = 0;
+    entry->info.access_count = 0; entry->info.is_temporary = false;
+    entry->next = g_tracker.buckets[bucket];
+    g_tracker.buckets[bucket] = entry;
+}
+
+void fb_data_unregister(const void *ptr) {
+    if (!ptr || !g_tracker.initialized) return;
+    uint32_t bucket = hash_ptr(ptr);
+    data_entry_t **prev = &g_tracker.buckets[bucket], *e = *prev;
+    while (e) {
+        if (e->ptr == ptr) { *prev = e->next; free(e); return; }
+        prev = &e->next; e = e->next;
+    }
+}
+
+int fb_data_query_location(const void *ptr, fb_data_info_t *info) {
+    if (!ptr || !g_tracker.initialized) return -1;
+    uint32_t bucket = hash_ptr(ptr);
+    for (data_entry_t *e = g_tracker.buckets[bucket]; e; e = e->next) {
+        if (e->ptr == ptr) {
+            e->info.access_count++;
+            if (info) *info = e->info;
+            return e->info.device_id;
         }
     }
-    
-    printf("=== Data Tracker Statistics ===\n");
-    printf("Total tracked allocations: %u\n", total_entries);
-    printf("  Host: %u\n", host_entries);
-    printf("  Device: %u\n", device_entries);
-    printf("  Unified: %u\n", unified_entries);
-    printf("Total tracked memory: %.2f MB\n", total_bytes / (1024.0 * 1024.0));
+    return -1;
+}
+
+void fb_data_record_access(const void *ptr, int device_id) {
+    if (!ptr || !g_tracker.initialized) return;
+    uint32_t bucket = hash_ptr(ptr);
+    for (data_entry_t *e = g_tracker.buckets[bucket]; e; e = e->next) {
+        if (e->ptr == ptr) { e->info.access_count++; e->info.device_id = device_id; return; }
+    }
+}
+
+double fb_data_estimate_transfer_cost(const void *ptr, int target_device) {
+    if (!ptr) return 0.0;
+    fb_data_info_t info = {0};
+    int current = fb_data_query_location(ptr, &info);
+    if (current == target_device) return 0.0;
+    size_t sz = info.size > 0 ? info.size : (1u << 20);
+    /* PCIe 4.0 x16 ~16 GB/s, return microseconds */
+    return ((double)sz / (16.0 * 1024.0 * 1024.0 * 1024.0)) * 1.0e6;
+}
+
+double fb_data_estimate_operation_cost(const void **input_ptrs, int input_count,
+                                       const void **output_ptrs, int output_count,
+                                       int target_device) {
+    double total = 0.0;
+    if (input_ptrs)
+        for (int i = 0; i < input_count; i++)
+            if (input_ptrs[i])
+                total += fb_data_estimate_transfer_cost(input_ptrs[i], target_device);
+    if (output_ptrs)
+        for (int i = 0; i < output_count; i++)
+            if (output_ptrs[i])
+                total += fb_data_estimate_transfer_cost(output_ptrs[i], target_device);
+    return total;
+}
+
+int fb_data_recommend_device(const void **input_ptrs, int input_count,
+                              const void **output_ptrs, int output_count) {
+#define MAX_DEVS 32
+    int ids[MAX_DEVS] = {0}; size_t szs[MAX_DEVS] = {0}; int n = 0;
+    const void **ptrs[2] = {input_ptrs, output_ptrs};
+    int cnts[2] = {input_count, output_count};
+    for (int g = 0; g < 2; g++) {
+        if (!ptrs[g]) continue;
+        for (int i = 0; i < cnts[g]; i++) {
+            if (!ptrs[g][i]) continue;
+            fb_data_info_t inf = {0};
+            int dev = fb_data_query_location(ptrs[g][i], &inf);
+            if (dev < 0) dev = FB_DEVICE_ID_HOST;
+            bool found = false;
+            for (int d = 0; d < n; d++)
+                if (ids[d] == dev) { szs[d] += inf.size; found = true; break; }
+            if (!found && n < MAX_DEVS) { ids[n] = dev; szs[n++] = inf.size; }
+        }
+    }
+    int best = FB_DEVICE_ID_HOST; size_t best_sz = 0;
+    for (int d = 0; d < n; d++) if (szs[d] > best_sz) { best_sz = szs[d]; best = ids[d]; }
+    return best;
+#undef MAX_DEVS
+}
+
+double fb_data_locality_score(const void **input_ptrs, int input_count,
+                               const void **output_ptrs, int output_count,
+                               int device_id) {
+    size_t local = 0, total = 0;
+    const void **ptrs[2] = {input_ptrs, output_ptrs};
+    int cnts[2] = {input_count, output_count};
+    for (int g = 0; g < 2; g++) {
+        if (!ptrs[g]) continue;
+        for (int i = 0; i < cnts[g]; i++) {
+            if (!ptrs[g][i]) continue;
+            fb_data_info_t inf = {0};
+            int dev = fb_data_query_location(ptrs[g][i], &inf);
+            total += inf.size;
+            if (dev == device_id || inf.is_managed) local += inf.size;
+        }
+    }
+    return total > 0 ? ((double)local / (double)total) : 0.5;
+}
+
+int fb_data_prefetch(const void *ptr, int target_device) {
+    if (!ptr) return -1;
+    fb_data_info_t inf = {0};
+    fb_data_query_location(ptr, &inf);
+    fb_data_register(ptr, inf.size, target_device, inf.is_pinned, inf.is_managed);
+    return 0;
 }

@@ -249,6 +249,19 @@ void fb_init_plugins(void);
  */
 const struct fb_backend_vtable *fb_get_vtable_by_id(uint32_t id);
 
+/**
+ * Return the vtable for the backend identified by a stable FB_BACKEND_ID_*
+ * constant (from backend_ids.h).
+ *
+ * The plugin is initialised lazily on first access if not already loaded.
+ * Falls back to fb_get_active_vtable() when the backend is unavailable on
+ * the current hardware or the ID is out of range.
+ *
+ * @param fb_backend_id  FB_BACKEND_ID_AOCL_BLIS, FB_BACKEND_ID_OPENBLAS, …
+ * @return               Vtable pointer, or the globally active vtable as fallback.
+ */
+const struct fb_backend_vtable *fb_get_vtable_by_backend_id(uint32_t fb_backend_id);
+
 #ifdef __cplusplus
 }
 #endif
