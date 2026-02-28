@@ -13,9 +13,12 @@
  */
 
 #include "../include/dispatch_tables.h"
+#include "../include/faster-blaster/ranked_dispatch.h"
+/* ranked_dispatch.h transitively provides judge_select.h and backend_ids.h */
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdint.h>
 
 /**
  * Helper: Compare two ranked operations by time (ascending for FASTEST)
@@ -115,7 +118,7 @@ static int compare_by_balanced(const void *a, const void *b) {
  * @param tables Output: generated dispatch tables
  * @return 0 on success, negative on error
  */
-int fb_generate_dispatch_tables(const void *cache, 
+int fb_generate_dispatch_tables(void *cache, 
                                  fb_dispatch_tables_t *tables) {
     if (!cache || !tables) {
         return -1;  // Invalid input
@@ -152,11 +155,12 @@ int fb_generate_dispatch_tables(const void *cache,
  */
 const fb_ranked_operation_t* fb_select_operation(
     const fb_dispatch_tables_t *tables,
-    int op_id,
+    uint32_t op_id,
+    const fb_dispatch_constraints_t* constraints,
     int size_class,
     int shape_class) {
-    
-    if (!tables || op_id < 0 || op_id >= FB_MAX_OPERATIONS) {
+    (void)constraints;
+    if (!tables || (int)op_id < 0 || (int)op_id >= FB_MAX_OPERATIONS) {
         return NULL;
     }
     
@@ -165,7 +169,6 @@ const fb_ranked_operation_t* fb_select_operation(
     }
     
     // Placeholder: Return fastest available operation for this op_id
-    // Full implementation will support multiple criteria and constraints
     if (tables->fastest[op_id].top_n[0].func_ptr != NULL) {
         return &tables->fastest[op_id].top_n[0];
     }
@@ -243,4 +246,85 @@ int fb_dispatch_tables_get_stats(const fb_dispatch_tables_t *tables,
     
     // Placeholder: Will be implemented when stats structure is defined
     return 0;
+}
+
+/* =========================================================================
+ * Constraint-based backend selection
+ * ========================================================================= */
+
+uint32_t fb_select_backend_with_constraints(
+    uint32_t                          op_id,
+    const fb_dispatch_constraints_t  *constraints)
+{
+    const fb_ranked_table_t *tbl = fb_op_dispatch_get_table();
+
+    /* No table registered yet — reference backend is always correct. */
+    if (!tbl)
+        return FB_BACKEND_ID_REFERENCE;
+
+    /* NULL constraints — balanced default. */
+    if (!constraints)
+        return fb_ranked_get_best(tbl, op_id, FB_RANK_BALANCED);
+
+    /* Scale user accuracy (0-255) to digit score (0-15).
+     * Use the stricter of min_accuracy / min_precision. */
+    uint8_t acc = (constraints->min_accuracy > constraints->min_precision)
+                      ? constraints->min_accuracy
+                      : constraints->min_precision;
+    uint8_t min_dig = (uint8_t)((acc * 15u + 127u) / 255u);
+
+    bool has_acc = (min_dig > 0);
+    bool has_lat = (constraints->max_time_us > 0);
+
+    if (!has_acc && !has_lat) {
+        /* No hard constraints — honour preferred criterion. */
+        switch (constraints->prefer_criterion) {
+        case FB_OPTIMIZE_FASTEST:
+        case FB_OPTIMIZE_POWER_EFFICIENT:
+            return fb_ranked_get_best(tbl, op_id, FB_RANK_FASTEST);
+        case FB_OPTIMIZE_ACCURACY:
+        case FB_OPTIMIZE_PRECISION:
+            return fb_ranked_get_best(tbl, op_id, FB_RANK_MOST_ACCURATE);
+        case FB_OPTIMIZE_BALANCED:
+        default:
+            return fb_ranked_get_best(tbl, op_id, FB_RANK_BALANCED);
+        }
+    }
+
+    /* At least one hard constraint: walk MOST_ACCURATE list so that when
+     * multiple backends pass all constraints we prefer the most precise one.
+     * Skip entries that violate the latency ceiling or the accuracy floor. */
+    uint32_t max_lat_ns = constraints->max_time_us * 1000u;
+    uint32_t count = fb_ranked_entry_count(tbl, op_id, FB_RANK_MOST_ACCURATE);
+
+    for (uint32_t r = 0; r < count; r++) {
+        const fb_ranked_entry_t *e =
+            fb_ranked_get_entry(tbl, op_id, FB_RANK_MOST_ACCURATE, r);
+        if (!e || !e->is_valid) break;
+        if (!fb_ranked_is_available(tbl, e->backend_id)) continue;
+        if (has_acc && e->effective_digits < min_dig) continue;
+        /* latency_p50_ns == UINT32_MAX means "no profile" : treat as unknown
+         * and let the entry pass the latency check (conservative fallback). */
+        if (has_lat && e->latency_p50_ns != UINT32_MAX
+                    && e->latency_p50_ns > max_lat_ns)
+            continue;
+        return e->backend_id;
+    }
+
+    /* Nothing met all hard constraints. */
+    if (constraints->require_exact_precision)
+        return FB_BACKEND_ID_REFERENCE;  /* hard failure: no degradation */
+
+    /* Degraded mode: ignore constraints, return best for preferred criterion. */
+    switch (constraints->prefer_criterion) {
+    case FB_OPTIMIZE_FASTEST:
+    case FB_OPTIMIZE_POWER_EFFICIENT:
+        return fb_ranked_get_best(tbl, op_id, FB_RANK_FASTEST);
+    case FB_OPTIMIZE_ACCURACY:
+    case FB_OPTIMIZE_PRECISION:
+        return fb_ranked_get_best(tbl, op_id, FB_RANK_MOST_ACCURATE);
+    case FB_OPTIMIZE_BALANCED:
+    default:
+        return fb_ranked_get_best(tbl, op_id, FB_RANK_BALANCED);
+    }
 }

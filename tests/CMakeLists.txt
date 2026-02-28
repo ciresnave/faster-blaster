@@ -631,6 +631,28 @@ add_test(NAME ranked_dispatch_tables COMMAND test_ranked_dispatch)
 message(STATUS "Ranked dispatch table tests enabled")
 
 # ============================================================================
+# Constraint-Based Backend Selection Tests (Phase 3)
+# ============================================================================
+add_executable(test_constraint_selection
+    test_constraint_selection.c
+)
+
+target_link_libraries(test_constraint_selection faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_constraint_selection POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_constraint_selection>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME constraint_based_selection COMMAND test_constraint_selection)
+
+message(STATUS "Constraint-based selection tests enabled")
+
+# ============================================================================
 # Test Summary
 # ============================================================================
 message(STATUS "")

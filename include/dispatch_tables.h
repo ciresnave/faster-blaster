@@ -177,8 +177,8 @@ const fb_ranked_operation_t* fb_select_operation(
     const fb_dispatch_tables_t* tables,
     uint32_t operation_id,
     const fb_dispatch_constraints_t* constraints,
-    fb_size_class_t size_class,
-    fb_shape_class_t shape_class
+    int size_class,
+    int shape_class
 );
 
 /**
@@ -250,6 +250,37 @@ const fb_ranked_operation_t* fb_get_best_operation(
  * @param tables Dispatch tables
  */
 void fb_print_dispatch_tables_summary(const fb_dispatch_tables_t* tables);
+
+// ============================================================================
+// Constraint-based backend selection (wired to ranked_dispatch)
+// ============================================================================
+
+/**
+ * Select the best backend for op_id from the globally-registered ranked
+ * dispatch table, honoring user-visible constraints.
+ *
+ * Translation rules:
+ *   constraints == NULL                 → balanced default
+ *   no hard constraints                 → routes by prefer_criterion
+ *   max_time_us > 0 only               → SPEED_FLOOR_THEN_PRECISION
+ *   min_accuracy / min_precision only  → PRECISION_FLOOR_THEN_SPEED
+ *   both hard constraints              → walk MOST_ACCURATE list, skip
+ *                                         entries failing either limit
+ *
+ * When no entry meets all hard constraints:
+ *   require_exact_precision == true  → returns FB_BACKEND_ID_REFERENCE
+ *   require_exact_precision == false → returns best available (degraded)
+ *
+ * Returns FB_BACKEND_ID_REFERENCE when no ranked table is registered.
+ *
+ * @param op_id       Operation ID (FB_OP_*).
+ * @param constraints User constraints (NULL → no constraints).
+ * @return Backend ID to use for this operation.
+ */
+uint32_t fb_select_backend_with_constraints(
+    uint32_t                          op_id,
+    const fb_dispatch_constraints_t  *constraints
+);
 
 #ifdef __cplusplus
 }
