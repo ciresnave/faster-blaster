@@ -58,27 +58,65 @@ static auto_benchmark_state_t g_auto_benchmark_state = {
 static fb_ranked_table_t *g_ranked_table = NULL;
 
 /**
- * Simplified hardware change detection
- * 
- * For now, always trigger re-benchmark on any fingerprint mismatch.
- * In production, would check specific hardware components.
+ * Component-level hardware change detection.
  *
- * @return Change reason for diagnostics
+ * Compares cached and current fingerprints field-by-field and returns the
+ * most specific FB_CHANGE_* reason.  Priority order:
+ *   1. Schema version — always forces rebuild (format incompatibility)
+ *   2. CPU identity   — vendor hash / family / model
+ *   3. GPU topology   — device added or removed
+ *   4. Backend libs   — version hash changed (library updated)
+ *   5. Memory size    — changed by more than 10 % (NUMA / DIMM swap)
+ *
+ * @return FB_CHANGE_NONE when fingerprints are functionally identical.
  */
 static fb_change_reason_t detect_hardware_changes(
     const fb_hardware_fingerprint_t *cached_fingerprint,
-    const fb_hardware_fingerprint_t *current_fingerprint) {
-    
-    if (!cached_fingerprint || !current_fingerprint) {
-        return FB_CHANGE_FIRST_RUN;  // Unknown state
+    const fb_hardware_fingerprint_t *current_fingerprint)
+{
+    if (!cached_fingerprint || !current_fingerprint)
+        return FB_CHANGE_FIRST_RUN;
+
+    /* 1. Schema version must match — any format bump requires full rebuild. */
+    if (cached_fingerprint->schema_version != current_fingerprint->schema_version)
+        return FB_CHANGE_SCHEMA_VERSION;
+
+    /* 2. CPU identity. */
+    if (cached_fingerprint->cpu_vendor_hash != current_fingerprint->cpu_vendor_hash ||
+        cached_fingerprint->cpu_family      != current_fingerprint->cpu_family      ||
+        cached_fingerprint->cpu_model       != current_fingerprint->cpu_model)
+        return FB_CHANGE_CPU;
+
+    /* 3. GPU topology. */
+    for (int i = 0; i < 4; i++) {
+        uint32_t was = cached_fingerprint->gpu_device_ids[i];
+        uint32_t now = current_fingerprint->gpu_device_ids[i];
+        if (was == 0 && now != 0) return FB_CHANGE_GPU_ADDED;
+        if (was != 0 && now == 0) return FB_CHANGE_GPU_REMOVED;
+        /* Different device in same slot: treat as removed + added. */
+        if (was != 0 && now != 0 && was != now) return FB_CHANGE_GPU_ADDED;
     }
-    
-    // Simple comparison: if fingerprints differ, some hardware changed
-    if (memcmp(cached_fingerprint, current_fingerprint, 
-               sizeof(fb_hardware_fingerprint_t)) != 0) {
-        return FB_CHANGE_CPU;  // Simplified: report generic CPU change
+
+    /* 4. Backend version (library update changes optimal back-end). */
+    if (cached_fingerprint->backend_version_hash !=
+        current_fingerprint->backend_version_hash)
+        return FB_CHANGE_BACKEND_VERSION;
+
+    /* 5. Memory — only flag if RAM changed by more than 10 %. */
+    if (cached_fingerprint->memory_size_mb  != 0 &&
+        current_fingerprint->memory_size_mb != 0) {
+        uint32_t big = cached_fingerprint->memory_size_mb  >
+                       current_fingerprint->memory_size_mb
+                     ? cached_fingerprint->memory_size_mb
+                     : current_fingerprint->memory_size_mb;
+        uint32_t sml = cached_fingerprint->memory_size_mb  <
+                       current_fingerprint->memory_size_mb
+                     ? cached_fingerprint->memory_size_mb
+                     : current_fingerprint->memory_size_mb;
+        if (big - sml > big / 10u)
+            return FB_CHANGE_MEMORY;
     }
-    
+
     return FB_CHANGE_NONE;
 }
 
@@ -337,28 +375,50 @@ int fb_auto_benchmark_check(const fb_auto_benchmark_config_t *config,
             /* Table file absent or version mismatch — fall through to rebuild. */
         }
     } else {
-        /* Judge not initialised — check legacy cache file as a fallback. */
+        /* Judge not initialised — compare the hardware fingerprint stored in
+         * the legacy cache file against the current machine.  Only skip
+         * re-benchmarking when the fingerprints are identical. */
         char cache_path[1024] = {0};
         fb_get_default_cache_path(cache_path, sizeof(cache_path));
-        FILE *f = fopen(cache_path, "rb");
-        int cache_loaded = (f != NULL);
-        if (f) fclose(f);
 
-        fb_hardware_fingerprint_t fp = {0};
-        if (cache_loaded && fb_generate_hardware_fingerprint(&fp) == 0) {
+        fb_hardware_fingerprint_t cached_fp  = {0};
+        fb_hardware_fingerprint_t current_fp = {0};
+        fb_change_reason_t change            = FB_CHANGE_FIRST_RUN;
+
+        FILE *f = fopen(cache_path, "rb");
+        if (f) {
+            fb_benchmark_cache_header_t hdr;
+            if (fread(&hdr, sizeof(hdr), 1, f) == 1 &&
+                memcmp(hdr.magic, "FBBENCH\0", 8) == 0) {
+                cached_fp = hdr.hw_print;
+                if (fb_generate_hardware_fingerprint(&current_fp) == 0)
+                    change = detect_hardware_changes(&cached_fp, &current_fp);
+            }
+            fclose(f);
+        }
+
+        if (change == FB_CHANGE_NONE) {
             if (result_out) {
                 result_out->change_reason          = FB_CHANGE_NONE;
                 result_out->benchmarking_performed = false;
             }
             g_auto_benchmark_state.status   = FB_AUTO_BENCH_IDLE;
             g_auto_benchmark_state.progress = 1.0f;
-            return 0;  /* Legacy fast path */
+            return 0;  /* Legacy fast path: hardware unchanged */
         }
+
+        /* Hardware changed or no valid cache — propagate the reason so the
+         * caller knows why we are about to trigger a re-benchmark. */
+        if (result_out)
+            result_out->change_reason = change;
     }
 
     /* Need to (re-)benchmark. */
     if (result_out) {
-        result_out->change_reason          = FB_CHANGE_FIRST_RUN;
+        /* Preserve any specific reason already set by the legacy path above;
+         * fall back to FIRST_RUN only when no reason has been recorded yet. */
+        if (result_out->change_reason == FB_CHANGE_NONE)
+            result_out->change_reason = FB_CHANGE_FIRST_RUN;
         result_out->benchmarking_performed = true;
     }
 
