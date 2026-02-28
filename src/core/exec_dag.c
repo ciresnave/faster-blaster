@@ -39,6 +39,12 @@
 #include "../include/faster-blaster/backend_plugin.h"
 #include "../include/faster-blaster/exec_dag.h"
 
+/* Internal: stable FB_BACKEND_ID_* constants */
+#include "../../include/faster-blaster/backend_ids.h"
+/* Internal judge store: on-disk profile lookup */
+#include "../judge/judge_types.h"
+#include "../judge/judge_store.h"
+
 
 /* =========================================================================
  * Constants
@@ -73,6 +79,7 @@ typedef struct {
   const fb_backend_plugin_t *plugin;
   int probe_score; /* 0-100 */
   fb_device_type_t device_type;
+  uint32_t stable_backend_id; /**< FB_BACKEND_ID_* — stable across snapshots */
 } backend_snapshot_t;
 
 /** One DP cell: best cost to reach (step i, backend b) + backtrack link. */
@@ -112,6 +119,10 @@ static uint32_t snapshot_backends(backend_snapshot_t *out, uint32_t max_out) {
         } else {
           out[n].device_type = FB_DEVICE_CPU;
         }
+        /* Resolve stable ID once, at snapshot time, so the DAG plan carries
+         * portable FB_BACKEND_ID_* values rather than snapshot-local indices. */
+        out[n].stable_backend_id =
+            fb_get_backend_id_for_name(plugin->metadata->name);
         n++;
       }
     }
@@ -127,15 +138,48 @@ static uint32_t snapshot_backends(backend_snapshot_t *out, uint32_t max_out) {
  * Future: consult judge store for per-op, per-backend, per-size profiles.
  */
 static float exec_cost_ns(const backend_snapshot_t *b, uint32_t op_id,
+                          size_t size_bytes,
                           fb_select_objective_t objective) {
-  (void)op_id;
-  (void)objective; /* same signal either way until judge profiles exist */
+  (void)objective;
 
-  int score = b->probe_score;
-  if (score <= 0) {
+  if (b->probe_score <= 0)
     return FLT_MAX / 2.0f; /* effectively unavailable */
+
+  /* --- Consult on-disk judge profiles when available --- */
+  if (b->stable_backend_id < FB_BACKEND_ID__NEXT_FREE &&
+      op_id < FB_JUDGE_MAX_OPERATIONS &&
+      fb_op_judge_table[op_id].name != NULL) {
+
+    /* Map size_bytes to a size class (bytes of working set, not matrix dim). */
+    fb_size_class_t sc;
+    if      (size_bytes < 4096u)      sc = FB_SIZE_TINY;
+    else if (size_bytes < 262144u)    sc = FB_SIZE_SMALL;
+    else if (size_bytes < 4194304u)   sc = FB_SIZE_MEDIUM;
+    else if (size_bytes < 33554432u)  sc = FB_SIZE_LARGE;
+    else                              sc = FB_SIZE_HUGE;
+
+    char profile_dir[512];
+    fb_judge_get_profile_dir(profile_dir, sizeof(profile_dir));
+
+    if (profile_dir[0] != '\0') {
+      /* Convert "FB_OP_SAXPY" -> "saxpy" for file lookup. */
+      char op_name[64];
+      fb_judge_meta_to_canonical_name(fb_op_judge_table[op_id].name,
+                                      op_name, sizeof(op_name));
+
+      fb_precision_profile_t profile;
+      fb_judge_status_t st = fb_judge_store_load(
+          profile_dir, op_name,
+          b->stable_backend_id, /*device_id=*/0u,
+          (uint8_t)sc, /*dtype (FP32 default)=*/0u, &profile);
+
+      if (st == FB_JUDGE_OK && profile.timing.p50_ns > 0)
+        return (float)profile.timing.p50_ns;
+    }
   }
-  return FB_EXEC_BASE_NS / (float)score;
+
+  /* Fallback: inverse probe score scaled to a baseline 100 us per op. */
+  return FB_EXEC_BASE_NS / (float)b->probe_score;
 }
 
 /**
@@ -188,6 +232,7 @@ static fb_exec_plan_t *run_dp(const fb_dag_step_input_t *steps, uint32_t nsteps,
     backends[0].plugin = NULL;
     backends[0].probe_score = 1;
     backends[0].device_type = FB_DEVICE_CPU;
+    backends[0].stable_backend_id = FB_BACKEND_ID_NONE;
     trivial_backend = true;
   }
   (void)trivial_backend;
@@ -200,7 +245,8 @@ static fb_exec_plan_t *run_dp(const fb_dag_step_input_t *steps, uint32_t nsteps,
 
   /* --- 3. Initialise layer 0 ------------------------------------------ */
   for (uint32_t b = 0; b < nb; b++) {
-    float ec = exec_cost_ns(&backends[b], steps[0].op_id, objective);
+    float ec = exec_cost_ns(&backends[b], steps[0].op_id,
+                             steps[0].size_bytes_hint, objective);
     dp_cell_t *c = &dp[b];
     c->cost = ec;
     c->prev_b = -1;
@@ -215,7 +261,8 @@ static fb_exec_plan_t *run_dp(const fb_dag_step_input_t *steps, uint32_t nsteps,
         (steps[i].size_bytes_hint > 0) ? (float)steps[i].size_bytes_hint : 0.0f;
 
     for (uint32_t b_next = 0; b_next < nb; b_next++) {
-      float ec = exec_cost_ns(&backends[b_next], steps[i].op_id, objective);
+      float ec = exec_cost_ns(&backends[b_next], steps[i].op_id,
+                               steps[i].size_bytes_hint, objective);
 
       float best_cost = FLT_MAX;
       int32_t best_prev = 0;
@@ -297,7 +344,9 @@ static fb_exec_plan_t *run_dp(const fb_dag_step_input_t *steps, uint32_t nsteps,
 
   for (uint32_t i = 0; i < nsteps; i++) {
     dp_cell_t *c = &dp[i * nb + path[i]];
-    plan->steps[i].backend_id = path[i];
+    /* Store the stable FB_BACKEND_ID_* so op_chain.c can resolve the vtable
+     * via fb_get_vtable_by_backend_id() regardless of snapshot order. */
+    plan->steps[i].backend_id = backends[path[i]].stable_backend_id;
     plan->steps[i].device_type = backends[path[i]].device_type;
     plan->steps[i].xfer_before = (fb_xfer_type_t)c->xfer_type;
     plan->steps[i].est_exec_ns = c->exec_ns;

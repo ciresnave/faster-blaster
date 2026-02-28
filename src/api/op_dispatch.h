@@ -49,6 +49,9 @@
 /* fb_get_active_vtable() — used as the fallback on every path. */
 #include "../../include/faster-blaster/vtable_autofill.h"
 
+/* fb_data_recommend_device() / fb_data_record_access() — data locality. */
+#include "../../include/faster-blaster/data_tracker.h"
+
 /* NOTE: fb_backend_vtable_t (full struct) must be visible before this header
  * is included.  Including files should have already included dispatch.h or
  * backends/backend_interface.h which provides the typedef.            */
@@ -86,6 +89,49 @@ fb_get_vtable_for_op(uint32_t op_id)
 
     const fb_backend_vtable_t *vt = fb_get_vtable_by_backend_id(bid);
     return vt ? vt : fb_get_active_vtable();
+}
+
+/**
+ * Variant of fb_get_vtable_for_op() that additionally records data locality
+ * information and consults fb_data_recommend_device() for future device-aware
+ * dispatch.
+ *
+ * @p inputs / @p outputs may be NULL (or @p n_in / @p n_out may be 0) when
+ * the caller cannot supply pointer information; the function then behaves
+ * identically to fb_get_vtable_for_op().
+ *
+ * The recommended device is currently advisory only — it is recorded through
+ * fb_data_record_access() to keep the locality tracker up to date, but the
+ * actual vtable returned is still CPU-centric until fb_dispatch_constraints_t
+ * gains a preferred_device field.
+ *
+ * @param op_id    FB_OP_* constant from judge/judge_op_ids.h.
+ * @param inputs   Array of @p n_in input data pointers (may be NULL).
+ * @param n_in     Number of entries in @p inputs.
+ * @param outputs  Array of @p n_out output data pointers (may be NULL).
+ * @param n_out    Number of entries in @p outputs.
+ * @return         Non-NULL vtable pointer (same guarantees as fb_get_vtable_for_op).
+ */
+static inline const fb_backend_vtable_t *
+fb_get_vtable_for_op_with_locality(uint32_t op_id,
+    const void **inputs,  int n_in,
+    const void **outputs, int n_out)
+{
+    if (inputs || outputs) {
+        int dev = fb_data_recommend_device(inputs,  n_in  ? n_in  : 0,
+                                           outputs, n_out ? n_out : 0);
+        /* Record access for each pointer so the locality map stays
+         * up-to-date even before device-aware dispatch is wired in. */
+        for (int i = 0; i < n_in;  i++)
+            if (inputs  && inputs[i])  fb_data_record_access(inputs[i],  dev);
+        for (int i = 0; i < n_out; i++)
+            if (outputs && outputs[i]) fb_data_record_access(outputs[i], dev);
+
+        /* TODO: when fb_dispatch_constraints_t gains preferred_device, pass it
+         * to fb_select_backend_with_constraints() instead of falling through. */
+        (void)dev;
+    }
+    return fb_get_vtable_for_op(op_id);
 }
 
 #ifdef __cplusplus

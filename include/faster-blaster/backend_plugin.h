@@ -262,6 +262,19 @@ const struct fb_backend_vtable *fb_get_vtable_by_id(uint32_t id);
  */
 const struct fb_backend_vtable *fb_get_vtable_by_backend_id(uint32_t fb_backend_id);
 
+/**
+ * Reverse-map a plugin metadata name string (e.g. "aocl-blis", "openblas")
+ * to the corresponding stable FB_BACKEND_ID_* constant.
+ *
+ * Used by the DAG planner to store portable IDs in fb_exec_plan_t rather
+ * than snapshot-local position indices.
+ *
+ * @param name  Plugin metadata name (fb_plugin_metadata_t::name field).
+ * @return      Matching FB_BACKEND_ID_* constant, or FB_BACKEND_ID_NONE
+ *              when the name is not recognised.
+ */
+uint32_t fb_get_backend_id_for_name(const char *name);
+
 #ifdef __cplusplus
 }
 #endif

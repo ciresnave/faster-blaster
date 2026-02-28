@@ -389,6 +389,20 @@ const fb_backend_vtable_t *fb_get_vtable_by_backend_id(uint32_t fb_backend_id)
     return fb_get_active_vtable();
 }
 
+/**
+ * Reverse-map a plugin metadata name to its stable FB_BACKEND_ID_* constant.
+ * Returns FB_BACKEND_ID_NONE when the name is not in the lookup table.
+ */
+uint32_t fb_get_backend_id_for_name(const char *name)
+{
+    if (!name) return FB_BACKEND_ID_NONE;
+    for (size_t i = 0; i < K_BACKEND_ID_NAMES_COUNT; i++) {
+        if (strcmp(k_backend_id_names[i].name, name) == 0)
+            return k_backend_id_names[i].id;
+    }
+    return FB_BACKEND_ID_NONE;
+}
+
 void fb_init_plugins(void) {
   /* Initialise data-location tracking before any plugin is loaded */
   fb_data_tracker_init();

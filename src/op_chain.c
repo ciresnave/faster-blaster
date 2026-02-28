@@ -338,11 +338,12 @@ int fb_op_sequence_execute(fb_op_sequence_t *seq)
         const fb_seq_step_t *s = &seq->steps[i];
 
         /* Resolve the vtable for THIS step's selected backend.
-         * fb_get_vtable_by_id() returns the per-backend vtable chosen by the
-         * DAG planner; it falls back to the global active vtable when the
-         * backend hasn't been lazily initialised yet. */
+         * The DAG planner stores stable FB_BACKEND_ID_* values (not
+         * snapshot-position indices), so fb_get_vtable_by_backend_id() is
+         * the correct resolver here.  Falls back to the global active vtable
+         * when the backend hasn't been lazily initialised yet. */
         const fb_backend_vtable_t *vtable =
-            fb_get_vtable_by_id(s->selected_backend_id);
+            fb_get_vtable_by_backend_id(s->selected_backend_id);
         if (!vtable) {
             vtable = fb_get_active_vtable(); /* last-resort fallback */
         }
