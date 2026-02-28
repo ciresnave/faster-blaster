@@ -127,8 +127,22 @@ fb_get_vtable_for_op_with_locality(uint32_t op_id,
         for (int i = 0; i < n_out; i++)
             if (outputs && outputs[i]) fb_data_record_access(outputs[i], dev);
 
-        /* TODO: when fb_dispatch_constraints_t gains preferred_device, pass it
-         * to fb_select_backend_with_constraints() instead of falling through. */
+        /* Device locality is a *cost component*, not a preference constraint.
+         * The recommended device should not be passed as a "preferred device"
+         * to the selector — the right backend might still be on a different
+         * device if its compute savings exceed the transfer penalty.
+         *
+         * For op_chain / DAG users: populate fb_dag_step_input_t.input_ptrs
+         * and .output_ptrs; exec_dag.c charges fb_data_estimate_transfer_cost()
+         * at DP layer 0 so each candidate backend competes on total cost
+         * (ingress + compute) rather than compute alone.
+         *
+         * For direct level1/2/3 dispatch (this path): fb_get_vtable_for_op()
+         * consults ranked dispatch tables built offline by the judge pipeline.
+         * Those tables reflect measured hardware performance; per-call pointer
+         * locality is recorded here so the data_tracker map stays fresh for
+         * future planning by the DAG planner or a future ranked-table rebuild.
+         */
         (void)dev;
     }
     return fb_get_vtable_for_op(op_id);

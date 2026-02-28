@@ -72,6 +72,24 @@ typedef struct {
     uint32_t                  op_id;           /**< FB_OP_* constant          */
     fb_dispatch_constraints_t constraints;     /**< Dispatch constraints       */
     size_t                    size_bytes_hint; /**< Data volume for xfer cost  */
+
+    /**
+     * Optional data-locality hints for ingress-cost computation.
+     *
+     * When non-NULL the DAG planner calls fb_data_estimate_transfer_cost()
+     * on each pointer and adds the result to the layer-0 cell cost for every
+     * candidate backend.  This means a backend whose device already holds the
+     * data pays 0 ns ingress; a backend on a different device is penalised by
+     * the actual estimated transfer time — competing on equal footing against
+     * the compute savings it may offer.
+     *
+     * NULL arrays (or n == 0) are silently ignored; individual NULL entries
+     * within a non-NULL array are skipped.
+     */
+    const void **input_ptrs;    /**< Input buffer addresses (may be NULL)     */
+    int          n_input_ptrs;  /**< Length of input_ptrs  (0 = not provided) */
+    const void **output_ptrs;   /**< Output buffer addresses (may be NULL)    */
+    int          n_output_ptrs; /**< Length of output_ptrs (0 = not provided) */
 } fb_dag_step_input_t;
 
 /* =========================================================================

@@ -14,11 +14,22 @@
  *   5. Emit:   fill fb_exec_plan_t with per-step costs and transfer types.
  *
  * Cost model:
- *   exec_cost(backend, op_id) = FB_EXEC_BASE_NS / max(probe_score, 1)
- *     -- higher score = lower cost; baseline 100 ms / 100 = 1 us per op.
- *     -- TODO: replace with per-op judge profile when available.
+ *   total_cost(backend, step) = ingress_ns + exec_ns + edge_xfer_ns
  *
- *   xfer_cost(src_device, dst_device, size_bytes):
+ *   exec_ns: per-op, per-backend latency.
+ *     Primary source: on-disk judge profiles (fb_judge_store_load), keyed by
+ *     (op_name, backend_id, size_class).  Falls back to
+ *     FB_EXEC_BASE_NS / probe_score when no profile exists.
+ *
+ *   ingress_ns: transfer cost for moving *input data* to the target backend's
+ *     device at layer 0 of the DP.  Computed via fb_data_estimate_transfer_cost()
+ *     for each pointer in fb_dag_step_input_t.input_ptrs[].  A backend that
+ *     already holds the data pays 0; one on a different device is penalised by
+ *     the estimated PCIe / NVLink transfer time.  This means splitting across
+ *     devices is only chosen when the compute savings outweigh the transfer cost
+ *     — no explicit "preferred device" knob is needed or correct.
+ *
+ *   edge_xfer_ns: inter-step transfer cost between adjacent plan steps.
  *     H2D / D2H: size / 12 bytes-per-ns + 5000 ns latency overhead
  *     D2D:       size /  6 bytes-per-ns + 10000 ns latency overhead
  *     same:      0
@@ -41,6 +52,12 @@
 
 /* Internal: stable FB_BACKEND_ID_* constants */
 #include "../../include/faster-blaster/backend_ids.h"
+/* Forward-declare fb_data_estimate_transfer_cost() directly rather than
+ * including data_tracker.h, because that header pulls in compute_device.h
+ * which redefines fb_device_type_t with different enumerators from the one
+ * declared in exec_dag.h — causing a typedef-redefinition compile error.
+ * The forward declaration is sufficient; the linker resolves the symbol. */
+extern double fb_data_estimate_transfer_cost(const void *ptr, int target_device);
 /* Internal judge store: on-disk profile lookup */
 #include "../judge/judge_types.h"
 #include "../judge/judge_store.h"
@@ -247,12 +264,37 @@ static fb_exec_plan_t *run_dp(const fb_dag_step_input_t *steps, uint32_t nsteps,
   for (uint32_t b = 0; b < nb; b++) {
     float ec = exec_cost_ns(&backends[b], steps[0].op_id,
                              steps[0].size_bytes_hint, objective);
+
+    /* Ingress cost: charge the transfer needed to move input data onto this
+     * backend's device.  fb_data_estimate_transfer_cost() returns 0 when the
+     * pointer is already resident on target_device, so CPU backends pay nothing
+     * for host memory and GPU backends pay nothing for data already in VRAM. */
+    float ingress_ns = 0.0f;
+    int target_device = (int)backends[b].device_type; /* 0=CPU, 1=GPU_0, … */
+    if (steps[0].input_ptrs) {
+      for (int p = 0; p < steps[0].n_input_ptrs; p++) {
+        if (steps[0].input_ptrs[p]) {
+          ingress_ns += (float)fb_data_estimate_transfer_cost(
+              steps[0].input_ptrs[p], target_device);
+        }
+      }
+    }
+    if (steps[0].output_ptrs) {
+      for (int p = 0; p < steps[0].n_output_ptrs; p++) {
+        if (steps[0].output_ptrs[p]) {
+          ingress_ns += (float)fb_data_estimate_transfer_cost(
+              steps[0].output_ptrs[p], target_device);
+        }
+      }
+    }
+
     dp_cell_t *c = &dp[b];
-    c->cost = ec;
-    c->prev_b = -1;
-    c->exec_ns = ec;
-    c->xfer_ns = 0.0f;
-    c->xfer_type = (uint8_t)FB_XFER_NONE;
+    c->cost     = ec + ingress_ns;
+    c->prev_b   = -1;
+    c->exec_ns  = ec;
+    c->xfer_ns  = ingress_ns;
+    c->xfer_type = (ingress_ns > 0.0f) ? (uint8_t)FB_XFER_H2D
+                                       : (uint8_t)FB_XFER_NONE;
   }
 
   /* --- 4. Fill layers 1 .. nsteps-1 ------------------------------------ */
