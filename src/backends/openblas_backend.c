@@ -7,6 +7,8 @@
  */
 
 #include "openblas_backend.h"
+#include "backend_auto_detect.h"     /* fb_auto_populate_ext_ops       */
+#include "sym_tables/sym_tables.h"     /* k_lapacke_symbols, …           */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -274,16 +276,18 @@ static void openblas_set_num_threads_vtable(void* handle, int num_threads) {
 
 /* Wrapper functions - Level 1 BLAS */
 
-static void openblas_sasum(int n, const float* x, int incx, float* result) {
+static float openblas_sasum(const int n, const float* x, const int incx) {
     if (g_openblas.sasum) {
-        *result = g_openblas.sasum(n, x, incx);
+        return g_openblas.sasum(n, x, incx);
     }
+    return 0.0f;
 }
 
-static void openblas_dasum(int n, const double* x, int incx, double* result) {
+static double openblas_dasum(const int n, const double* x, const int incx) {
     if (g_openblas.dasum) {
-        *result = g_openblas.dasum(n, x, incx);
+        return g_openblas.dasum(n, x, incx);
     }
+    return 0.0;
 }
 
 static void openblas_saxpy(int n, float alpha, const float* x, int incx, float* y, int incy) {
@@ -298,16 +302,18 @@ static void openblas_daxpy(int n, double alpha, const double* x, int incx, doubl
     }
 }
 
-static void openblas_sdot(int n, const float* x, int incx, const float* y, int incy, float* result) {
+static float openblas_sdot(const int n, const float* x, const int incx, const float* y, const int incy) {
     if (g_openblas.sdot) {
-        *result = g_openblas.sdot(n, x, incx, y, incy);
+        return g_openblas.sdot(n, x, incx, y, incy);
     }
+    return 0.0f;
 }
 
-static void openblas_ddot(int n, const double* x, int incx, const double* y, int incy, double* result) {
+static double openblas_ddot(const int n, const double* x, const int incx, const double* y, const int incy) {
     if (g_openblas.ddot) {
-        *result = g_openblas.ddot(n, x, incx, y, incy);
+        return g_openblas.ddot(n, x, incx, y, incy);
     }
+    return 0.0;
 }
 
 static void openblas_scopy(int n, const float* x, int incx, float* y, int incy) {
@@ -334,16 +340,18 @@ static void openblas_dscal(int n, double alpha, double* x, int incx) {
     }
 }
 
-static void openblas_snrm2(int n, const float* x, int incx, float* result) {
+static float openblas_snrm2(const int n, const float* x, const int incx) {
     if (g_openblas.snrm2) {
-        *result = g_openblas.snrm2(n, x, incx);
+        return g_openblas.snrm2(n, x, incx);
     }
+    return 0.0f;
 }
 
-static void openblas_dnrm2(int n, const double* x, int incx, double* result) {
+static double openblas_dnrm2(const int n, const double* x, const int incx) {
     if (g_openblas.dnrm2) {
-        *result = g_openblas.dnrm2(n, x, incx);
+        return g_openblas.dnrm2(n, x, incx);
     }
+    return 0.0;
 }
 
 static void openblas_sswap(int n, float* x, int incx, float* y, int incy) {
@@ -358,53 +366,57 @@ static void openblas_dswap(int n, double* x, int incx, double* y, int incy) {
     }
 }
 
-static void openblas_isamax(int n, const float* x, int incx, int* result) {
+static int openblas_isamax(const int n, const float* x, const int incx) {
     if (g_openblas.isamax) {
-        *result = g_openblas.isamax(n, x, incx);
+        return g_openblas.isamax(n, x, incx);
     }
+    return -1;
 }
 
-static void openblas_idamax(int n, const double* x, int incx, int* result) {
+static int openblas_idamax(const int n, const double* x, const int incx) {
     if (g_openblas.idamax) {
-        *result = g_openblas.idamax(n, x, incx);
+        return g_openblas.idamax(n, x, incx);
     }
+    return -1;
 }
 
 /* Complex type Level 1 BLAS */
 
-static void openblas_scasum(int n, const void* x, int incx, float* result) {
+static float openblas_scasum(const int n, const fb_complex_float_t* x, const int incx) {
     typedef float (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_scasum");
     if (fn) {
-        *result = fn(n, x, incx);
+        return fn(n, x, incx);
     }
+    return 0.0f;
 }
 
-static void openblas_dzasum(int n, const void* x, int incx, double* result) {
+static double openblas_dzasum(const int n, const fb_complex_double_t* x, const int incx) {
     typedef double (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dzasum");
     if (fn) {
-        *result = fn(n, x, incx);
+        return fn(n, x, incx);
     }
+    return 0.0;
 }
 
-static void openblas_caxpy(int n, const void* alpha, const void* x, int incx, void* y, int incy) {
+static void openblas_caxpy(const int n, const fb_complex_float_t alpha, const fb_complex_float_t* x, const int incx, fb_complex_float_t* y, const int incy) {
     typedef void (*fn_t)(int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_caxpy");
     if (fn) {
-        fn(n, alpha, x, incx, y, incy);
+        fn(n, &alpha, x, incx, y, incy);
     }
 }
 
-static void openblas_zaxpy(int n, const void* alpha, const void* x, int incx, void* y, int incy) {
+static void openblas_zaxpy(const int n, const fb_complex_double_t alpha, const fb_complex_double_t* x, const int incx, fb_complex_double_t* y, const int incy) {
     typedef void (*fn_t)(int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zaxpy");
     if (fn) {
-        fn(n, alpha, x, incx, y, incy);
+        fn(n, &alpha, x, incx, y, incy);
     }
 }
 
-static void openblas_ccopy(int n, const void* x, int incx, void* y, int incy) {
+static void openblas_ccopy(const int n, const fb_complex_float_t* x, const int incx, fb_complex_float_t* y, const int incy) {
     typedef void (*fn_t)(int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ccopy");
     if (fn) {
@@ -412,7 +424,7 @@ static void openblas_ccopy(int n, const void* x, int incx, void* y, int incy) {
     }
 }
 
-static void openblas_zcopy(int n, const void* x, int incx, void* y, int incy) {
+static void openblas_zcopy(const int n, const fb_complex_double_t* x, const int incx, fb_complex_double_t* y, const int incy) {
     typedef void (*fn_t)(int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zcopy");
     if (fn) {
@@ -420,23 +432,23 @@ static void openblas_zcopy(int n, const void* x, int incx, void* y, int incy) {
     }
 }
 
-static void openblas_cscal(int n, const void* alpha, void* x, int incx) {
+static void openblas_cscal(const int n, const fb_complex_float_t alpha, fb_complex_float_t* x, const int incx) {
     typedef void (*fn_t)(int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cscal");
     if (fn) {
-        fn(n, alpha, x, incx);
+        fn(n, &alpha, x, incx);
     }
 }
 
-static void openblas_zscal(int n, const void* alpha, void* x, int incx) {
+static void openblas_zscal(const int n, const fb_complex_double_t alpha, fb_complex_double_t* x, const int incx) {
     typedef void (*fn_t)(int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zscal");
     if (fn) {
-        fn(n, alpha, x, incx);
+        fn(n, &alpha, x, incx);
     }
 }
 
-static void openblas_csscal(int n, float alpha, void* x, int incx) {
+static void openblas_csscal(const int n, const float alpha, fb_complex_float_t* x, const int incx) {
     typedef void (*fn_t)(int, float, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_csscal");
     if (fn) {
@@ -444,7 +456,7 @@ static void openblas_csscal(int n, float alpha, void* x, int incx) {
     }
 }
 
-static void openblas_zdscal(int n, double alpha, void* x, int incx) {
+static void openblas_zdscal(const int n, const double alpha, fb_complex_double_t* x, const int incx) {
     typedef void (*fn_t)(int, double, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zdscal");
     if (fn) {
@@ -452,7 +464,7 @@ static void openblas_zdscal(int n, double alpha, void* x, int incx) {
     }
 }
 
-static void openblas_cswap(int n, void* x, int incx, void* y, int incy) {
+static void openblas_cswap(const int n, fb_complex_float_t* x, const int incx, fb_complex_float_t* y, const int incy) {
     typedef void (*fn_t)(int, void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cswap");
     if (fn) {
@@ -460,7 +472,7 @@ static void openblas_cswap(int n, void* x, int incx, void* y, int incy) {
     }
 }
 
-static void openblas_zswap(int n, void* x, int incx, void* y, int incy) {
+static void openblas_zswap(const int n, fb_complex_double_t* x, const int incx, fb_complex_double_t* y, const int incy) {
     typedef void (*fn_t)(int, void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zswap");
     if (fn) {
@@ -500,36 +512,28 @@ static void openblas_zdotc_sub(int n, const void* x, int incx, const void* y, in
     }
 }
 
-static void openblas_scnrm2(int n, const void* x, int incx, float* result) {
+static float openblas_scnrm2(const int n, const fb_complex_float_t* x, const int incx) {
     typedef float (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_scnrm2");
-    if (fn) {
-        *result = fn(n, x, incx);
-    }
+    return fn ? fn(n, x, incx) : 0.0f;
 }
 
-static void openblas_dznrm2(int n, const void* x, int incx, double* result) {
+static double openblas_dznrm2(const int n, const fb_complex_double_t* x, const int incx) {
     typedef double (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dznrm2");
-    if (fn) {
-        *result = fn(n, x, incx);
-    }
+    return fn ? fn(n, x, incx) : 0.0;
 }
 
-static void openblas_icamax(int n, const void* x, int incx, int* result) {
+static int openblas_icamax(const int n, const fb_complex_float_t* x, const int incx) {
     typedef int (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_icamax");
-    if (fn) {
-        *result = fn(n, x, incx);
-    }
+    return fn ? fn(n, x, incx) : -1;
 }
 
-static void openblas_izamax(int n, const void* x, int incx, int* result) {
+static int openblas_izamax(const int n, const fb_complex_double_t* x, const int incx) {
     typedef int (*fn_t)(int, const void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_izamax");
-    if (fn) {
-        *result = fn(n, x, incx);
-    }
+    return fn ? fn(n, x, incx) : -1;
 }
 
 /* Rotation operations */
@@ -633,887 +637,929 @@ static int side_to_cblas(char side) {
     }
 }
 
-static void openblas_sgemv(char trans, int m, int n, float alpha, 
+static void openblas_sgemv(const fb_layout_t layout, const fb_transpose_t trans, int m, int n, float alpha, 
                            const float* a, int lda, const float* x, int incx,
                            float beta, float* y, int incy) {
     if (g_openblas.sgemv) {
-        g_openblas.sgemv(CblasColMajor, transpose_to_cblas(trans), 
+        g_openblas.sgemv((int)layout, (int)trans, 
                          m, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_dgemv(char trans, int m, int n, double alpha,
+static void openblas_dgemv(const fb_layout_t layout, const fb_transpose_t trans, int m, int n, double alpha,
                            const double* a, int lda, const double* x, int incx,
                            double beta, double* y, int incy) {
     if (g_openblas.dgemv) {
-        g_openblas.dgemv(CblasColMajor, transpose_to_cblas(trans),
+        g_openblas.dgemv((int)layout, (int)trans,
                          m, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_sger(int m, int n, float alpha, const float* x, int incx,
+static void openblas_sger(const fb_layout_t layout, int m, int n, float alpha, const float* x, int incx,
                           const float* y, int incy, float* a, int lda) {
     if (g_openblas.sger) {
-        g_openblas.sger(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        g_openblas.sger((int)layout, m, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_dger(int m, int n, double alpha, const double* x, int incx,
+static void openblas_dger(const fb_layout_t layout, int m, int n, double alpha, const double* x, int incx,
                           const double* y, int incy, double* a, int lda) {
     if (g_openblas.dger) {
-        g_openblas.dger(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        g_openblas.dger((int)layout, m, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
 /* Complex GEMV */
-static void openblas_cgemv(char trans, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* x, int incx,
-                           const void* beta, void* y, int incy) {
+static void openblas_cgemv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda,
+                           const fb_complex_float_t* x, int incx,
+                           const fb_complex_float_t beta,
+                           fb_complex_float_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cgemv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
-static void openblas_zgemv(char trans, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* x, int incx,
-                           const void* beta, void* y, int incy) {
+static void openblas_zgemv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda,
+                           const fb_complex_double_t* x, int incx,
+                           const fb_complex_double_t beta,
+                           fb_complex_double_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zgemv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
 /* GBMV - Banded matrix-vector multiply */
-static void openblas_sgbmv(char trans, int m, int n, int kl, int ku, float alpha,
+static void openblas_sgbmv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, int kl, int ku, float alpha,
                            const float* a, int lda, const float* x, int incx,
                            float beta, float* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, int, int, float, const float*, int, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_sgbmv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_dgbmv(char trans, int m, int n, int kl, int ku, double alpha,
+static void openblas_dgbmv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, int kl, int ku, double alpha,
                            const double* a, int lda, const double* x, int incx,
                            double beta, double* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, int, int, double, const double*, int, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dgbmv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_cgbmv(char trans, int m, int n, int kl, int ku, const void* alpha,
-                           const void* a, int lda, const void* x, int incx,
-                           const void* beta, void* y, int incy) {
+static void openblas_cgbmv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, int kl, int ku,
+                           const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda,
+                           const fb_complex_float_t* x, int incx,
+                           const fb_complex_float_t beta,
+                           fb_complex_float_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cgbmv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, kl, ku, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
-static void openblas_zgbmv(char trans, int m, int n, int kl, int ku, const void* alpha,
-                           const void* a, int lda, const void* x, int incx,
-                           const void* beta, void* y, int incy) {
+static void openblas_zgbmv(const fb_layout_t layout, const fb_transpose_t trans,
+                           int m, int n, int kl, int ku,
+                           const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda,
+                           const fb_complex_double_t* x, int incx,
+                           const fb_complex_double_t beta,
+                           fb_complex_double_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zgbmv");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(trans), m, n, kl, ku, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)trans, m, n, kl, ku, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
 /* HEMV - Hermitian matrix-vector multiply */
-static void openblas_chemv(char uplo, int n, const void* alpha, const void* a, int lda,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_chemv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda,
+                           const fb_complex_float_t* x, int incx,
+                           const fb_complex_float_t beta,
+                           fb_complex_float_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chemv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
-static void openblas_zhemv(char uplo, int n, const void* alpha, const void* a, int lda,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_zhemv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda,
+                           const fb_complex_double_t* x, int incx,
+                           const fb_complex_double_t beta,
+                           fb_complex_double_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhemv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
 /* HBMV - Hermitian banded matrix-vector multiply */
-static void openblas_chbmv(char uplo, int n, int k, const void* alpha, const void* a, int lda,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_chbmv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, int k, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda,
+                           const fb_complex_float_t* x, int incx,
+                           const fb_complex_float_t beta,
+                           fb_complex_float_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, k, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, k, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
-static void openblas_zhbmv(char uplo, int n, int k, const void* alpha, const void* a, int lda,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_zhbmv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, int k, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda,
+                           const fb_complex_double_t* x, int incx,
+                           const fb_complex_double_t beta,
+                           fb_complex_double_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, k, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, k, &alpha, a, lda, x, incx, &beta, y, incy);
     }
 }
 
 /* HPMV - Hermitian packed matrix-vector multiply */
-static void openblas_chpmv(char uplo, int n, const void* alpha, const void* ap,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_chpmv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* ap,
+                           const fb_complex_float_t* x, int incx,
+                           const fb_complex_float_t beta,
+                           fb_complex_float_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, ap, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, &alpha, ap, x, incx, &beta, y, incy);
     }
 }
 
-static void openblas_zhpmv(char uplo, int n, const void* alpha, const void* ap,
-                           const void* x, int incx, const void* beta, void* y, int incy) {
+static void openblas_zhpmv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* ap,
+                           const fb_complex_double_t* x, int incx,
+                           const fb_complex_double_t beta,
+                           fb_complex_double_t* y, int incy) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, ap, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, &alpha, ap, x, incx, &beta, y, incy);
     }
 }
 
 /* SYMV - Symmetric matrix-vector multiply */
-static void openblas_ssymv(char uplo, int n, float alpha, const float* a, int lda,
+static void openblas_ssymv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, float alpha, const float* a, int lda,
                            const float* x, int incx, float beta, float* y, int incy) {
     typedef void (*fn_t)(int, int, int, float, const float*, int, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssymv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_dsymv(char uplo, int n, double alpha, const double* a, int lda,
+static void openblas_dsymv(const fb_layout_t layout, const fb_uplo_t uplo,
+                           int n, double alpha, const double* a, int lda,
                            const double* x, int incx, double beta, double* y, int incy) {
     typedef void (*fn_t)(int, int, int, double, const double*, int, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsymv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
 /* SBMV - Symmetric banded matrix-vector multiply */
-static void openblas_ssbmv(char uplo, int n, int k, float alpha, const float* a, int lda,
+static void openblas_ssbmv(const fb_layout_t layout, const fb_uplo_t uplo, int n, int k, float alpha, const float* a, int lda,
                            const float* x, int incx, float beta, float* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, float, const float*, int, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, k, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_dsbmv(char uplo, int n, int k, double alpha, const double* a, int lda,
+static void openblas_dsbmv(const fb_layout_t layout, const fb_uplo_t uplo, int n, int k, double alpha, const double* a, int lda,
                            const double* x, int incx, double beta, double* y, int incy) {
     typedef void (*fn_t)(int, int, int, int, double, const double*, int, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, k, alpha, a, lda, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, k, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
 /* SPMV - Symmetric packed matrix-vector multiply */
-static void openblas_sspmv(char uplo, int n, float alpha, const float* ap,
+static void openblas_sspmv(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* ap,
                            const float* x, int incx, float beta, float* y, int incy) {
     typedef void (*fn_t)(int, int, int, float, const float*, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_sspmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, ap, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, alpha, ap, x, incx, beta, y, incy);
     }
 }
 
-static void openblas_dspmv(char uplo, int n, double alpha, const double* ap,
+static void openblas_dspmv(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* ap,
                            const double* x, int incx, double beta, double* y, int incy) {
     typedef void (*fn_t)(int, int, int, double, const double*, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dspmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, ap, x, incx, beta, y, incy);
+        fn((int)layout, (int)uplo, n, alpha, ap, x, incx, beta, y, incy);
     }
 }
 
 /* TRMV - Triangular matrix-vector multiply */
-static void openblas_strmv(char uplo, char trans, char diag, int n, const float* a, int lda, float* x, int incx) {
+static void openblas_strmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const float* a, int lda, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_strmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_dtrmv(char uplo, char trans, char diag, int n, const double* a, int lda, double* x, int incx) {
+static void openblas_dtrmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const double* a, int lda, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtrmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_ctrmv(char uplo, char trans, char diag, int n, const void* a, int lda, void* x, int incx) {
+static void openblas_ctrmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_float_t *a, int lda, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctrmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_ztrmv(char uplo, char trans, char diag, int n, const void* a, int lda, void* x, int incx) {
+static void openblas_ztrmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_double_t *a, int lda, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztrmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
 /* TBMV - Triangular banded matrix-vector multiply */
-static void openblas_stbmv(char uplo, char trans, char diag, int n, int k, const float* a, int lda, float* x, int incx) {
+static void openblas_stbmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const float* a, int lda, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_stbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_dtbmv(char uplo, char trans, char diag, int n, int k, const double* a, int lda, double* x, int incx) {
+static void openblas_dtbmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const double* a, int lda, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_ctbmv(char uplo, char trans, char diag, int n, int k, const void* a, int lda, void* x, int incx) {
+static void openblas_ctbmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const fb_complex_float_t *a, int lda, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_ztbmv(char uplo, char trans, char diag, int n, int k, const void* a, int lda, void* x, int incx) {
+static void openblas_ztbmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const fb_complex_double_t *a, int lda, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztbmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
 /* TPMV - Triangular packed matrix-vector multiply */
-static void openblas_stpmv(char uplo, char trans, char diag, int n, const float* ap, float* x, int incx) {
+static void openblas_stpmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const float* ap, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const float*, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_stpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_dtpmv(char uplo, char trans, char diag, int n, const double* ap, double* x, int incx) {
+static void openblas_dtpmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const double* ap, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const double*, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_ctpmv(char uplo, char trans, char diag, int n, const void* ap, void* x, int incx) {
+static void openblas_ctpmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_float_t *ap, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_ztpmv(char uplo, char trans, char diag, int n, const void* ap, void* x, int incx) {
+static void openblas_ztpmv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_double_t *ap, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztpmv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
 /* TRSV - Triangular solve */
-static void openblas_strsv(char uplo, char trans, char diag, int n, const float* a, int lda, float* x, int incx) {
+static void openblas_strsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const float* a, int lda, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_strsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_dtrsv(char uplo, char trans, char diag, int n, const double* a, int lda, double* x, int incx) {
+static void openblas_dtrsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const double* a, int lda, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtrsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_ctrsv(char uplo, char trans, char diag, int n, const void* a, int lda, void* x, int incx) {
+static void openblas_ctrsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_float_t *a, int lda, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctrsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
-static void openblas_ztrsv(char uplo, char trans, char diag, int n, const void* a, int lda, void* x, int incx) {
+static void openblas_ztrsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_double_t *a, int lda, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztrsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, a, lda, x, incx);
     }
 }
 
 /* TBSV - Triangular banded solve */
-static void openblas_stbsv(char uplo, char trans, char diag, int n, int k, const float* a, int lda, float* x, int incx) {
+static void openblas_stbsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const float* a, int lda, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_stbsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_dtbsv(char uplo, char trans, char diag, int n, int k, const double* a, int lda, double* x, int incx) {
+static void openblas_dtbsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const double* a, int lda, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtbsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_ctbsv(char uplo, char trans, char diag, int n, int k, const void* a, int lda, void* x, int incx) {
+static void openblas_ctbsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const fb_complex_float_t *a, int lda, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctbsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
-static void openblas_ztbsv(char uplo, char trans, char diag, int n, int k, const void* a, int lda, void* x, int incx) {
+static void openblas_ztbsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, int k, const fb_complex_double_t *a, int lda, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztbsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, k, a, lda, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, k, a, lda, x, incx);
     }
 }
 
 /* TPSV - Triangular packed solve */
-static void openblas_stpsv(char uplo, char trans, char diag, int n, const float* ap, float* x, int incx) {
+static void openblas_stpsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const float* ap, float* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const float*, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_stpsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_dtpsv(char uplo, char trans, char diag, int n, const double* ap, double* x, int incx) {
+static void openblas_dtpsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const double* ap, double* x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const double*, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtpsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_ctpsv(char uplo, char trans, char diag, int n, const void* ap, void* x, int incx) {
+static void openblas_ctpsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_float_t *ap, fb_complex_float_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctpsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
-static void openblas_ztpsv(char uplo, char trans, char diag, int n, const void* ap, void* x, int incx) {
+static void openblas_ztpsv(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n, const fb_complex_double_t *ap, fb_complex_double_t *x, int incx) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztpsv");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), diag_to_cblas(diag), n, ap, x, incx);
+        fn((int)layout, (int)uplo, (int)trans, (int)diag, n, ap, x, incx);
     }
 }
 
 /* Complex GER variants */
-static void openblas_cgeru(int m, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_cgeru(const fb_layout_t layout, int m, int n, const fb_complex_float_t alpha, const fb_complex_float_t *x, int incx, const fb_complex_float_t *y, int incy, fb_complex_float_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cgeru");
     if (fn) {
-        fn(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, m, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_zgeru(int m, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_zgeru(const fb_layout_t layout, int m, int n, const fb_complex_double_t alpha, const fb_complex_double_t *x, int incx, const fb_complex_double_t *y, int incy, fb_complex_double_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zgeru");
     if (fn) {
-        fn(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, m, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_cgerc(int m, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_cgerc(const fb_layout_t layout, int m, int n, const fb_complex_float_t alpha, const fb_complex_float_t *x, int incx, const fb_complex_float_t *y, int incy, fb_complex_float_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cgerc");
     if (fn) {
-        fn(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, m, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_zgerc(int m, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_zgerc(const fb_layout_t layout, int m, int n, const fb_complex_double_t alpha, const fb_complex_double_t *x, int incx, const fb_complex_double_t *y, int incy, fb_complex_double_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zgerc");
     if (fn) {
-        fn(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, m, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
 /* HER - Hermitian rank-1 update */
-static void openblas_cher(char uplo, int n, float alpha, const void* x, int incx, void* a, int lda) {
+static void openblas_cher(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const fb_complex_float_t *x, int incx, fb_complex_float_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, float, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cher");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, a, lda);
     }
 }
 
-static void openblas_zher(char uplo, int n, double alpha, const void* x, int incx, void* a, int lda) {
+static void openblas_zher(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const fb_complex_double_t *x, int incx, fb_complex_double_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, double, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zher");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, a, lda);
     }
 }
 
 /* HPR - Hermitian packed rank-1 update */
-static void openblas_chpr(char uplo, int n, float alpha, const void* x, int incx, void* ap) {
+static void openblas_chpr(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const fb_complex_float_t *x, int incx, fb_complex_float_t *ap) {
     typedef void (*fn_t)(int, int, int, float, const void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chpr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, ap);
     }
 }
 
-static void openblas_zhpr(char uplo, int n, double alpha, const void* x, int incx, void* ap) {
+static void openblas_zhpr(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const fb_complex_double_t *x, int incx, fb_complex_double_t *ap) {
     typedef void (*fn_t)(int, int, int, double, const void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhpr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, ap);
     }
 }
 
 /* HER2 - Hermitian rank-2 update */
-static void openblas_cher2(char uplo, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_cher2(const fb_layout_t layout, const fb_uplo_t uplo, int n, const fb_complex_float_t alpha, const fb_complex_float_t *x, int incx, const fb_complex_float_t *y, int incy, fb_complex_float_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cher2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, (int)uplo, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_zher2(char uplo, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* a, int lda) {
+static void openblas_zher2(const fb_layout_t layout, const fb_uplo_t uplo, int n, const fb_complex_double_t alpha, const fb_complex_double_t *x, int incx, const fb_complex_double_t *y, int incy, fb_complex_double_t *a, int lda) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zher2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, (int)uplo, n, &alpha, x, incx, y, incy, a, lda);
     }
 }
 
 /* HPR2 - Hermitian packed rank-2 update */
-static void openblas_chpr2(char uplo, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* ap) {
+static void openblas_chpr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, const fb_complex_float_t alpha, const fb_complex_float_t *x, int incx, const fb_complex_float_t *y, int incy, fb_complex_float_t *ap) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chpr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, ap);
+        fn((int)layout, (int)uplo, n, &alpha, x, incx, y, incy, ap);
     }
 }
 
-static void openblas_zhpr2(char uplo, int n, const void* alpha, const void* x, int incx, const void* y, int incy, void* ap) {
+static void openblas_zhpr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, const fb_complex_double_t alpha, const fb_complex_double_t *x, int incx, const fb_complex_double_t *y, int incy, fb_complex_double_t *ap) {
     typedef void (*fn_t)(int, int, int, const void*, const void*, int, const void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhpr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, ap);
+        fn((int)layout, (int)uplo, n, &alpha, x, incx, y, incy, ap);
     }
 }
 
 /* SYR - Symmetric rank-1 update */
-static void openblas_ssyr(char uplo, int n, float alpha, const float* x, int incx, float* a, int lda) {
+static void openblas_ssyr(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx, float* a, int lda) {
     typedef void (*fn_t)(int, int, int, float, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssyr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, a, lda);
     }
 }
 
-static void openblas_dsyr(char uplo, int n, double alpha, const double* x, int incx, double* a, int lda) {
+static void openblas_dsyr(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx, double* a, int lda) {
     typedef void (*fn_t)(int, int, int, double, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsyr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, a, lda);
     }
 }
 
 /* SPR - Symmetric packed rank-1 update */
-static void openblas_sspr(char uplo, int n, float alpha, const float* x, int incx, float* ap) {
+static void openblas_sspr(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx, float* ap) {
     typedef void (*fn_t)(int, int, int, float, const float*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_sspr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, ap);
     }
 }
 
-static void openblas_dspr(char uplo, int n, double alpha, const double* x, int incx, double* ap) {
+static void openblas_dspr(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx, double* ap) {
     typedef void (*fn_t)(int, int, int, double, const double*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dspr");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, ap);
     }
 }
 
 /* SYR2 - Symmetric rank-2 update */
-static void openblas_ssyr2(char uplo, int n, float alpha, const float* x, int incx, const float* y, int incy, float* a, int lda) {
+static void openblas_ssyr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx, const float* y, int incy, float* a, int lda) {
     typedef void (*fn_t)(int, int, int, float, const float*, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssyr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void openblas_dsyr2(char uplo, int n, double alpha, const double* x, int incx, const double* y, int incy, double* a, int lda) {
+static void openblas_dsyr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx, const double* y, int incy, double* a, int lda) {
     typedef void (*fn_t)(int, int, int, double, const double*, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsyr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, a, lda);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
 /* SPR2 - Symmetric packed rank-2 update */
-static void openblas_sspr2(char uplo, int n, float alpha, const float* x, int incx, const float* y, int incy, float* ap) {
+static void openblas_sspr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx, const float* y, int incy, float* ap) {
     typedef void (*fn_t)(int, int, int, float, const float*, int, const float*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_sspr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, y, incy, ap);
     }
 }
 
-static void openblas_dspr2(char uplo, int n, double alpha, const double* x, int incx, const double* y, int incy, double* ap) {
+static void openblas_dspr2(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx, const double* y, int incy, double* ap) {
     typedef void (*fn_t)(int, int, int, double, const double*, int, const double*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dspr2");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), n, alpha, x, incx, y, incy, ap);
+        fn((int)layout, (int)uplo, n, alpha, x, incx, y, incy, ap);
     }
 }
 
 /* Wrapper functions - Level 3 BLAS */
 
-static void openblas_sgemm(char transa, char transb, int m, int n, int k,
+static void openblas_sgemm(const fb_layout_t layout, const fb_transpose_t transa, const fb_transpose_t transb, int m, int n, int k,
                            float alpha, const float* a, int lda,
                            const float* b, int ldb, float beta,
                            float* c, int ldc) {
     if (g_openblas.sgemm) {
-        g_openblas.sgemm(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
+        g_openblas.sgemm((int)layout, (int)transa, (int)transb,
                          m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_dgemm(char transa, char transb, int m, int n, int k,
+static void openblas_dgemm(const fb_layout_t layout, const fb_transpose_t transa, const fb_transpose_t transb, int m, int n, int k,
                            double alpha, const double* a, int lda,
                            const double* b, int ldb, double beta,
                            double* c, int ldc) {
     if (g_openblas.dgemm) {
-        g_openblas.dgemm(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
+        g_openblas.dgemm((int)layout, (int)transa, (int)transb,
                          m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
 /* Complex GEMM */
-static void openblas_cgemm(char transa, char transb, int m, int n, int k,
-                           const void* alpha, const void* a, int lda,
-                           const void* b, int ldb, const void* beta,
-                           void* c, int ldc) {
+static void openblas_cgemm(const fb_layout_t layout, const fb_transpose_t transa, const fb_transpose_t transb, int m, int n, int k,
+                           const fb_complex_float_t alpha, const fb_complex_float_t *a, int lda,
+                           const fb_complex_float_t *b, int ldb, const fb_complex_float_t beta,
+                           fb_complex_float_t *c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cgemm");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
-           m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)transa, (int)transb,
+           m, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
-static void openblas_zgemm(char transa, char transb, int m, int n, int k,
-                           const void* alpha, const void* a, int lda,
-                           const void* b, int ldb, const void* beta,
-                           void* c, int ldc) {
+static void openblas_zgemm(const fb_layout_t layout, const fb_transpose_t transa, const fb_transpose_t transb, int m, int n, int k,
+                           const fb_complex_double_t alpha, const fb_complex_double_t *a, int lda,
+                           const fb_complex_double_t *b, int ldb, const fb_complex_double_t beta,
+                           fb_complex_double_t *c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zgemm");
     if (fn) {
-        fn(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
-           m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)transa, (int)transb,
+           m, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
 /* SYMM - Symmetric matrix-matrix multiply */
-static void openblas_ssymm(char side, char uplo, int m, int n, float alpha,
+static void openblas_ssymm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, float alpha,
                            const float* a, int lda, const float* b, int ldb,
                            float beta, float* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, float, const float*, int, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssymm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_dsymm(char side, char uplo, int m, int n, double alpha,
+static void openblas_dsymm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, double alpha,
                            const double* a, int lda, const double* b, int ldb,
                            double beta, double* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, double, const double*, int, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsymm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_csymm(char side, char uplo, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* b, int ldb,
-                           const void* beta, void* c, int ldc) {
+static void openblas_csymm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda, const fb_complex_float_t* b, int ldb,
+                           const fb_complex_float_t beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_csymm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
-static void openblas_zsymm(char side, char uplo, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* b, int ldb,
-                           const void* beta, void* c, int ldc) {
+static void openblas_zsymm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda, const fb_complex_double_t* b, int ldb,
+                           const fb_complex_double_t beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zsymm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
 /* HEMM - Hermitian matrix-matrix multiply */
-static void openblas_chemm(char side, char uplo, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* b, int ldb,
-                           const void* beta, void* c, int ldc) {
+static void openblas_chemm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda, const fb_complex_float_t* b, int ldb,
+                           const fb_complex_float_t beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_chemm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
-static void openblas_zhemm(char side, char uplo, int m, int n, const void* alpha,
-                           const void* a, int lda, const void* b, int ldb,
-                           const void* beta, void* c, int ldc) {
+static void openblas_zhemm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda, const fb_complex_double_t* b, int ldb,
+                           const fb_complex_double_t beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zhemm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)side, (int)uplo, m, n, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
 /* SYRK - Symmetric rank-k update */
-static void openblas_ssyrk(char uplo, char trans, int n, int k, float alpha,
+static void openblas_ssyrk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, float alpha,
                            const float* a, int lda, float beta, float* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, float, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssyrk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, beta, c, ldc);
     }
 }
 
-static void openblas_dsyrk(char uplo, char trans, int n, int k, double alpha,
+static void openblas_dsyrk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, double alpha,
                            const double* a, int lda, double beta, double* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, double, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsyrk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, beta, c, ldc);
     }
 }
 
-static void openblas_csyrk(char uplo, char trans, int n, int k, const void* alpha,
-                           const void* a, int lda, const void* beta, void* c, int ldc) {
+static void openblas_csyrk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_float_t alpha,
+                           const fb_complex_float_t* a, int lda, const fb_complex_float_t beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_csyrk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, &beta, c, ldc);
     }
 }
 
-static void openblas_zsyrk(char uplo, char trans, int n, int k, const void* alpha,
-                           const void* a, int lda, const void* beta, void* c, int ldc) {
+static void openblas_zsyrk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_double_t alpha,
+                           const fb_complex_double_t* a, int lda, const fb_complex_double_t beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zsyrk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, &beta, c, ldc);
     }
 }
 
 /* HERK - Hermitian rank-k update */
-static void openblas_cherk(char uplo, char trans, int n, int k, float alpha,
-                           const void* a, int lda, float beta, void* c, int ldc) {
+static void openblas_cherk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, float alpha,
+                           const fb_complex_float_t* a, int lda, float beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, float, const void*, int, float, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cherk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, beta, c, ldc);
     }
 }
 
-static void openblas_zherk(char uplo, char trans, int n, int k, double alpha,
-                           const void* a, int lda, double beta, void* c, int ldc) {
+static void openblas_zherk(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, double alpha,
+                           const fb_complex_double_t* a, int lda, double beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, double, const void*, int, double, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zherk");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, beta, c, ldc);
     }
 }
 
 /* SYR2K - Symmetric rank-2k update */
-static void openblas_ssyr2k(char uplo, char trans, int n, int k, float alpha,
+static void openblas_ssyr2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, float alpha,
                             const float* a, int lda, const float* b, int ldb,
                             float beta, float* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, float, const float*, int, const float*, int, float, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ssyr2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_dsyr2k(char uplo, char trans, int n, int k, double alpha,
+static void openblas_dsyr2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, double alpha,
                             const double* a, int lda, const double* b, int ldb,
                             double beta, double* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, double, const double*, int, const double*, int, double, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dsyr2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_csyr2k(char uplo, char trans, int n, int k, const void* alpha,
-                            const void* a, int lda, const void* b, int ldb,
-                            const void* beta, void* c, int ldc) {
+static void openblas_csyr2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_float_t alpha,
+                            const fb_complex_float_t* a, int lda, const fb_complex_float_t* b, int ldb,
+                            const fb_complex_float_t beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_csyr2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
-static void openblas_zsyr2k(char uplo, char trans, int n, int k, const void* alpha,
-                            const void* a, int lda, const void* b, int ldb,
-                            const void* beta, void* c, int ldc) {
+static void openblas_zsyr2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_double_t alpha,
+                            const fb_complex_double_t* a, int lda, const fb_complex_double_t* b, int ldb,
+                            const fb_complex_double_t beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, const void*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zsyr2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, b, ldb, &beta, c, ldc);
     }
 }
 
 /* HER2K - Hermitian rank-2k update */
-static void openblas_cher2k(char uplo, char trans, int n, int k, const void* alpha,
-                            const void* a, int lda, const void* b, int ldb,
-                            float beta, void* c, int ldc) {
+static void openblas_cher2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_float_t alpha,
+                            const fb_complex_float_t* a, int lda, const fb_complex_float_t* b, int ldb,
+                            float beta, fb_complex_float_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, float, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cher2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void openblas_zher2k(char uplo, char trans, int n, int k, const void* alpha,
-                            const void* a, int lda, const void* b, int ldb,
-                            double beta, void* c, int ldc) {
+static void openblas_zher2k(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, const fb_complex_double_t alpha,
+                            const fb_complex_double_t* a, int lda, const fb_complex_double_t* b, int ldb,
+                            double beta, fb_complex_double_t* c, int ldc) {
     typedef void (*fn_t)(int, int, int, int, int, const void*, const void*, int, const void*, int, double, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zher2k");
     if (fn) {
-        fn(CblasColMajor, uplo_to_cblas(uplo), transpose_to_cblas(trans), n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+        fn((int)layout, (int)uplo, (int)trans, n, k, &alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
 /* TRMM - Triangular matrix-matrix multiply */
-static void openblas_strmm(char side, char uplo, char transa, char diag, int m, int n,
+static void openblas_strmm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
                            float alpha, const float* a, int lda, float* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, float, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_strmm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
            m, n, alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_dtrmm(char side, char uplo, char transa, char diag, int m, int n,
+static void openblas_dtrmm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
                            double alpha, const double* a, int lda, double* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, double, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtrmm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
            m, n, alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_ctrmm(char side, char uplo, char transa, char diag, int m, int n,
-                           const void* alpha, const void* a, int lda, void* b, int ldb) {
+static void openblas_ctrmm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
+                           const fb_complex_float_t alpha, const fb_complex_float_t* a, int lda, fb_complex_float_t* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctrmm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
-           m, n, alpha, a, lda, b, ldb);
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
+           m, n, &alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_ztrmm(char side, char uplo, char transa, char diag, int m, int n,
-                           const void* alpha, const void* a, int lda, void* b, int ldb) {
+static void openblas_ztrmm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
+                           const fb_complex_double_t alpha, const fb_complex_double_t* a, int lda, fb_complex_double_t* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztrmm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
-           m, n, alpha, a, lda, b, ldb);
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
+           m, n, &alpha, a, lda, b, ldb);
     }
 }
 
 /* TRSM - Triangular solve multiple right-hand sides */
-static void openblas_strsm(char side, char uplo, char transa, char diag, int m, int n,
+static void openblas_strsm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
                            float alpha, const float* a, int lda, float* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, float, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_strsm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
            m, n, alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_dtrsm(char side, char uplo, char transa, char diag, int m, int n,
+static void openblas_dtrsm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
                            double alpha, const double* a, int lda, double* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, double, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_dtrsm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
            m, n, alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_ctrsm(char side, char uplo, char transa, char diag, int m, int n,
-                           const void* alpha, const void* a, int lda, void* b, int ldb) {
+static void openblas_ctrsm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
+                           const fb_complex_float_t alpha, const fb_complex_float_t* a, int lda, fb_complex_float_t* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ctrsm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
-           m, n, alpha, a, lda, b, ldb);
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
+           m, n, &alpha, a, lda, b, ldb);
     }
 }
 
-static void openblas_ztrsm(char side, char uplo, char transa, char diag, int m, int n,
-                           const void* alpha, const void* a, int lda, void* b, int ldb) {
+static void openblas_ztrsm(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t transa, const fb_diag_t diag, int m, int n,
+                           const fb_complex_double_t alpha, const fb_complex_double_t* a, int lda, fb_complex_double_t* b, int ldb) {
     typedef void (*fn_t)(int, int, int, int, int, int, int, const void*, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_ztrsm");
     if (fn) {
-        fn(CblasColMajor, side_to_cblas(side), uplo_to_cblas(uplo), transpose_to_cblas(transa), diag_to_cblas(diag),
-           m, n, alpha, a, lda, b, ldb);
+        fn((int)layout, (int)side, (int)uplo, (int)transa, (int)diag,
+           m, n, &alpha, a, lda, b, ldb);
     }
 }
 
@@ -1524,407 +1570,397 @@ static int layout_to_lapack(char layout) {
 }
 
 /* GESV - General linear system solve */
-static void openblas_sgesv(int n, int nrhs, float* a, int lda, int* ipiv, float* b, int ldb, int* info) {
+static int openblas_sgesv(const fb_layout_t layout, const int n, const int nrhs, float* a, const int lda, int* ipiv, float* b, const int ldb) {
     typedef int (*fn_t)(int, int, int, float*, int, int*, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgesv");
-    if (fn) {
-        *info = fn(102, n, nrhs, a, lda, ipiv, b, ldb);
-    }
+    if (fn) { return fn((int)layout, n, nrhs, a, lda, ipiv, b, ldb); }
+    return -1;
 }
 
-static void openblas_dgesv(int n, int nrhs, double* a, int lda, int* ipiv, double* b, int ldb, int* info) {
+static int openblas_dgesv(const fb_layout_t layout, const int n, const int nrhs, double* a, const int lda, int* ipiv, double* b, const int ldb) {
     typedef int (*fn_t)(int, int, int, double*, int, int*, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgesv");
-    if (fn) {
-        *info = fn(102, n, nrhs, a, lda, ipiv, b, ldb);
-    }
+    if (fn) { return fn((int)layout, n, nrhs, a, lda, ipiv, b, ldb); }
+    return -1;
 }
 
-static void openblas_cgesv(int n, int nrhs, void* a, int lda, int* ipiv, void* b, int ldb, int* info) {
+static int openblas_cgesv(const fb_layout_t layout, const int n, const int nrhs, fb_complex_float_t* a, const int lda, int* ipiv, fb_complex_float_t* b, const int ldb) {
     typedef int (*fn_t)(int, int, int, void*, int, int*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgesv");
-    if (fn) {
-        *info = fn(102, n, nrhs, a, lda, ipiv, b, ldb);
-    }
+    if (fn) { return fn((int)layout, n, nrhs, a, lda, ipiv, b, ldb); }
+    return -1;
 }
 
-static void openblas_zgesv(int n, int nrhs, void* a, int lda, int* ipiv, void* b, int ldb, int* info) {
+static int openblas_zgesv(const fb_layout_t layout, const int n, const int nrhs, fb_complex_double_t* a, const int lda, int* ipiv, fb_complex_double_t* b, const int ldb) {
     typedef int (*fn_t)(int, int, int, void*, int, int*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgesv");
-    if (fn) {
-        *info = fn(102, n, nrhs, a, lda, ipiv, b, ldb);
-    }
+    if (fn) { return fn((int)layout, n, nrhs, a, lda, ipiv, b, ldb); }
+    return -1;
 }
 
 /* GETRF - LU factorization */
-static void openblas_sgetrf(int m, int n, float* a, int lda, int* ipiv, int* info) {
+static int openblas_sgetrf(const fb_layout_t layout, const int m, const int n, float* a, const int lda, int* ipiv) {
     typedef int (*fn_t)(int, int, int, float*, int, int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgetrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_dgetrf(int m, int n, double* a, int lda, int* ipiv, int* info) {
+static int openblas_dgetrf(const fb_layout_t layout, const int m, const int n, double* a, const int lda, int* ipiv) {
     typedef int (*fn_t)(int, int, int, double*, int, int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgetrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_cgetrf(int m, int n, void* a, int lda, int* ipiv, int* info) {
+static int openblas_cgetrf(const fb_layout_t layout, const int m, const int n, fb_complex_float_t* a, const int lda, int* ipiv) {
     typedef int (*fn_t)(int, int, int, void*, int, int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgetrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_zgetrf(int m, int n, void* a, int lda, int* ipiv, int* info) {
+static int openblas_zgetrf(const fb_layout_t layout, const int m, const int n, fb_complex_double_t* a, const int lda, int* ipiv) {
     typedef int (*fn_t)(int, int, int, void*, int, int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgetrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, ipiv); }
+    return -1;
 }
 
 /* GETRS - Solve using LU factorization */
-static void openblas_sgetrs(char trans, int n, int nrhs, const float* a, int lda, const int* ipiv, float* b, int ldb, int* info) {
+static int openblas_sgetrs(const fb_layout_t layout, const fb_transpose_t trans, const int n, const int nrhs, const float* a, const int lda, const int* ipiv, float* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const float*, int, const int*, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgetrs");
     if (fn) {
-        *info = fn(102, trans, n, nrhs, a, lda, ipiv, b, ldb);
+        char tc = ((int)trans == 111) ? 'N' : ((int)trans == 112) ? 'T' : 'C';
+        return fn((int)layout, tc, n, nrhs, a, lda, ipiv, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_dgetrs(char trans, int n, int nrhs, const double* a, int lda, const int* ipiv, double* b, int ldb, int* info) {
+static int openblas_dgetrs(const fb_layout_t layout, const fb_transpose_t trans, const int n, const int nrhs, const double* a, const int lda, const int* ipiv, double* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const double*, int, const int*, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgetrs");
     if (fn) {
-        *info = fn(102, trans, n, nrhs, a, lda, ipiv, b, ldb);
+        char tc = ((int)trans == 111) ? 'N' : ((int)trans == 112) ? 'T' : 'C';
+        return fn((int)layout, tc, n, nrhs, a, lda, ipiv, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_cgetrs(char trans, int n, int nrhs, const void* a, int lda, const int* ipiv, void* b, int ldb, int* info) {
+static int openblas_cgetrs(const fb_layout_t layout, const fb_transpose_t trans, const int n, const int nrhs, const fb_complex_float_t* a, const int lda, const int* ipiv, fb_complex_float_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const void*, int, const int*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgetrs");
     if (fn) {
-        *info = fn(102, trans, n, nrhs, a, lda, ipiv, b, ldb);
+        char tc = ((int)trans == 111) ? 'N' : ((int)trans == 112) ? 'T' : 'C';
+        return fn((int)layout, tc, n, nrhs, a, lda, ipiv, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_zgetrs(char trans, int n, int nrhs, const void* a, int lda, const int* ipiv, void* b, int ldb, int* info) {
+static int openblas_zgetrs(const fb_layout_t layout, const fb_transpose_t trans, const int n, const int nrhs, const fb_complex_double_t* a, const int lda, const int* ipiv, fb_complex_double_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const void*, int, const int*, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgetrs");
     if (fn) {
-        *info = fn(102, trans, n, nrhs, a, lda, ipiv, b, ldb);
+        char tc = ((int)trans == 111) ? 'N' : ((int)trans == 112) ? 'T' : 'C';
+        return fn((int)layout, tc, n, nrhs, a, lda, ipiv, b, ldb);
     }
+    return -1;
 }
 
 /* GETRI - Matrix inversion using LU */
-static void openblas_sgetri(int n, float* a, int lda, const int* ipiv, int* info) {
+static int openblas_sgetri(const fb_layout_t layout, const int n, float* a, const int lda, const int* ipiv) {
     typedef int (*fn_t)(int, int, float*, int, const int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgetri");
-    if (fn) {
-        *info = fn(102, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_dgetri(int n, double* a, int lda, const int* ipiv, int* info) {
+static int openblas_dgetri(const fb_layout_t layout, const int n, double* a, const int lda, const int* ipiv) {
     typedef int (*fn_t)(int, int, double*, int, const int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgetri");
-    if (fn) {
-        *info = fn(102, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_cgetri(int n, void* a, int lda, const int* ipiv, int* info) {
+static int openblas_cgetri(const fb_layout_t layout, const int n, fb_complex_float_t* a, const int lda, const int* ipiv) {
     typedef int (*fn_t)(int, int, void*, int, const int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgetri");
-    if (fn) {
-        *info = fn(102, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, n, a, lda, ipiv); }
+    return -1;
 }
 
-static void openblas_zgetri(int n, void* a, int lda, const int* ipiv, int* info) {
+static int openblas_zgetri(const fb_layout_t layout, const int n, fb_complex_double_t* a, const int lda, const int* ipiv) {
     typedef int (*fn_t)(int, int, void*, int, const int*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgetri");
-    if (fn) {
-        *info = fn(102, n, a, lda, ipiv);
-    }
+    if (fn) { return fn((int)layout, n, a, lda, ipiv); }
+    return -1;
 }
 
 /* POSV - Positive-definite linear system solve */
-static void openblas_sposv(char uplo, int n, int nrhs, float* a, int lda, float* b, int ldb, int* info) {
+static int openblas_sposv(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, float* a, const int lda, float* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sposv");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_dposv(char uplo, int n, int nrhs, double* a, int lda, double* b, int ldb, int* info) {
+static int openblas_dposv(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, double* a, const int lda, double* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dposv");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_cposv(char uplo, int n, int nrhs, void* a, int lda, void* b, int ldb, int* info) {
+static int openblas_cposv(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, fb_complex_float_t* a, const int lda, fb_complex_float_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cposv");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_zposv(char uplo, int n, int nrhs, void* a, int lda, void* b, int ldb, int* info) {
+static int openblas_zposv(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, fb_complex_double_t* a, const int lda, fb_complex_double_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zposv");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
 /* POTRF - Cholesky factorization */
-static void openblas_spotrf(char uplo, int n, float* a, int lda, int* info) {
+static int openblas_spotrf(const fb_layout_t layout, const fb_uplo_t uplo, const int n, float* a, const int lda) {
     typedef int (*fn_t)(int, char, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_spotrf");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_dpotrf(char uplo, int n, double* a, int lda, int* info) {
+static int openblas_dpotrf(const fb_layout_t layout, const fb_uplo_t uplo, const int n, double* a, const int lda) {
     typedef int (*fn_t)(int, char, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dpotrf");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_cpotrf(char uplo, int n, void* a, int lda, int* info) {
+static int openblas_cpotrf(const fb_layout_t layout, const fb_uplo_t uplo, const int n, fb_complex_float_t* a, const int lda) {
     typedef int (*fn_t)(int, char, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cpotrf");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_zpotrf(char uplo, int n, void* a, int lda, int* info) {
+static int openblas_zpotrf(const fb_layout_t layout, const fb_uplo_t uplo, const int n, fb_complex_double_t* a, const int lda) {
     typedef int (*fn_t)(int, char, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zpotrf");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
 /* POTRS - Solve using Cholesky factorization */
-static void openblas_spotrs(char uplo, int n, int nrhs, const float* a, int lda, float* b, int ldb, int* info) {
+static int openblas_spotrs(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, const float* a, const int lda, float* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const float*, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_spotrs");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_dpotrs(char uplo, int n, int nrhs, const double* a, int lda, double* b, int ldb, int* info) {
+static int openblas_dpotrs(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, const double* a, const int lda, double* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const double*, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dpotrs");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_cpotrs(char uplo, int n, int nrhs, const void* a, int lda, void* b, int ldb, int* info) {
+static int openblas_cpotrs(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, const fb_complex_float_t* a, const int lda, fb_complex_float_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cpotrs");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
-static void openblas_zpotrs(char uplo, int n, int nrhs, const void* a, int lda, void* b, int ldb, int* info) {
+static int openblas_zpotrs(const fb_layout_t layout, const fb_uplo_t uplo, const int n, const int nrhs, const fb_complex_double_t* a, const int lda, fb_complex_double_t* b, const int ldb) {
     typedef int (*fn_t)(int, char, int, int, const void*, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zpotrs");
     if (fn) {
-        *info = fn(102, uplo, n, nrhs, a, lda, b, ldb);
+        char uc = ((int)uplo == 121) ? 'U' : 'L';
+        return fn((int)layout, uc, n, nrhs, a, lda, b, ldb);
     }
+    return -1;
 }
 
 /* POTRI - Matrix inversion using Cholesky */
-static void openblas_spotri(char uplo, int n, float* a, int lda, int* info) {
+static int openblas_spotri(const fb_layout_t layout, const fb_uplo_t uplo, const int n, float* a, const int lda) {
     typedef int (*fn_t)(int, char, int, float*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_spotri");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_dpotri(char uplo, int n, double* a, int lda, int* info) {
+static int openblas_dpotri(const fb_layout_t layout, const fb_uplo_t uplo, const int n, double* a, const int lda) {
     typedef int (*fn_t)(int, char, int, double*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dpotri");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_cpotri(char uplo, int n, void* a, int lda, int* info) {
+static int openblas_cpotri(const fb_layout_t layout, const fb_uplo_t uplo, const int n, fb_complex_float_t* a, const int lda) {
     typedef int (*fn_t)(int, char, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cpotri");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
-static void openblas_zpotri(char uplo, int n, void* a, int lda, int* info) {
+static int openblas_zpotri(const fb_layout_t layout, const fb_uplo_t uplo, const int n, fb_complex_double_t* a, const int lda) {
     typedef int (*fn_t)(int, char, int, void*, int);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zpotri");
-    if (fn) {
-        *info = fn(102, uplo, n, a, lda);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, uc, n, a, lda); }
+    return -1;
 }
 
 /* GEQRF - QR factorization */
-static void openblas_sgeqrf(int m, int n, float* a, int lda, float* tau, int* info) {
+static int openblas_sgeqrf(const fb_layout_t layout, const int m, const int n, float* a, const int lda, float* tau) {
     typedef int (*fn_t)(int, int, int, float*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgeqrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_dgeqrf(int m, int n, double* a, int lda, double* tau, int* info) {
+static int openblas_dgeqrf(const fb_layout_t layout, const int m, const int n, double* a, const int lda, double* tau) {
     typedef int (*fn_t)(int, int, int, double*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgeqrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_cgeqrf(int m, int n, void* a, int lda, void* tau, int* info) {
+static int openblas_cgeqrf(const fb_layout_t layout, const int m, const int n, fb_complex_float_t* a, const int lda, fb_complex_float_t* tau) {
     typedef int (*fn_t)(int, int, int, void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgeqrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_zgeqrf(int m, int n, void* a, int lda, void* tau, int* info) {
+static int openblas_zgeqrf(const fb_layout_t layout, const int m, const int n, fb_complex_double_t* a, const int lda, fb_complex_double_t* tau) {
     typedef int (*fn_t)(int, int, int, void*, int, void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgeqrf");
-    if (fn) {
-        *info = fn(102, m, n, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, a, lda, tau); }
+    return -1;
 }
 
 /* ORGQR/UNGQR - Generate Q from QR factorization */
-static void openblas_sorgqr(int m, int n, int k, float* a, int lda, const float* tau, int* info) {
+static int openblas_sorgqr(const fb_layout_t layout, const int m, const int n, const int k, float* a, const int lda, const float* tau) {
     typedef int (*fn_t)(int, int, int, int, float*, int, const float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sorgqr");
-    if (fn) {
-        *info = fn(102, m, n, k, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, k, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_dorgqr(int m, int n, int k, double* a, int lda, const double* tau, int* info) {
+static int openblas_dorgqr(const fb_layout_t layout, const int m, const int n, const int k, double* a, const int lda, const double* tau) {
     typedef int (*fn_t)(int, int, int, int, double*, int, const double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dorgqr");
-    if (fn) {
-        *info = fn(102, m, n, k, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, k, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_cungqr(int m, int n, int k, void* a, int lda, const void* tau, int* info) {
+static int openblas_cungqr(const fb_layout_t layout, const int m, const int n, const int k, fb_complex_float_t* a, const int lda, const fb_complex_float_t* tau) {
     typedef int (*fn_t)(int, int, int, int, void*, int, const void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cungqr");
-    if (fn) {
-        *info = fn(102, m, n, k, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, k, a, lda, tau); }
+    return -1;
 }
 
-static void openblas_zungqr(int m, int n, int k, void* a, int lda, const void* tau, int* info) {
+static int openblas_zungqr(const fb_layout_t layout, const int m, const int n, const int k, fb_complex_double_t* a, const int lda, const fb_complex_double_t* tau) {
     typedef int (*fn_t)(int, int, int, int, void*, int, const void*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zungqr");
-    if (fn) {
-        *info = fn(102, m, n, k, a, lda, tau);
-    }
+    if (fn) { return fn((int)layout, m, n, k, a, lda, tau); }
+    return -1;
 }
 
 /* GESVD - Singular value decomposition */
-static void openblas_sgesvd(char jobu, char jobvt, int m, int n, float* a, int lda,
-                            float* s, float* u, int ldu, float* vt, int ldvt,
-                            float* superb, int* info) {
+static int openblas_sgesvd(const fb_layout_t layout, const char jobu, const char jobvt,
+                           const int m, const int n, float* a, const int lda,
+                           float* s, float* u, const int ldu, float* vt, const int ldvt, float* superb) {
     typedef int (*fn_t)(int, char, char, int, int, float*, int, float*, float*, int, float*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_sgesvd");
-    if (fn) {
-        *info = fn(102, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb);
-    }
+    if (fn) { return fn((int)layout, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb); }
+    return -1;
 }
 
-static void openblas_dgesvd(char jobu, char jobvt, int m, int n, double* a, int lda,
-                            double* s, double* u, int ldu, double* vt, int ldvt,
-                            double* superb, int* info) {
+static int openblas_dgesvd(const fb_layout_t layout, const char jobu, const char jobvt,
+                           const int m, const int n, double* a, const int lda,
+                           double* s, double* u, const int ldu, double* vt, const int ldvt, double* superb) {
     typedef int (*fn_t)(int, char, char, int, int, double*, int, double*, double*, int, double*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dgesvd");
-    if (fn) {
-        *info = fn(102, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb);
-    }
+    if (fn) { return fn((int)layout, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb); }
+    return -1;
 }
 
-static void openblas_cgesvd(char jobu, char jobvt, int m, int n, void* a, int lda,
-                            float* s, void* u, int ldu, void* vt, int ldvt,
-                            float* superb, int* info) {
+static int openblas_cgesvd(const fb_layout_t layout, const char jobu, const char jobvt,
+                           const int m, const int n, fb_complex_float_t* a, const int lda,
+                           float* s, fb_complex_float_t* u, const int ldu,
+                           fb_complex_float_t* vt, const int ldvt, float* superb) {
     typedef int (*fn_t)(int, char, char, int, int, void*, int, float*, void*, int, void*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cgesvd");
-    if (fn) {
-        *info = fn(102, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb);
-    }
+    if (fn) { return fn((int)layout, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb); }
+    return -1;
 }
 
-static void openblas_zgesvd(char jobu, char jobvt, int m, int n, void* a, int lda,
-                            double* s, void* u, int ldu, void* vt, int ldvt,
-                            double* superb, int* info) {
+static int openblas_zgesvd(const fb_layout_t layout, const char jobu, const char jobvt,
+                           const int m, const int n, fb_complex_double_t* a, const int lda,
+                           double* s, fb_complex_double_t* u, const int ldu,
+                           fb_complex_double_t* vt, const int ldvt, double* superb) {
     typedef int (*fn_t)(int, char, char, int, int, void*, int, double*, void*, int, void*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zgesvd");
-    if (fn) {
-        *info = fn(102, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb);
-    }
+    if (fn) { return fn((int)layout, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt, superb); }
+    return -1;
 }
 
 /* SYEV/HEEV - Eigenvalue decomposition */
-static void openblas_ssyev(char jobz, char uplo, int n, float* a, int lda, float* w, int* info) {
+static int openblas_ssyev(const fb_layout_t layout, const char jobz, const fb_uplo_t uplo, const int n, float* a, const int lda, float* w) {
     typedef int (*fn_t)(int, char, char, int, float*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_ssyev");
-    if (fn) {
-        *info = fn(102, jobz, uplo, n, a, lda, w);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, jobz, uc, n, a, lda, w); }
+    return -1;
 }
 
-static void openblas_dsyev(char jobz, char uplo, int n, double* a, int lda, double* w, int* info) {
+static int openblas_dsyev(const fb_layout_t layout, const char jobz, const fb_uplo_t uplo, const int n, double* a, const int lda, double* w) {
     typedef int (*fn_t)(int, char, char, int, double*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_dsyev");
-    if (fn) {
-        *info = fn(102, jobz, uplo, n, a, lda, w);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, jobz, uc, n, a, lda, w); }
+    return -1;
 }
 
-static void openblas_cheev(char jobz, char uplo, int n, void* a, int lda, float* w, int* info) {
+static int openblas_cheev(const fb_layout_t layout, const char jobz, const fb_uplo_t uplo, const int n, fb_complex_float_t* a, const int lda, float* w) {
     typedef int (*fn_t)(int, char, char, int, void*, int, float*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_cheev");
-    if (fn) {
-        *info = fn(102, jobz, uplo, n, a, lda, w);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, jobz, uc, n, a, lda, w); }
+    return -1;
 }
 
-static void openblas_zheev(char jobz, char uplo, int n, void* a, int lda, double* w, int* info) {
+static int openblas_zheev(const fb_layout_t layout, const char jobz, const fb_uplo_t uplo, const int n, fb_complex_double_t* a, const int lda, double* w) {
     typedef int (*fn_t)(int, char, char, int, void*, int, double*);
     fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "LAPACKE_zheev");
-    if (fn) {
-        *info = fn(102, jobz, uplo, n, a, lda, w);
-    }
+    if (fn) { char uc = ((int)uplo == 121) ? 'U' : 'L'; return fn((int)layout, jobz, uc, n, a, lda, w); }
+    return -1;
 }
 
 /* SYEVD/HEEVD - Eigenvalue decomposition (divide-and-conquer) */
@@ -2216,6 +2252,16 @@ static fb_backend_vtable_t g_openblas_vtable = {
 const fb_backend_vtable_t* fb_openblas_get_vtable(void) {
     if (!fb_openblas_is_available()) {
         return NULL;
+    }
+    /* Lazily populate ext_ops[] via dlsym for LAPACK and extended BLAS.
+     * Only NULL slots are filled — typed wrappers (BLAS L1/L2/L3) win.
+     * Guard is benign for single-threaded init; backends are not called
+     * concurrently until after all initialization completes. */
+    static bool g_ext_ops_populated = false;
+    if (!g_ext_ops_populated) {
+        fb_auto_populate_ext_ops(&g_openblas_vtable, g_openblas.handle,
+                                 k_lapacke_symbols, k_lapacke_symbols_count);
+        g_ext_ops_populated = true;
     }
     return &g_openblas_vtable;
 }

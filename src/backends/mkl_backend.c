@@ -7,6 +7,8 @@
  */
 
 #include "mkl_backend.h"
+#include "backend_auto_detect.h"     /* fb_auto_populate_ext_ops       */
+#include "sym_tables/sym_tables.h"     /* k_lapacke_symbols, k_cblas_ext_symbols, k_mkl_ext_symbols */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -306,16 +308,18 @@ static void mkl_set_num_threads_vtable(void* handle, int num_threads) {
 
 /* Wrapper functions (nearly identical to OpenBLAS wrappers) */
 
-static void mkl_sasum(int n, const float* x, int incx, float* result) {
+static float mkl_sasum(const int n, const float* x, const int incx) {
     if (g_mkl.sasum) {
-        *result = g_mkl.sasum(n, x, incx);
+        return g_mkl.sasum(n, x, incx);
     }
+    return 0.0f;
 }
 
-static void mkl_dasum(int n, const double* x, int incx, double* result) {
+static double mkl_dasum(const int n, const double* x, const int incx) {
     if (g_mkl.dasum) {
-        *result = g_mkl.dasum(n, x, incx);
+        return g_mkl.dasum(n, x, incx);
     }
+    return 0.0;
 }
 
 static void mkl_saxpy(int n, float alpha, const float* x, int incx, float* y, int incy) {
@@ -330,16 +334,18 @@ static void mkl_daxpy(int n, double alpha, const double* x, int incx, double* y,
     }
 }
 
-static void mkl_sdot(int n, const float* x, int incx, const float* y, int incy, float* result) {
+static float mkl_sdot(const int n, const float* x, const int incx, const float* y, const int incy) {
     if (g_mkl.sdot) {
-        *result = g_mkl.sdot(n, x, incx, y, incy);
+        return g_mkl.sdot(n, x, incx, y, incy);
     }
+    return 0.0f;
 }
 
-static void mkl_ddot(int n, const double* x, int incx, const double* y, int incy, double* result) {
+static double mkl_ddot(const int n, const double* x, const int incx, const double* y, const int incy) {
     if (g_mkl.ddot) {
-        *result = g_mkl.ddot(n, x, incx, y, incy);
+        return g_mkl.ddot(n, x, incx, y, incy);
     }
+    return 0.0;
 }
 
 static void mkl_scopy(int n, const float* x, int incx, float* y, int incy) {
@@ -366,16 +372,18 @@ static void mkl_dscal(int n, double alpha, double* x, int incx) {
     }
 }
 
-static void mkl_snrm2(int n, const float* x, int incx, float* result) {
+static float mkl_snrm2(const int n, const float* x, const int incx) {
     if (g_mkl.snrm2) {
-        *result = g_mkl.snrm2(n, x, incx);
+        return g_mkl.snrm2(n, x, incx);
     }
+    return 0.0f;
 }
 
-static void mkl_dnrm2(int n, const double* x, int incx, double* result) {
+static double mkl_dnrm2(const int n, const double* x, const int incx) {
     if (g_mkl.dnrm2) {
-        *result = g_mkl.dnrm2(n, x, incx);
+        return g_mkl.dnrm2(n, x, incx);
     }
+    return 0.0;
 }
 
 static void mkl_sswap(int n, float* x, int incx, float* y, int incy) {
@@ -390,16 +398,18 @@ static void mkl_dswap(int n, double* x, int incx, double* y, int incy) {
     }
 }
 
-static void mkl_isamax(int n, const float* x, int incx, int* result) {
+static int mkl_isamax(const int n, const float* x, const int incx) {
     if (g_mkl.isamax) {
-        *result = g_mkl.isamax(n, x, incx);
+        return g_mkl.isamax(n, x, incx);
     }
+    return -1;
 }
 
-static void mkl_idamax(int n, const double* x, int incx, int* result) {
+static int mkl_idamax(const int n, const double* x, const int incx) {
     if (g_mkl.idamax) {
-        *result = g_mkl.idamax(n, x, incx);
+        return g_mkl.idamax(n, x, incx);
     }
+    return -1;
 }
 
 static int transpose_to_cblas(char trans) {
@@ -667,40 +677,46 @@ static void mkl_drotmg(double* d1, double* d2, double* x1, double y1, double* pa
 
 /* Level 2 BLAS operations */
 
-static void mkl_sgemv(char trans, int m, int n, float alpha,
-                      const float* a, int lda, const float* x, int incx,
-                      float beta, float* y, int incy) {
+static void mkl_sgemv(const fb_layout_t layout, const fb_transpose_t trans,
+                      const int m, const int n, const float alpha,
+                      const float* a, const int lda, const float* x, const int incx,
+                      const float beta, float* y, const int incy) {
     if (g_mkl.sgemv) {
-        g_mkl.sgemv(CblasColMajor, transpose_to_cblas(trans),
+        g_mkl.sgemv((int)layout, (int)trans,
                     m, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void mkl_dgemv(char trans, int m, int n, double alpha,
-                      const double* a, int lda, const double* x, int incx,
-                      double beta, double* y, int incy) {
+static void mkl_dgemv(const fb_layout_t layout, const fb_transpose_t trans,
+                      const int m, const int n, const double alpha,
+                      const double* a, const int lda, const double* x, const int incx,
+                      const double beta, double* y, const int incy) {
     if (g_mkl.dgemv) {
-        g_mkl.dgemv(CblasColMajor, transpose_to_cblas(trans),
+        g_mkl.dgemv((int)layout, (int)trans,
                     m, n, alpha, a, lda, x, incx, beta, y, incy);
     }
 }
 
-static void mkl_sgemm(char transa, char transb, int m, int n, int k,
-                      float alpha, const float* a, int lda,
-                      const float* b, int ldb, float beta,
-                      float* c, int ldc) {
+static void mkl_sgemm(const fb_layout_t layout,
+                      const fb_transpose_t transa, const fb_transpose_t transb,
+                      const int m, const int n, const int k,
+                      const float alpha, const float* a, const int lda,
+                      const float* b, const int ldb, const float beta,
+                      float* c, const int ldc) {
     if (g_mkl.sgemm) {
-        g_mkl.sgemm(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
+        g_mkl.sgemm((int)layout, (int)transa, (int)transb,
                     m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void mkl_dgemm(char transa, char transb, int m, int n, int k,
-                      double alpha, const double* a, int lda,
-                      const double* b, int ldb, double beta,
-                      double* c, int ldc) {
+static void mkl_dgemm(const fb_layout_t layout,
+                      const fb_transpose_t transa, const fb_transpose_t transb,
+                      const int m, const int n, const int k,
+                      const double alpha, const double* a, const int lda,
+                      const double* b, const int ldb, const double beta,
+                      double* c, const int ldc) {
     if (g_mkl.dgemm) {
-        g_mkl.dgemm(CblasColMajor, transpose_to_cblas(transa), transpose_to_cblas(transb),
+        g_mkl.dgemm((int)layout, (int)transa, (int)transb,
                     m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
     }
 }
@@ -1760,6 +1776,21 @@ static fb_backend_vtable_t g_mkl_vtable = {
 const fb_backend_vtable_t* fb_mkl_get_vtable(void) {
     if (!fb_mkl_is_available()) {
         return NULL;
+    }
+    /* Lazily dlsym-populate ext_ops[] for all three MKL symbol ranges:
+     *   LAPACKE_*   (LAPACK ops 157-1321)
+     *   cblas_*     (extended batch ops 1634-1807)
+     *   mkl_*       (MKL-specific extensions 1808-1850)
+     * NULL-check inside fb_auto_populate_ext_ops ensures typed wrappers win. */
+    static bool g_ext_ops_populated = false;
+    if (!g_ext_ops_populated) {
+        fb_auto_populate_ext_ops(&g_mkl_vtable, g_mkl.handle,
+                                 k_lapacke_symbols,  k_lapacke_symbols_count);
+        fb_auto_populate_ext_ops(&g_mkl_vtable, g_mkl.handle,
+                                 k_cblas_ext_symbols, k_cblas_ext_symbols_count);
+        fb_auto_populate_ext_ops(&g_mkl_vtable, g_mkl.handle,
+                                 k_mkl_ext_symbols,  k_mkl_ext_symbols_count);
+        g_ext_ops_populated = true;
     }
     return &g_mkl_vtable;
 }

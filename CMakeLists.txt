@@ -397,6 +397,8 @@ set(CORE_SOURCES
     src/core/vtable_wrappers_strided_to_array.c
     src/core/vtable_wrappers_precision_promotion.c
     src/core/ranked_dispatch.c
+    # Auto-detect: dlsym-based ext_ops[] fill from symbol tables
+    src/core/backend_auto_detect.c
     # Old stubs (replaced with real implementations above)
     # src/core/device_registry_stub.c
     # src/core/compute_manager_stub.c
@@ -497,8 +499,20 @@ elseif(ROCM_AVAILABLE)
     message(STATUS "  HIP detection disabled: hipcc not found")
 endif()
 
+# Symbol tables for fb_auto_populate_ext_ops() — dlsym name maps per backend family.
+# These are always compiled; each backend's get_vtable() calls into the tables it needs.
+set(SYM_TABLE_SOURCES
+    src/backends/sym_tables/lapacke_sym_table.c
+    src/backends/sym_tables/cblas_ext_sym_table.c
+    src/backends/sym_tables/mkl_ext_sym_table.c
+    src/backends/sym_tables/scalapack_sym_table.c
+    src/backends/sym_tables/cublas_sym_table.c
+    src/backends/sym_tables/rocblas_sym_table.c
+)
+
 # Backend sources
 set(BACKEND_SOURCES
+    ${SYM_TABLE_SOURCES}
     src/backends/reference.c
     src/backends/openblas_backend.c
     src/backends/backend_loader.c
