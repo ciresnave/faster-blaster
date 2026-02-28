@@ -159,8 +159,29 @@ fb_ranked_table_t *fb_ranked_table_build(
                 fb_ranked_entry_t *e = &t->entries[op][crit][k];
                 e->backend_id       = winner;
                 e->effective_digits = digits;
-                e->latency_p50_ns   = UINT32_MAX;  /* populated below */
                 e->is_valid         = 1;
+
+                /* Populate latency from the stored profile.
+                 * Use the same size_class the criterion uses so the latency
+                 * is consistent with how the backend was ranked.
+                 * If no profile is found (shouldn't happen since we just
+                 * selected this backend) keep UINT32_MAX as a safe sentinel
+                 * so SPEED_FLOOR_THEN_PRECISION comparisons degrade
+                 * gracefully rather than producing false matches. */
+                {
+                    fb_precision_profile_t prof;
+                    memset(&prof, 0, sizeof(prof));
+                    fb_judge_status_t ls = fb_judge_load_profile(
+                        op,
+                        winner,
+                        device_id,
+                        k_criterion_presets[crit]->latency_size_class,
+                        primary_dtype,
+                        &prof);
+                    e->latency_p50_ns = (ls == FB_JUDGE_OK)
+                                            ? prof.timing.p50_ns
+                                            : UINT32_MAX;
+                }
                 k++;
 
                 /* Remove winner from pool to force selection of the next-best */
