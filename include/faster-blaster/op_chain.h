@@ -51,6 +51,7 @@
 
 #include "vtable_autofill.h"        /* fb_backend_vtable_t (opaque), fb_get_active_vtable() */
 #include "../dispatch_tables.h"     /* fb_dispatch_constraints_t, fb_select_backend_with_constraints() */
+#include "exec_dag.h"               /* fb_exec_plan_t, fb_device_type_t, fb_xfer_type_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,13 +93,35 @@ typedef struct {
 
     /* --- Set by fb_op_sequence_compile() --- */
 
-    /** Backend ID elected for this step by the ranked dispatch layer. */
+    /**
+     * Estimated data volume for this step in bytes.  Used by the DAG
+     * planner to price memory-transfer edges between devices.
+     * Zero means "unknown" — the planner will treat transfer cost as
+     * fixed latency only (no bandwidth term).
+     */
+    size_t    size_bytes_hint;
+
+    /* --- Set by fb_op_sequence_compile() via the DAG planner --- */
+
+    /** Backend index (plugin registry position) elected by the DAG. */
     uint32_t  selected_backend_id;
 
+    /** Device type the DAG placed this step on (FB_DEVICE_CPU / GPU_*). */
+    fb_device_type_t planned_device_type;
+
     /**
-     * Advisory: this step and the next step may be combined into a single
-     * fused kernel call (e.g. GEMM β-bias fold, element-wise post-op).
-     * The caller is responsible for deciding whether to act on this hint.
+     * Transfer the DAG requires before this step executes.
+     * FB_XFER_NONE means no transfer needed (same device as previous step).
+     * The caller's exec_fn is responsible for performing the described
+     * transfer before accessing output data from the previous step.
+     */
+    fb_xfer_type_t   planned_xfer_before;
+
+    /**
+     * Advisory: this step and the next step may be fused into a single
+     * kernel call (same device, compatible operation pattern).
+     * True only when both steps share a device and the op pair matches
+     * a known fusible pattern (e.g. GEMM->SAXPY, GEMM->SCAL).
      */
     bool      may_fuse_with_next;
 } fb_seq_step_t;
@@ -195,10 +218,33 @@ bool fb_op_sequence_is_compiled(const fb_op_sequence_t *seq);
 
 /**
  * Print a human-readable summary of the sequence to stdout.
- * Shows each step's name, op_id, selected_backend_id, and fusion hints.
- * Suitable for debugging; output format is not stable across versions.
+ * Shows each step's name, op_id, planned backend, device, transfer type,
+ * and fusion hints.  Suitable for debugging; output format is not stable.
  */
 void fb_op_sequence_print(const fb_op_sequence_t *seq);
+
+/* =========================================================================
+ * DAG planning controls
+ * ========================================================================= */
+
+/**
+ * Set the optimisation objective used by the DAG planner at compile() time.
+ * Must be called before fb_op_sequence_compile().
+ * Default is FB_SELECT_MAXIMIZE_SPEED.
+ *
+ * @param seq        Target sequence.  NULL is a no-op.
+ * @param objective  Objective from fb_select_objective_t.
+ */
+void fb_op_sequence_set_objective(fb_op_sequence_t     *seq,
+                                   fb_select_objective_t objective);
+
+/**
+ * Return the execution plan most recently produced by compile().
+ * The returned pointer is owned by the sequence and invalidated by
+ * fb_op_sequence_reset() or fb_op_sequence_free().
+ * Returns NULL if the sequence has not been compiled.
+ */
+const fb_exec_plan_t *fb_op_sequence_get_plan(const fb_op_sequence_t *seq);
 
 #ifdef __cplusplus
 }

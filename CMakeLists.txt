@@ -432,6 +432,7 @@ set(BENCHMARK_SOURCES
     src/benchmark_execute.c
     src/dispatch_tables.c
     src/op_chain.c
+    src/core/exec_dag.c
     src/auto_benchmark.c
 )
 
