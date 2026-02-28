@@ -653,6 +653,28 @@ add_test(NAME constraint_based_selection COMMAND test_constraint_selection)
 message(STATUS "Constraint-based selection tests enabled")
 
 # ============================================================================
+# Operation Sequence Executor Tests (Phase 3)
+# ============================================================================
+add_executable(test_op_sequence
+    test_op_sequence.c
+)
+
+target_link_libraries(test_op_sequence faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_op_sequence POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_op_sequence>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME op_sequence_executor COMMAND test_op_sequence)
+
+message(STATUS "Operation sequence executor tests enabled")
+
+# ============================================================================
 # Test Summary
 # ============================================================================
 message(STATUS "")
