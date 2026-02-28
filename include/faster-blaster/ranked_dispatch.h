@@ -55,6 +55,7 @@
 #include <stdbool.h>
 #include "judge.h"          /* FB_JUDGE_MAX_OPERATIONS, fb_dtype_t */
 #include "judge_select.h"   /* fb_select_criteria_t, fb_select_objective_t */
+#include "backend_ids.h"    /* FB_BACKEND_ID_* constants */
 
 #ifdef __cplusplus
 extern "C" {
@@ -377,6 +378,53 @@ typedef struct {
  */
 void fb_ranked_table_get_stats(const fb_ranked_table_t *table,
                                fb_ranked_stats_t       *stats_out);
+
+/* =========================================================================
+ * Operation-level dispatch helpers
+ * =========================================================================
+ *
+ * These functions enable application code and the dispatch layer to select
+ * the best backend for a specific operation ID without holding an explicit
+ * ranked-table reference.  A single active table is stored globally and
+ * queried by name.
+ *
+ * Typical startup sequence:
+ *
+ *   fb_ranked_table_t *tbl = fb_ranked_table_build(...);
+ *   fb_op_dispatch_set_table(tbl);          // register globally
+ *
+ *   // In a hot dispatch path:
+ *   uint32_t bid = fb_select_backend_for_op(FB_OP_SGEMM, FB_RANK_FASTEST);
+ * ========================================================================= */
+
+/**
+ * Set (or replace) the globally active ranked table used by
+ * fb_select_backend_for_op().  Does not take ownership; the caller must
+ * keep the table alive.
+ *
+ * @param table  Ranked table to register; NULL clears the global.
+ */
+void fb_op_dispatch_set_table(fb_ranked_table_t *table);
+
+/**
+ * Return the currently active ranked table, or NULL if none has been set.
+ */
+const fb_ranked_table_t *fb_op_dispatch_get_table(void);
+
+/**
+ * Select the best available backend for @p op_id using the globally active
+ * ranked table.  Falls back to @c FB_BACKEND_ID_REFERENCE when no table is
+ * set or the op is unranked.
+ *
+ * This is the primary entry point for operation-level dispatch across the
+ * full 2266-operation superset.
+ *
+ * @param op_id     FB_OP_* constant from judge_op_ids.h (0 – 2265).
+ * @param criterion Ranking axis: FB_RANK_FASTEST / MOST_ACCURATE / BALANCED.
+ * @return          Backend ID to use.
+ */
+uint32_t fb_select_backend_for_op(uint32_t            op_id,
+                                  fb_rank_criterion_t criterion);
 
 #ifdef __cplusplus
 }

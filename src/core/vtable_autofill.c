@@ -69,6 +69,9 @@ fb_status_t fb_finalize_plugin_vtable(fb_backend_vtable_t *vtable) {
     printf("[faster-blaster] Warning: Precision promotion autofill failed\n");
   }
 
+  /* Final step: mirror named fields → ext_ops[] for uniform op-level dispatch */
+  fb_vtable_sync_ext_ops(vtable);
+
   return FB_STATUS_SUCCESS;
 }
 
@@ -78,8 +81,10 @@ fb_status_t fb_finalize_plugin_vtable(fb_backend_vtable_t *vtable) {
 
 /* External wrapper implementations */
 extern void fb_autofill_gemm_from_unified(fb_backend_vtable_t *vtable);
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
 extern void fb_autofill_normalization_from_unified(fb_backend_vtable_t *vtable);
 extern void fb_autofill_reduction_from_unified(fb_backend_vtable_t *vtable);
+#endif
 
 fb_status_t fb_autofill_unified_to_specific(fb_backend_vtable_t *vtable) {
   if (!vtable) {
@@ -89,6 +94,7 @@ fb_status_t fb_autofill_unified_to_specific(fb_backend_vtable_t *vtable) {
   /* GEMM wrappers: sgemm, dgemm, cgemm, zgemm from gemm_unified */
   fb_autofill_gemm_from_unified(vtable);
 
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
   /* Normalization wrappers: batch_norm, layer_norm, etc. from normalize_unified
    */
   fb_autofill_normalization_from_unified(vtable);
@@ -96,6 +102,7 @@ fb_status_t fb_autofill_unified_to_specific(fb_backend_vtable_t *vtable) {
   /* Reduction wrappers: tensor/parallel/stats/collective reductions from
    * reduce_unified */
   fb_autofill_reduction_from_unified(vtable);
+#endif
 
   return FB_STATUS_SUCCESS;
 }
@@ -122,16 +129,20 @@ fb_status_t fb_autofill_specific_to_unified(fb_backend_vtable_t *vtable) {
  * Strategy 2: Batched → Single (TODO: Implement in Phase 3)
  * ========================================================================= */
 
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
 /* External wrapper implementations */
 extern void fb_autofill_all_from_batched(fb_backend_vtable_t *vtable);
+#endif
 
 fb_status_t fb_autofill_batched_to_single(fb_backend_vtable_t *vtable) {
   if (!vtable) {
     return FB_STATUS_INVALID_ARGUMENT;
   }
 
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
   /* Install single wrappers from batched operations */
   fb_autofill_all_from_batched(vtable);
+#endif
 
   return FB_STATUS_SUCCESS;
 }
@@ -140,16 +151,20 @@ fb_status_t fb_autofill_batched_to_single(fb_backend_vtable_t *vtable) {
  * Strategy 3: Array → Strided (TODO: Implement in Phase 3)
  * ========================================================================= */
 
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
 /* External wrapper implementations */
 extern void fb_autofill_all_strided_from_array(fb_backend_vtable_t *vtable);
+#endif
 
 fb_status_t fb_autofill_array_to_strided(fb_backend_vtable_t *vtable) {
   if (!vtable) {
     return FB_STATUS_INVALID_ARGUMENT;
   }
 
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
   /* Install strided batched wrappers from array-based operations */
   fb_autofill_all_strided_from_array(vtable);
+#endif
 
   return FB_STATUS_SUCCESS;
 }
@@ -238,8 +253,8 @@ fb_promote_array_c64_to_c128(const fb_complex_float_t *input, size_t count) {
   }
 
   for (size_t i = 0; i < count; i++) {
-    output[i].real = (double)input[i].real;
-    output[i].imag = (double)input[i].imag;
+    __real__(output[i]) = (double)__real__(input[i]);
+    __imag__(output[i]) = (double)__imag__(input[i]);
   }
 
   return output;
@@ -255,29 +270,29 @@ fb_demote_array_c128_to_c64_checked(const fb_complex_double_t *input,
   fb_status_t status = FB_STATUS_SUCCESS;
 
   for (size_t i = 0; i < count; i++) {
-    double real = input[i].real;
-    double imag = input[i].imag;
+    double real = __real__(input[i]);
+    double imag = __imag__(input[i]);
 
     /* Check for overflow in real part */
     if (real > (double)FLT_MAX) {
-      output[i].real = FLT_MAX;
+      __real__(output[i]) = FLT_MAX;
       status = FB_STATUS_OVERFLOW;
     } else if (real < -(double)FLT_MAX) {
-      output[i].real = -FLT_MAX;
+      __real__(output[i]) = -FLT_MAX;
       status = FB_STATUS_OVERFLOW;
     } else {
-      output[i].real = (float)real;
+      __real__(output[i]) = (float)real;
     }
 
     /* Check for overflow in imaginary part */
     if (imag > (double)FLT_MAX) {
-      output[i].imag = FLT_MAX;
+      __imag__(output[i]) = FLT_MAX;
       status = FB_STATUS_OVERFLOW;
     } else if (imag < -(double)FLT_MAX) {
-      output[i].imag = -FLT_MAX;
+      __imag__(output[i]) = -FLT_MAX;
       status = FB_STATUS_OVERFLOW;
     } else {
-      output[i].imag = (float)imag;
+      __imag__(output[i]) = (float)imag;
     }
   }
 

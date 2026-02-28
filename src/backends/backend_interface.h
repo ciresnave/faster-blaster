@@ -22,6 +22,12 @@
 /* Complex scalar types and status codes — canonical definitions */
 #include <faster-blaster/fb_types.h>
 
+/* Full operation-ID namespace (FB_OP_* constants, FB_JUDGE_MAX_OPERATIONS) */
+/* NOTE: Do NOT include judge_op_ids.h here — it defines FB_OP_* as preprocessor
+ * macros that conflict with the FB_OP_* enum in src/core/dispatch.h.
+ * We only need FB_JUDGE_MAX_OPERATIONS for the ext_ops[] array size. */
+#include <faster-blaster/judge.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -82,19 +88,7 @@ typedef enum {
  * Unified Operation Types (for advanced features)
  * ========================================================================= */
 
-/* fb_status_t is defined in fb_types.h (included above) */
-
-typedef enum {
-  FB_PREC_FP32, /* Single precision float */
-  FB_PREC_FP64, /* Double precision float */
-  FB_PREC_C64,  /* Complex single precision */
-  FB_PREC_C128, /* Complex double precision */
-  FB_PREC_FP16, /* Half precision (optional) */
-  FB_PREC_BF16, /* BFloat16 (optional) */
-  FB_PREC_FP8,  /* FP8 (optional) */
-  FB_PREC_INT8, /* 8-bit integer (optional) */
-  FB_PREC_INT32 /* 32-bit integer (optional) */
-} fb_precision_t;
+/* fb_status_t and fb_precision_t are defined in fb_types.h (included above) */
 
 typedef enum {
   FB_BATCH_SINGLE, /* Single operation (no batching) */
@@ -190,139 +184,139 @@ typedef void (*fb_drotmg_fn)(double *d1, double *d2, double *x1,
                              const double y1, double *param);
 
 /* ROT - Apply plane rotation */
-typedef void (*fb_srot_fn)(const int64_t n, float *x, const int64_t incx,
-                           float *y, const int64_t incy, const float c,
+typedef void (*fb_srot_fn)(const int n, float *x, const int incx,
+                           float *y, const int incy, const float c,
                            const float s);
-typedef void (*fb_drot_fn)(const int64_t n, double *x, const int64_t incx,
-                           double *y, const int64_t incy, const double c,
+typedef void (*fb_drot_fn)(const int n, double *x, const int incx,
+                           double *y, const int incy, const double c,
                            const double s);
-typedef void (*fb_crot_fn)(const int64_t n, fb_complex_float_t *x,
-                           const int64_t incx, fb_complex_float_t *y,
-                           const int64_t incy, const float c,
+typedef void (*fb_crot_fn)(const int n, fb_complex_float_t *x,
+                           const int incx, fb_complex_float_t *y,
+                           const int incy, const float c,
                            const fb_complex_float_t s);
-typedef void (*fb_zrot_fn)(const int64_t n, fb_complex_double_t *x,
-                           const int64_t incx, fb_complex_double_t *y,
-                           const int64_t incy, const double c,
+typedef void (*fb_zrot_fn)(const int n, fb_complex_double_t *x,
+                           const int incx, fb_complex_double_t *y,
+                           const int incy, const double c,
                            const fb_complex_double_t s);
-typedef void (*fb_zdrot_fn)(const int64_t n, fb_complex_double_t *x,
-                            const int64_t incx, fb_complex_double_t *y,
-                            const int64_t incy, const double c, const double s);
+typedef void (*fb_zdrot_fn)(const int n, fb_complex_double_t *x,
+                            const int incx, fb_complex_double_t *y,
+                            const int incy, const double c, const double s);
 
 /* ROTM - Apply modified plane rotation */
-typedef void (*fb_srotm_fn)(const int64_t n, float *x, const int64_t incx,
-                            float *y, const int64_t incy, const float *param);
-typedef void (*fb_drotm_fn)(const int64_t n, double *x, const int64_t incx,
-                            double *y, const int64_t incy, const double *param);
+typedef void (*fb_srotm_fn)(const int n, float *x, const int incx,
+                            float *y, const int incy, const float *param);
+typedef void (*fb_drotm_fn)(const int n, double *x, const int incx,
+                            double *y, const int incy, const double *param);
 
 /* SWAP - Exchange vectors */
-typedef void (*fb_sswap_fn)(const int64_t n, float *x, const int64_t incx,
-                            float *y, const int64_t incy);
-typedef void (*fb_dswap_fn)(const int64_t n, double *x, const int64_t incx,
-                            double *y, const int64_t incy);
-typedef void (*fb_cswap_fn)(const int64_t n, fb_complex_float_t *x,
-                            const int64_t incx, fb_complex_float_t *y,
-                            const int64_t incy);
-typedef void (*fb_zswap_fn)(const int64_t n, fb_complex_double_t *x,
-                            const int64_t incx, fb_complex_double_t *y,
-                            const int64_t incy);
+typedef void (*fb_sswap_fn)(const int n, float *x, const int incx,
+                            float *y, const int incy);
+typedef void (*fb_dswap_fn)(const int n, double *x, const int incx,
+                            double *y, const int incy);
+typedef void (*fb_cswap_fn)(const int n, fb_complex_float_t *x,
+                            const int incx, fb_complex_float_t *y,
+                            const int incy);
+typedef void (*fb_zswap_fn)(const int n, fb_complex_double_t *x,
+                            const int incx, fb_complex_double_t *y,
+                            const int incy);
 
 /* SCAL - Scale vector */
-typedef void (*fb_sscal_fn)(const int64_t n, const float alpha, float *x,
-                            const int64_t incx);
-typedef void (*fb_dscal_fn)(const int64_t n, const double alpha, double *x,
-                            const int64_t incx);
-typedef void (*fb_cscal_fn)(const int64_t n, const fb_complex_float_t alpha,
-                            fb_complex_float_t *x, const int64_t incx);
-typedef void (*fb_zscal_fn)(const int64_t n, const fb_complex_double_t alpha,
-                            fb_complex_double_t *x, const int64_t incx);
-typedef void (*fb_csscal_fn)(const int64_t n, const float alpha,
-                             fb_complex_float_t *x, const int64_t incx);
-typedef void (*fb_zdscal_fn)(const int64_t n, const double alpha,
-                             fb_complex_double_t *x, const int64_t incx);
+typedef void (*fb_sscal_fn)(const int n, const float alpha, float *x,
+                            const int incx);
+typedef void (*fb_dscal_fn)(const int n, const double alpha, double *x,
+                            const int incx);
+typedef void (*fb_cscal_fn)(const int n, const fb_complex_float_t alpha,
+                            fb_complex_float_t *x, const int incx);
+typedef void (*fb_zscal_fn)(const int n, const fb_complex_double_t alpha,
+                            fb_complex_double_t *x, const int incx);
+typedef void (*fb_csscal_fn)(const int n, const float alpha,
+                             fb_complex_float_t *x, const int incx);
+typedef void (*fb_zdscal_fn)(const int n, const double alpha,
+                             fb_complex_double_t *x, const int incx);
 
 /* COPY - Copy vector */
-typedef void (*fb_scopy_fn)(const int64_t n, const float *x, const int64_t incx,
-                            float *y, const int64_t incy);
-typedef void (*fb_dcopy_fn)(const int64_t n, const double *x,
-                            const int64_t incx, double *y, const int64_t incy);
-typedef void (*fb_ccopy_fn)(const int64_t n, const fb_complex_float_t *x,
-                            const int64_t incx, fb_complex_float_t *y,
-                            const int64_t incy);
-typedef void (*fb_zcopy_fn)(const int64_t n, const fb_complex_double_t *x,
-                            const int64_t incx, fb_complex_double_t *y,
-                            const int64_t incy);
+typedef void (*fb_scopy_fn)(const int n, const float *x, const int incx,
+                            float *y, const int incy);
+typedef void (*fb_dcopy_fn)(const int n, const double *x,
+                            const int incx, double *y, const int incy);
+typedef void (*fb_ccopy_fn)(const int n, const fb_complex_float_t *x,
+                            const int incx, fb_complex_float_t *y,
+                            const int incy);
+typedef void (*fb_zcopy_fn)(const int n, const fb_complex_double_t *x,
+                            const int incx, fb_complex_double_t *y,
+                            const int incy);
 
 /* AXPY - y = alpha*x + y */
-typedef void (*fb_saxpy_fn)(const int64_t n, const float alpha, const float *x,
-                            const int64_t incx, float *y, const int64_t incy);
-typedef void (*fb_daxpy_fn)(const int64_t n, const double alpha,
-                            const double *x, const int64_t incx, double *y,
-                            const int64_t incy);
-typedef void (*fb_caxpy_fn)(const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            fb_complex_float_t *y, const int64_t incy);
-typedef void (*fb_zaxpy_fn)(const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            fb_complex_double_t *y, const int64_t incy);
+typedef void (*fb_saxpy_fn)(const int n, const float alpha, const float *x,
+                            const int incx, float *y, const int incy);
+typedef void (*fb_daxpy_fn)(const int n, const double alpha,
+                            const double *x, const int incx, double *y,
+                            const int incy);
+typedef void (*fb_caxpy_fn)(const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *x, const int incx,
+                            fb_complex_float_t *y, const int incy);
+typedef void (*fb_zaxpy_fn)(const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *x, const int incx,
+                            fb_complex_double_t *y, const int incy);
 
 /* DOT - Dot product */
-typedef float (*fb_sdot_fn)(const int64_t n, const float *x, const int64_t incx,
-                            const float *y, const int64_t incy);
-typedef double (*fb_ddot_fn)(const int64_t n, const double *x,
-                             const int64_t incx, const double *y,
-                             const int64_t incy);
-typedef float (*fb_sdsdot_fn)(const int64_t n, const float sb, const float *x,
-                              const int64_t incx, const float *y,
-                              const int64_t incy);
-typedef double (*fb_dsdot_fn)(const int64_t n, const float *x,
-                              const int64_t incx, const float *y,
-                              const int64_t incy);
+typedef float (*fb_sdot_fn)(const int n, const float *x, const int incx,
+                            const float *y, const int incy);
+typedef double (*fb_ddot_fn)(const int n, const double *x,
+                             const int incx, const double *y,
+                             const int incy);
+typedef float (*fb_sdsdot_fn)(const int n, const float sb, const float *x,
+                              const int incx, const float *y,
+                              const int incy);
+typedef double (*fb_dsdot_fn)(const int n, const float *x,
+                              const int incx, const float *y,
+                              const int incy);
 
 /* DOTU - Unconjugated dot product (complex) */
-typedef void (*fb_cdotu_fn)(fb_complex_float_t *result, const int64_t n,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy);
-typedef void (*fb_zdotu_fn)(fb_complex_double_t *result, const int64_t n,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy);
+typedef void (*fb_cdotu_fn)(fb_complex_float_t *result, const int n,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy);
+typedef void (*fb_zdotu_fn)(fb_complex_double_t *result, const int n,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy);
 
 /* DOTC - Conjugated dot product (complex) */
-typedef void (*fb_cdotc_fn)(fb_complex_float_t *result, const int64_t n,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy);
-typedef void (*fb_zdotc_fn)(fb_complex_double_t *result, const int64_t n,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy);
+typedef void (*fb_cdotc_fn)(fb_complex_float_t *result, const int n,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy);
+typedef void (*fb_zdotc_fn)(fb_complex_double_t *result, const int n,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy);
 
 /* NRM2 - Euclidean norm */
-typedef float (*fb_snrm2_fn)(const int64_t n, const float *x,
-                             const int64_t incx);
-typedef double (*fb_dnrm2_fn)(const int64_t n, const double *x,
-                              const int64_t incx);
-typedef float (*fb_scnrm2_fn)(const int64_t n, const fb_complex_float_t *x,
-                              const int64_t incx);
-typedef double (*fb_dznrm2_fn)(const int64_t n, const fb_complex_double_t *x,
-                               const int64_t incx);
+typedef float (*fb_snrm2_fn)(const int n, const float *x,
+                             const int incx);
+typedef double (*fb_dnrm2_fn)(const int n, const double *x,
+                              const int incx);
+typedef float (*fb_scnrm2_fn)(const int n, const fb_complex_float_t *x,
+                              const int incx);
+typedef double (*fb_dznrm2_fn)(const int n, const fb_complex_double_t *x,
+                               const int incx);
 
 /* ASUM - Sum of absolute values */
-typedef float (*fb_sasum_fn)(const int64_t n, const float *x,
-                             const int64_t incx);
-typedef double (*fb_dasum_fn)(const int64_t n, const double *x,
-                              const int64_t incx);
-typedef float (*fb_scasum_fn)(const int64_t n, const fb_complex_float_t *x,
-                              const int64_t incx);
-typedef double (*fb_dzasum_fn)(const int64_t n, const fb_complex_double_t *x,
-                               const int64_t incx);
+typedef float (*fb_sasum_fn)(const int n, const float *x,
+                             const int incx);
+typedef double (*fb_dasum_fn)(const int n, const double *x,
+                              const int incx);
+typedef float (*fb_scasum_fn)(const int n, const fb_complex_float_t *x,
+                              const int incx);
+typedef double (*fb_dzasum_fn)(const int n, const fb_complex_double_t *x,
+                               const int incx);
 
 /* IAMAX - Index of maximum absolute value */
-typedef int64_t (*fb_isamax_fn)(const int64_t n, const float *x,
-                                const int64_t incx);
-typedef int64_t (*fb_idamax_fn)(const int64_t n, const double *x,
-                                const int64_t incx);
-typedef int64_t (*fb_icamax_fn)(const int64_t n, const fb_complex_float_t *x,
-                                const int64_t incx);
-typedef int64_t (*fb_izamax_fn)(const int64_t n, const fb_complex_double_t *x,
-                                const int64_t incx);
+typedef int (*fb_isamax_fn)(const int n, const float *x,
+                                const int incx);
+typedef int (*fb_idamax_fn)(const int n, const double *x,
+                                const int incx);
+typedef int (*fb_icamax_fn)(const int n, const fb_complex_float_t *x,
+                                const int incx);
+typedef int (*fb_izamax_fn)(const int n, const fb_complex_double_t *x,
+                                const int incx);
 
 /* ============================================================================
  * BLAS Level 2: Matrix-Vector Operations (70 functions)
@@ -330,392 +324,392 @@ typedef int64_t (*fb_izamax_fn)(const int64_t n, const fb_complex_double_t *x,
 
 /* GEMV - General matrix-vector multiply: y = alpha*op(A)*x + beta*y */
 typedef void (*fb_sgemv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const float alpha, const float *A,
-                            const int64_t lda, const float *x,
-                            const int64_t incx, const float beta, float *y,
-                            const int64_t incy);
+                            const fb_transpose_t trans, const int m,
+                            const int n, const float alpha, const float *A,
+                            const int lda, const float *x,
+                            const int incx, const float beta, float *y,
+                            const int incy);
 typedef void (*fb_dgemv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const double alpha,
-                            const double *A, const int64_t lda, const double *x,
-                            const int64_t incx, const double beta, double *y,
-                            const int64_t incy);
+                            const fb_transpose_t trans, const int m,
+                            const int n, const double alpha,
+                            const double *A, const int lda, const double *x,
+                            const int incx, const double beta, double *y,
+                            const int incy);
 typedef void (*fb_cgemv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *x, const int64_t incx,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *x, const int incx,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *y, const int64_t incy);
+                            fb_complex_float_t *y, const int incy);
 typedef void (*fb_zgemv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *x, const int64_t incx,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *x, const int incx,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *y, const int64_t incy);
+                            fb_complex_double_t *y, const int incy);
 
 /* GBMV - General banded matrix-vector multiply */
 typedef void (*fb_sgbmv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const int64_t kl, const int64_t ku,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const int kl, const int ku,
                             const float alpha, const float *A,
-                            const int64_t lda, const float *x,
-                            const int64_t incx, const float beta, float *y,
-                            const int64_t incy);
+                            const int lda, const float *x,
+                            const int incx, const float beta, float *y,
+                            const int incy);
 typedef void (*fb_dgbmv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const int64_t kl, const int64_t ku,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const int kl, const int ku,
                             const double alpha, const double *A,
-                            const int64_t lda, const double *x,
-                            const int64_t incx, const double beta, double *y,
-                            const int64_t incy);
+                            const int lda, const double *x,
+                            const int incx, const double beta, double *y,
+                            const int incy);
 typedef void (*fb_cgbmv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const int64_t kl, const int64_t ku,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const int kl, const int ku,
                             const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *x, const int64_t incx,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *x, const int incx,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *y, const int64_t incy);
+                            fb_complex_float_t *y, const int incy);
 typedef void (*fb_zgbmv_fn)(const fb_layout_t layout,
-                            const fb_transpose_t trans, const int64_t m,
-                            const int64_t n, const int64_t kl, const int64_t ku,
+                            const fb_transpose_t trans, const int m,
+                            const int n, const int kl, const int ku,
                             const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *x, const int64_t incx,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *x, const int incx,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *y, const int64_t incy);
+                            fb_complex_double_t *y, const int incy);
 
 /* HEMV - Hermitian matrix-vector multiply (complex only) */
 typedef void (*fb_chemv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *x, const int64_t incx,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *x, const int incx,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *y, const int64_t incy);
+                            fb_complex_float_t *y, const int incy);
 typedef void (*fb_zhemv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *x, const int64_t incx,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *x, const int incx,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *y, const int64_t incy);
+                            fb_complex_double_t *y, const int incy);
 
 /* HBMV - Hermitian banded matrix-vector multiply (complex only) */
 typedef void (*fb_chbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const int64_t k,
+                            const int n, const int k,
                             const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *x, const int64_t incx,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *x, const int incx,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *y, const int64_t incy);
+                            fb_complex_float_t *y, const int incy);
 typedef void (*fb_zhbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const int64_t k,
+                            const int n, const int k,
                             const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *x, const int64_t incx,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *x, const int incx,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *y, const int64_t incy);
+                            fb_complex_double_t *y, const int incy);
 
 /* HPMV - Hermitian packed matrix-vector multiply (complex only) */
 typedef void (*fb_chpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_float_t alpha,
+                            const int n, const fb_complex_float_t alpha,
                             const fb_complex_float_t *AP,
-                            const fb_complex_float_t *x, const int64_t incx,
+                            const fb_complex_float_t *x, const int incx,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *y, const int64_t incy);
+                            fb_complex_float_t *y, const int incy);
 typedef void (*fb_zhpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_double_t alpha,
+                            const int n, const fb_complex_double_t alpha,
                             const fb_complex_double_t *AP,
-                            const fb_complex_double_t *x, const int64_t incx,
+                            const fb_complex_double_t *x, const int incx,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *y, const int64_t incy);
+                            fb_complex_double_t *y, const int incy);
 
 /* SYMV - Symmetric matrix-vector multiply */
 typedef void (*fb_ssymv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const float alpha, const float *A,
-                            const int64_t lda, const float *x,
-                            const int64_t incx, const float beta, float *y,
-                            const int64_t incy);
+                            const int n, const float alpha, const float *A,
+                            const int lda, const float *x,
+                            const int incx, const float beta, float *y,
+                            const int incy);
 typedef void (*fb_dsymv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const double alpha,
-                            const double *A, const int64_t lda, const double *x,
-                            const int64_t incx, const double beta, double *y,
-                            const int64_t incy);
+                            const int n, const double alpha,
+                            const double *A, const int lda, const double *x,
+                            const int incx, const double beta, double *y,
+                            const int incy);
 typedef void (*fb_csymv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const void *alpha, const void *A,
-                            const int64_t lda, const void *x,
-                            const int64_t incx, const void *beta, void *y,
-                            const int64_t incy);
+                            const int n, const void *alpha, const void *A,
+                            const int lda, const void *x,
+                            const int incx, const void *beta, void *y,
+                            const int incy);
 typedef void (*fb_zsymv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const void *alpha, const void *A,
-                            const int64_t lda, const void *x,
-                            const int64_t incx, const void *beta, void *y,
-                            const int64_t incy);
+                            const int n, const void *alpha, const void *A,
+                            const int lda, const void *x,
+                            const int incx, const void *beta, void *y,
+                            const int incy);
 
 /* SBMV - Symmetric banded matrix-vector multiply */
 typedef void (*fb_ssbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const int64_t k, const float alpha,
-                            const float *A, const int64_t lda, const float *x,
-                            const int64_t incx, const float beta, float *y,
-                            const int64_t incy);
+                            const int n, const int k, const float alpha,
+                            const float *A, const int lda, const float *x,
+                            const int incx, const float beta, float *y,
+                            const int incy);
 typedef void (*fb_dsbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const int64_t k,
+                            const int n, const int k,
                             const double alpha, const double *A,
-                            const int64_t lda, const double *x,
-                            const int64_t incx, const double beta, double *y,
-                            const int64_t incy);
+                            const int lda, const double *x,
+                            const int incx, const double beta, double *y,
+                            const int incy);
 
 /* SPMV - Symmetric packed matrix-vector multiply */
 typedef void (*fb_sspmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const float alpha, const float *AP,
-                            const float *x, const int64_t incx,
-                            const float beta, float *y, const int64_t incy);
+                            const int n, const float alpha, const float *AP,
+                            const float *x, const int incx,
+                            const float beta, float *y, const int incy);
 typedef void (*fb_dspmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const double alpha,
+                            const int n, const double alpha,
                             const double *AP, const double *x,
-                            const int64_t incx, const double beta, double *y,
-                            const int64_t incy);
+                            const int incx, const double beta, double *y,
+                            const int incy);
 
 /* TRMV - Triangular matrix-vector multiply */
 typedef void (*fb_strmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const float *A, const int64_t lda,
-                            float *x, const int64_t incx);
+                            const int n, const float *A, const int lda,
+                            float *x, const int incx);
 typedef void (*fb_dtrmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const double *A, const int64_t lda,
-                            double *x, const int64_t incx);
+                            const int n, const double *A, const int lda,
+                            double *x, const int incx);
 typedef void (*fb_ctrmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_float_t *A,
-                            const int64_t lda, fb_complex_float_t *x,
-                            const int64_t incx);
+                            const int n, const fb_complex_float_t *A,
+                            const int lda, fb_complex_float_t *x,
+                            const int incx);
 typedef void (*fb_ztrmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_double_t *A,
-                            const int64_t lda, fb_complex_double_t *x,
-                            const int64_t incx);
+                            const int n, const fb_complex_double_t *A,
+                            const int lda, fb_complex_double_t *x,
+                            const int incx);
 
 /* TBMV - Triangular banded matrix-vector multiply */
 typedef void (*fb_stbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k, const float *A,
-                            const int64_t lda, float *x, const int64_t incx);
+                            const int n, const int k, const float *A,
+                            const int lda, float *x, const int incx);
 typedef void (*fb_dtbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k, const double *A,
-                            const int64_t lda, double *x, const int64_t incx);
+                            const int n, const int k, const double *A,
+                            const int lda, double *x, const int incx);
 typedef void (*fb_ctbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            fb_complex_float_t *x, const int64_t incx);
+                            const int n, const int k,
+                            const fb_complex_float_t *A, const int lda,
+                            fb_complex_float_t *x, const int incx);
 typedef void (*fb_ztbmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            fb_complex_double_t *x, const int64_t incx);
+                            const int n, const int k,
+                            const fb_complex_double_t *A, const int lda,
+                            fb_complex_double_t *x, const int incx);
 
 /* TPMV - Triangular packed matrix-vector multiply */
 typedef void (*fb_stpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const float *AP, float *x,
-                            const int64_t incx);
+                            const int n, const float *AP, float *x,
+                            const int incx);
 typedef void (*fb_dtpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const double *AP, double *x,
-                            const int64_t incx);
+                            const int n, const double *AP, double *x,
+                            const int incx);
 typedef void (*fb_ctpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_float_t *AP,
-                            fb_complex_float_t *x, const int64_t incx);
+                            const int n, const fb_complex_float_t *AP,
+                            fb_complex_float_t *x, const int incx);
 typedef void (*fb_ztpmv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_double_t *AP,
-                            fb_complex_double_t *x, const int64_t incx);
+                            const int n, const fb_complex_double_t *AP,
+                            fb_complex_double_t *x, const int incx);
 
 /* TRSV - Triangular system solve */
 typedef void (*fb_strsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const float *A, const int64_t lda,
-                            float *x, const int64_t incx);
+                            const int n, const float *A, const int lda,
+                            float *x, const int incx);
 typedef void (*fb_dtrsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const double *A, const int64_t lda,
-                            double *x, const int64_t incx);
+                            const int n, const double *A, const int lda,
+                            double *x, const int incx);
 typedef void (*fb_ctrsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_float_t *A,
-                            const int64_t lda, fb_complex_float_t *x,
-                            const int64_t incx);
+                            const int n, const fb_complex_float_t *A,
+                            const int lda, fb_complex_float_t *x,
+                            const int incx);
 typedef void (*fb_ztrsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_double_t *A,
-                            const int64_t lda, fb_complex_double_t *x,
-                            const int64_t incx);
+                            const int n, const fb_complex_double_t *A,
+                            const int lda, fb_complex_double_t *x,
+                            const int incx);
 
 /* TBSV - Triangular banded system solve */
 typedef void (*fb_stbsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k, const float *A,
-                            const int64_t lda, float *x, const int64_t incx);
+                            const int n, const int k, const float *A,
+                            const int lda, float *x, const int incx);
 typedef void (*fb_dtbsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k, const double *A,
-                            const int64_t lda, double *x, const int64_t incx);
+                            const int n, const int k, const double *A,
+                            const int lda, double *x, const int incx);
 typedef void (*fb_ctbsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            fb_complex_float_t *x, const int64_t incx);
+                            const int n, const int k,
+                            const fb_complex_float_t *A, const int lda,
+                            fb_complex_float_t *x, const int incx);
 typedef void (*fb_ztbsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const int64_t k,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            fb_complex_double_t *x, const int64_t incx);
+                            const int n, const int k,
+                            const fb_complex_double_t *A, const int lda,
+                            fb_complex_double_t *x, const int incx);
 
 /* TPSV - Triangular packed system solve */
 typedef void (*fb_stpsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const float *AP, float *x,
-                            const int64_t incx);
+                            const int n, const float *AP, float *x,
+                            const int incx);
 typedef void (*fb_dtpsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const double *AP, double *x,
-                            const int64_t incx);
+                            const int n, const double *AP, double *x,
+                            const int incx);
 typedef void (*fb_ctpsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_float_t *AP,
-                            fb_complex_float_t *x, const int64_t incx);
+                            const int n, const fb_complex_float_t *AP,
+                            fb_complex_float_t *x, const int incx);
 typedef void (*fb_ztpsv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                             const fb_transpose_t trans, const fb_diag_t diag,
-                            const int64_t n, const fb_complex_double_t *AP,
-                            fb_complex_double_t *x, const int64_t incx);
+                            const int n, const fb_complex_double_t *AP,
+                            fb_complex_double_t *x, const int incx);
 
 /* GER - General rank-1 update: A = alpha*x*y^T + A (real only) */
-typedef void (*fb_sger_fn)(const fb_layout_t layout, const int64_t m,
-                           const int64_t n, const float alpha, const float *x,
-                           const int64_t incx, const float *y,
-                           const int64_t incy, float *A, const int64_t lda);
-typedef void (*fb_dger_fn)(const fb_layout_t layout, const int64_t m,
-                           const int64_t n, const double alpha, const double *x,
-                           const int64_t incx, const double *y,
-                           const int64_t incy, double *A, const int64_t lda);
+typedef void (*fb_sger_fn)(const fb_layout_t layout, const int m,
+                           const int n, const float alpha, const float *x,
+                           const int incx, const float *y,
+                           const int incy, float *A, const int lda);
+typedef void (*fb_dger_fn)(const fb_layout_t layout, const int m,
+                           const int n, const double alpha, const double *x,
+                           const int incx, const double *y,
+                           const int incy, double *A, const int lda);
 
 /* GERU - General rank-1 update unconjugated: A = alpha*x*y^T + A (complex) */
-typedef void (*fb_cgeru_fn)(const fb_layout_t layout, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy,
-                            fb_complex_float_t *A, const int64_t lda);
-typedef void (*fb_zgeru_fn)(const fb_layout_t layout, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy,
-                            fb_complex_double_t *A, const int64_t lda);
+typedef void (*fb_cgeru_fn)(const fb_layout_t layout, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy,
+                            fb_complex_float_t *A, const int lda);
+typedef void (*fb_zgeru_fn)(const fb_layout_t layout, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy,
+                            fb_complex_double_t *A, const int lda);
 
 /* GERC - General rank-1 update conjugated: A = alpha*x*y^H + A (complex) */
-typedef void (*fb_cgerc_fn)(const fb_layout_t layout, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy,
-                            fb_complex_float_t *A, const int64_t lda);
-typedef void (*fb_zgerc_fn)(const fb_layout_t layout, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy,
-                            fb_complex_double_t *A, const int64_t lda);
+typedef void (*fb_cgerc_fn)(const fb_layout_t layout, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy,
+                            fb_complex_float_t *A, const int lda);
+typedef void (*fb_zgerc_fn)(const fb_layout_t layout, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy,
+                            fb_complex_double_t *A, const int lda);
 
 /* HER - Hermitian rank-1 update: A = alpha*x*x^H + A (complex only) */
 typedef void (*fb_cher_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const float alpha,
-                           const fb_complex_float_t *x, const int64_t incx,
-                           fb_complex_float_t *A, const int64_t lda);
+                           const int n, const float alpha,
+                           const fb_complex_float_t *x, const int incx,
+                           fb_complex_float_t *A, const int lda);
 typedef void (*fb_zher_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const double alpha,
-                           const fb_complex_double_t *x, const int64_t incx,
-                           fb_complex_double_t *A, const int64_t lda);
+                           const int n, const double alpha,
+                           const fb_complex_double_t *x, const int incx,
+                           fb_complex_double_t *A, const int lda);
 
 /* HPR - Hermitian packed rank-1 update (complex only) */
 typedef void (*fb_chpr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const float alpha,
-                           const fb_complex_float_t *x, const int64_t incx,
+                           const int n, const float alpha,
+                           const fb_complex_float_t *x, const int incx,
                            fb_complex_float_t *AP);
 typedef void (*fb_zhpr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const double alpha,
-                           const fb_complex_double_t *x, const int64_t incx,
+                           const int n, const double alpha,
+                           const fb_complex_double_t *x, const int incx,
                            fb_complex_double_t *AP);
 
 /* HER2 - Hermitian rank-2 update: A = alpha*x*y^H + conj(alpha)*y*x^H + A
  * (complex only) */
 typedef void (*fb_cher2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy,
-                            fb_complex_float_t *A, const int64_t lda);
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy,
+                            fb_complex_float_t *A, const int lda);
 typedef void (*fb_zher2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy,
-                            fb_complex_double_t *A, const int64_t lda);
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy,
+                            fb_complex_double_t *A, const int lda);
 
 /* HPR2 - Hermitian packed rank-2 update (complex only) */
 typedef void (*fb_chpr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *x, const int64_t incx,
-                            const fb_complex_float_t *y, const int64_t incy,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *x, const int incx,
+                            const fb_complex_float_t *y, const int incy,
                             fb_complex_float_t *AP);
 typedef void (*fb_zhpr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *x, const int64_t incx,
-                            const fb_complex_double_t *y, const int64_t incy,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *x, const int incx,
+                            const fb_complex_double_t *y, const int incy,
                             fb_complex_double_t *AP);
 
 /* SYR - Symmetric rank-1 update: A = alpha*x*x^T + A */
 typedef void (*fb_ssyr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const float alpha, const float *x,
-                           const int64_t incx, float *A, const int64_t lda);
+                           const int n, const float alpha, const float *x,
+                           const int incx, float *A, const int lda);
 typedef void (*fb_dsyr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const double alpha, const double *x,
-                           const int64_t incx, double *A, const int64_t lda);
+                           const int n, const double alpha, const double *x,
+                           const int incx, double *A, const int lda);
 typedef void (*fb_csyr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const void *alpha, const void *x,
-                           const int64_t incx, void *A, const int64_t lda);
+                           const int n, const void *alpha, const void *x,
+                           const int incx, void *A, const int lda);
 typedef void (*fb_zsyr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const void *alpha, const void *x,
-                           const int64_t incx, void *A, const int64_t lda);
+                           const int n, const void *alpha, const void *x,
+                           const int incx, void *A, const int lda);
 
 /* SPR - Symmetric packed rank-1 update (real only) */
 typedef void (*fb_sspr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const float alpha, const float *x,
-                           const int64_t incx, float *AP);
+                           const int n, const float alpha, const float *x,
+                           const int incx, float *AP);
 typedef void (*fb_dspr_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                           const int64_t n, const double alpha, const double *x,
-                           const int64_t incx, double *AP);
+                           const int n, const double alpha, const double *x,
+                           const int incx, double *AP);
 
 /* SYR2 - Symmetric rank-2 update: A = alpha*x*y^T + alpha*y*x^T + A (real only)
  */
 typedef void (*fb_ssyr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const float alpha, const float *x,
-                            const int64_t incx, const float *y,
-                            const int64_t incy, float *A, const int64_t lda);
+                            const int n, const float alpha, const float *x,
+                            const int incx, const float *y,
+                            const int incy, float *A, const int lda);
 typedef void (*fb_dsyr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const double alpha,
-                            const double *x, const int64_t incx,
-                            const double *y, const int64_t incy, double *A,
-                            const int64_t lda);
+                            const int n, const double alpha,
+                            const double *x, const int incx,
+                            const double *y, const int incy, double *A,
+                            const int lda);
 
 /* SPR2 - Symmetric packed rank-2 update (real only) */
 typedef void (*fb_sspr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const float alpha, const float *x,
-                            const int64_t incx, const float *y,
-                            const int64_t incy, float *AP);
+                            const int n, const float alpha, const float *x,
+                            const int incx, const float *y,
+                            const int incy, float *AP);
 typedef void (*fb_dspr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const int64_t n, const double alpha,
-                            const double *x, const int64_t incx,
-                            const double *y, const int64_t incy, double *AP);
+                            const int n, const double alpha,
+                            const double *x, const int incx,
+                            const double *y, const int incy, double *AP);
 
 /* ============================================================================
  * BLAS Level 3: Matrix-Matrix Operations (30 functions)
@@ -724,628 +718,631 @@ typedef void (*fb_dspr2_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
 /* GEMM - General matrix-matrix multiply: C = alpha*op(A)*op(B) + beta*C */
 typedef void (*fb_sgemm_fn)(const fb_layout_t layout,
                             const fb_transpose_t transA,
-                            const fb_transpose_t transB, const int64_t m,
-                            const int64_t n, const int64_t k, const float alpha,
-                            const float *A, const int64_t lda, const float *B,
-                            const int64_t ldb, const float beta, float *C,
-                            const int64_t ldc);
+                            const fb_transpose_t transB, const int m,
+                            const int n, const int k, const float alpha,
+                            const float *A, const int lda, const float *B,
+                            const int ldb, const float beta, float *C,
+                            const int ldc);
 typedef void (*fb_dgemm_fn)(const fb_layout_t layout,
                             const fb_transpose_t transA,
-                            const fb_transpose_t transB, const int64_t m,
-                            const int64_t n, const int64_t k,
+                            const fb_transpose_t transB, const int m,
+                            const int n, const int k,
                             const double alpha, const double *A,
-                            const int64_t lda, const double *B,
-                            const int64_t ldb, const double beta, double *C,
-                            const int64_t ldc);
+                            const int lda, const double *B,
+                            const int ldb, const double beta, double *C,
+                            const int ldc);
 typedef void (*fb_cgemm_fn)(const fb_layout_t layout,
                             const fb_transpose_t transA,
-                            const fb_transpose_t transB, const int64_t m,
-                            const int64_t n, const int64_t k,
+                            const fb_transpose_t transB, const int m,
+                            const int n, const int k,
                             const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *B, const int64_t ldb,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *B, const int ldb,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *C, const int64_t ldc);
+                            fb_complex_float_t *C, const int ldc);
 typedef void (*fb_zgemm_fn)(const fb_layout_t layout,
                             const fb_transpose_t transA,
-                            const fb_transpose_t transB, const int64_t m,
-                            const int64_t n, const int64_t k,
+                            const fb_transpose_t transB, const int m,
+                            const int n, const int k,
                             const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *B, const int64_t ldb,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *B, const int ldb,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *C, const int64_t ldc);
+                            fb_complex_double_t *C, const int ldc);
 
 /* SYMM - Symmetric matrix-matrix multiply: C = alpha*A*B + beta*C or C =
  * alpha*B*A + beta*C */
 typedef void (*fb_ssymm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const float alpha, const float *A,
-                            const int64_t lda, const float *B,
-                            const int64_t ldb, const float beta, float *C,
-                            const int64_t ldc);
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const float alpha, const float *A,
+                            const int lda, const float *B,
+                            const int ldb, const float beta, float *C,
+                            const int ldc);
 typedef void (*fb_dsymm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const double alpha,
-                            const double *A, const int64_t lda, const double *B,
-                            const int64_t ldb, const double beta, double *C,
-                            const int64_t ldc);
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const double alpha,
+                            const double *A, const int lda, const double *B,
+                            const int ldb, const double beta, double *C,
+                            const int ldc);
 typedef void (*fb_csymm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *B, const int64_t ldb,
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *B, const int ldb,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *C, const int64_t ldc);
+                            fb_complex_float_t *C, const int ldc);
 typedef void (*fb_zsymm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *B, const int64_t ldb,
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *B, const int ldb,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *C, const int64_t ldc);
+                            fb_complex_double_t *C, const int ldc);
 
 /* HEMM - Hermitian matrix-matrix multiply (complex only) */
 typedef void (*fb_chemm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            const fb_complex_float_t *B, const int64_t ldb,
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            const fb_complex_float_t *B, const int ldb,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *C, const int64_t ldc);
+                            fb_complex_float_t *C, const int ldc);
 typedef void (*fb_zhemm_fn)(const fb_layout_t layout, const fb_side_t side,
-                            const fb_uplo_t uplo, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            const fb_complex_double_t *B, const int64_t ldb,
+                            const fb_uplo_t uplo, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            const fb_complex_double_t *B, const int ldb,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *C, const int64_t ldc);
+                            fb_complex_double_t *C, const int ldc);
 
 /* SYRK - Symmetric rank-k update: C = alpha*A*A^T + beta*C or C = alpha*A^T*A +
  * beta*C */
 typedef void (*fb_ssyrk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const float alpha, const float *A,
-                            const int64_t lda, const float beta, float *C,
-                            const int64_t ldc);
+                            const fb_transpose_t trans, const int n,
+                            const int k, const float alpha, const float *A,
+                            const int lda, const float beta, float *C,
+                            const int ldc);
 typedef void (*fb_dsyrk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const double alpha,
-                            const double *A, const int64_t lda,
-                            const double beta, double *C, const int64_t ldc);
+                            const fb_transpose_t trans, const int n,
+                            const int k, const double alpha,
+                            const double *A, const int lda,
+                            const double beta, double *C, const int ldc);
 typedef void (*fb_csyrk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
+                            const fb_transpose_t trans, const int n,
+                            const int k, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
                             const fb_complex_float_t beta,
-                            fb_complex_float_t *C, const int64_t ldc);
+                            fb_complex_float_t *C, const int ldc);
 typedef void (*fb_zsyrk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
+                            const fb_transpose_t trans, const int n,
+                            const int k, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
                             const fb_complex_double_t beta,
-                            fb_complex_double_t *C, const int64_t ldc);
+                            fb_complex_double_t *C, const int ldc);
 
 /* HERK - Hermitian rank-k update (complex only) */
 typedef void (*fb_cherk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const float alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
+                            const fb_transpose_t trans, const int n,
+                            const int k, const float alpha,
+                            const fb_complex_float_t *A, const int lda,
                             const float beta, fb_complex_float_t *C,
-                            const int64_t ldc);
+                            const int ldc);
 typedef void (*fb_zherk_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                            const fb_transpose_t trans, const int64_t n,
-                            const int64_t k, const double alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
+                            const fb_transpose_t trans, const int n,
+                            const int k, const double alpha,
+                            const fb_complex_double_t *A, const int lda,
                             const double beta, fb_complex_double_t *C,
-                            const int64_t ldc);
+                            const int ldc);
 
 /* SYR2K - Symmetric rank-2k update: C = alpha*A*B^T + alpha*B*A^T + beta*C */
 typedef void (*fb_ssyr2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const float alpha, const float *A,
-                             const int64_t lda, const float *B,
-                             const int64_t ldb, const float beta, float *C,
-                             const int64_t ldc);
+                             const fb_transpose_t trans, const int n,
+                             const int k, const float alpha, const float *A,
+                             const int lda, const float *B,
+                             const int ldb, const float beta, float *C,
+                             const int ldc);
 typedef void (*fb_dsyr2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const double alpha,
-                             const double *A, const int64_t lda,
-                             const double *B, const int64_t ldb,
-                             const double beta, double *C, const int64_t ldc);
+                             const fb_transpose_t trans, const int n,
+                             const int k, const double alpha,
+                             const double *A, const int lda,
+                             const double *B, const int ldb,
+                             const double beta, double *C, const int ldc);
 typedef void (*fb_csyr2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const fb_complex_float_t alpha,
-                             const fb_complex_float_t *A, const int64_t lda,
-                             const fb_complex_float_t *B, const int64_t ldb,
+                             const fb_transpose_t trans, const int n,
+                             const int k, const fb_complex_float_t alpha,
+                             const fb_complex_float_t *A, const int lda,
+                             const fb_complex_float_t *B, const int ldb,
                              const fb_complex_float_t beta,
-                             fb_complex_float_t *C, const int64_t ldc);
+                             fb_complex_float_t *C, const int ldc);
 typedef void (*fb_zsyr2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const fb_complex_double_t alpha,
-                             const fb_complex_double_t *A, const int64_t lda,
-                             const fb_complex_double_t *B, const int64_t ldb,
+                             const fb_transpose_t trans, const int n,
+                             const int k, const fb_complex_double_t alpha,
+                             const fb_complex_double_t *A, const int lda,
+                             const fb_complex_double_t *B, const int ldb,
                              const fb_complex_double_t beta,
-                             fb_complex_double_t *C, const int64_t ldc);
+                             fb_complex_double_t *C, const int ldc);
 
 /* HER2K - Hermitian rank-2k update (complex only) */
 typedef void (*fb_cher2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const fb_complex_float_t alpha,
-                             const fb_complex_float_t *A, const int64_t lda,
-                             const fb_complex_float_t *B, const int64_t ldb,
+                             const fb_transpose_t trans, const int n,
+                             const int k, const fb_complex_float_t alpha,
+                             const fb_complex_float_t *A, const int lda,
+                             const fb_complex_float_t *B, const int ldb,
                              const float beta, fb_complex_float_t *C,
-                             const int64_t ldc);
+                             const int ldc);
 typedef void (*fb_zher2k_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                             const fb_transpose_t trans, const int64_t n,
-                             const int64_t k, const fb_complex_double_t alpha,
-                             const fb_complex_double_t *A, const int64_t lda,
-                             const fb_complex_double_t *B, const int64_t ldb,
+                             const fb_transpose_t trans, const int n,
+                             const int k, const fb_complex_double_t alpha,
+                             const fb_complex_double_t *A, const int lda,
+                             const fb_complex_double_t *B, const int ldb,
                              const double beta, fb_complex_double_t *C,
-                             const int64_t ldc);
+                             const int ldc);
 
 /* TRMM - Triangular matrix-matrix multiply: B = alpha*op(A)*B or B =
  * alpha*B*op(A) */
 typedef void (*fb_strmm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const float alpha, const float *A,
-                            const int64_t lda, float *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const float alpha, const float *A,
+                            const int lda, float *B, const int ldb);
 typedef void (*fb_dtrmm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const double alpha,
-                            const double *A, const int64_t lda, double *B,
-                            const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const double alpha,
+                            const double *A, const int lda, double *B,
+                            const int ldb);
 typedef void (*fb_ctrmm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            fb_complex_float_t *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            fb_complex_float_t *B, const int ldb);
 typedef void (*fb_ztrmm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            fb_complex_double_t *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            fb_complex_double_t *B, const int ldb);
 
 /* TRSM - Triangular system solve with multiple RHS: op(A)*X = alpha*B or
  * X*op(A) = alpha*B */
 typedef void (*fb_strsm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const float alpha, const float *A,
-                            const int64_t lda, float *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const float alpha, const float *A,
+                            const int lda, float *B, const int ldb);
 typedef void (*fb_dtrsm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const double alpha,
-                            const double *A, const int64_t lda, double *B,
-                            const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const double alpha,
+                            const double *A, const int lda, double *B,
+                            const int ldb);
 typedef void (*fb_ctrsm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const fb_complex_float_t alpha,
-                            const fb_complex_float_t *A, const int64_t lda,
-                            fb_complex_float_t *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const fb_complex_float_t alpha,
+                            const fb_complex_float_t *A, const int lda,
+                            fb_complex_float_t *B, const int ldb);
 typedef void (*fb_ztrsm_fn)(const fb_layout_t layout, const fb_side_t side,
                             const fb_uplo_t uplo, const fb_transpose_t trans,
-                            const fb_diag_t diag, const int64_t m,
-                            const int64_t n, const fb_complex_double_t alpha,
-                            const fb_complex_double_t *A, const int64_t lda,
-                            fb_complex_double_t *B, const int64_t ldb);
+                            const fb_diag_t diag, const int m,
+                            const int n, const fb_complex_double_t alpha,
+                            const fb_complex_double_t *A, const int lda,
+                            fb_complex_double_t *B, const int ldb);
 
 /* ============================================================================
  * LAPACK Subset: Linear Algebra Operations (60 functions)
  * ========================================================================= */
 
 /* GESV - General linear system solve: A*X = B */
-typedef int64_t (*fb_sgesv_fn)(const fb_layout_t layout, const int64_t n,
-                               const int64_t nrhs, float *A, const int64_t lda,
-                               int64_t *ipiv, float *B, const int64_t ldb);
-typedef int64_t (*fb_dgesv_fn)(const fb_layout_t layout, const int64_t n,
-                               const int64_t nrhs, double *A, const int64_t lda,
-                               int64_t *ipiv, double *B, const int64_t ldb);
-typedef int64_t (*fb_cgesv_fn)(const fb_layout_t layout, const int64_t n,
-                               const int64_t nrhs, fb_complex_float_t *A,
-                               const int64_t lda, int64_t *ipiv,
-                               fb_complex_float_t *B, const int64_t ldb);
-typedef int64_t (*fb_zgesv_fn)(const fb_layout_t layout, const int64_t n,
-                               const int64_t nrhs, fb_complex_double_t *A,
-                               const int64_t lda, int64_t *ipiv,
-                               fb_complex_double_t *B, const int64_t ldb);
+typedef int (*fb_sgesv_fn)(const fb_layout_t layout, const int n,
+                               const int nrhs, float *A, const int lda,
+                               int *ipiv, float *B, const int ldb);
+typedef int (*fb_dgesv_fn)(const fb_layout_t layout, const int n,
+                               const int nrhs, double *A, const int lda,
+                               int *ipiv, double *B, const int ldb);
+typedef int (*fb_cgesv_fn)(const fb_layout_t layout, const int n,
+                               const int nrhs, fb_complex_float_t *A,
+                               const int lda, int *ipiv,
+                               fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zgesv_fn)(const fb_layout_t layout, const int n,
+                               const int nrhs, fb_complex_double_t *A,
+                               const int lda, int *ipiv,
+                               fb_complex_double_t *B, const int ldb);
 
 /* POSV - Positive-definite linear system solve: A*X = B */
-typedef int64_t (*fb_sposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs, float *A,
-                               const int64_t lda, float *B, const int64_t ldb);
-typedef int64_t (*fb_dposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs, double *A,
-                               const int64_t lda, double *B, const int64_t ldb);
-typedef int64_t (*fb_cposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_float_t *A, const int64_t lda,
-                               fb_complex_float_t *B, const int64_t ldb);
-typedef int64_t (*fb_zposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_double_t *A, const int64_t lda,
-                               fb_complex_double_t *B, const int64_t ldb);
+typedef int (*fb_sposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs, float *A,
+                               const int lda, float *B, const int ldb);
+typedef int (*fb_dposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs, double *A,
+                               const int lda, double *B, const int ldb);
+typedef int (*fb_cposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_float_t *A, const int lda,
+                               fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_double_t *A, const int lda,
+                               fb_complex_double_t *B, const int ldb);
 
 /* SYSV - Symmetric indefinite linear system solve */
-typedef int64_t (*fb_ssysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs, float *A,
-                               const int64_t lda, int64_t *ipiv, float *B,
-                               const int64_t ldb);
-typedef int64_t (*fb_dsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs, double *A,
-                               const int64_t lda, int64_t *ipiv, double *B,
-                               const int64_t ldb);
-typedef int64_t (*fb_csysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_float_t *A, const int64_t lda,
-                               int64_t *ipiv, fb_complex_float_t *B,
-                               const int64_t ldb);
-typedef int64_t (*fb_zsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_double_t *A, const int64_t lda,
-                               int64_t *ipiv, fb_complex_double_t *B,
-                               const int64_t ldb);
+typedef int (*fb_ssysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs, float *A,
+                               const int lda, int *ipiv, float *B,
+                               const int ldb);
+typedef int (*fb_dsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs, double *A,
+                               const int lda, int *ipiv, double *B,
+                               const int ldb);
+typedef int (*fb_csysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_float_t *A, const int lda,
+                               int *ipiv, fb_complex_float_t *B,
+                               const int ldb);
+typedef int (*fb_zsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_double_t *A, const int lda,
+                               int *ipiv, fb_complex_double_t *B,
+                               const int ldb);
 
 /* HESV - Hermitian indefinite linear system solve (complex only) */
-typedef int64_t (*fb_chesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_float_t *A, const int64_t lda,
-                               int64_t *ipiv, fb_complex_float_t *B,
-                               const int64_t ldb);
-typedef int64_t (*fb_zhesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_double_t *A, const int64_t lda,
-                               int64_t *ipiv, fb_complex_double_t *B,
-                               const int64_t ldb);
+typedef int (*fb_chesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_float_t *A, const int lda,
+                               int *ipiv, fb_complex_float_t *B,
+                               const int ldb);
+typedef int (*fb_zhesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                               const int n, const int nrhs,
+                               fb_complex_double_t *A, const int lda,
+                               int *ipiv, fb_complex_double_t *B,
+                               const int ldb);
 
 /* GETRF - LU factorization */
-typedef int64_t (*fb_sgetrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, float *A, const int64_t lda,
-                                int64_t *ipiv);
-typedef int64_t (*fb_dgetrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, double *A, const int64_t lda,
-                                int64_t *ipiv);
-typedef int64_t (*fb_cgetrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, fb_complex_float_t *A,
-                                const int64_t lda, int64_t *ipiv);
-typedef int64_t (*fb_zgetrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, fb_complex_double_t *A,
-                                const int64_t lda, int64_t *ipiv);
+typedef int (*fb_sgetrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, float *A, const int lda,
+                                int *ipiv);
+typedef int (*fb_dgetrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, double *A, const int lda,
+                                int *ipiv);
+typedef int (*fb_cgetrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, fb_complex_float_t *A,
+                                const int lda, int *ipiv);
+typedef int (*fb_zgetrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, fb_complex_double_t *A,
+                                const int lda, int *ipiv);
 
 /* POTRF - Cholesky factorization */
-typedef int64_t (*fb_spotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, float *A, const int64_t lda);
-typedef int64_t (*fb_dpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, double *A, const int64_t lda);
-typedef int64_t (*fb_cpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, fb_complex_float_t *A,
-                                const int64_t lda);
-typedef int64_t (*fb_zpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, fb_complex_double_t *A,
-                                const int64_t lda);
+typedef int (*fb_spotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, float *A, const int lda);
+typedef int (*fb_dpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, double *A, const int lda);
+typedef int (*fb_cpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, fb_complex_float_t *A,
+                                const int lda);
+typedef int (*fb_zpotrf_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, fb_complex_double_t *A,
+                                const int lda);
 
 /* GETRS - Solve using LU factorization */
-typedef int64_t (*fb_sgetrs_fn)(const fb_layout_t layout,
-                                const fb_transpose_t trans, const int64_t n,
-                                const int64_t nrhs, const float *A,
-                                const int64_t lda, const int64_t *ipiv,
-                                float *B, const int64_t ldb);
-typedef int64_t (*fb_dgetrs_fn)(const fb_layout_t layout,
-                                const fb_transpose_t trans, const int64_t n,
-                                const int64_t nrhs, const double *A,
-                                const int64_t lda, const int64_t *ipiv,
-                                double *B, const int64_t ldb);
-typedef int64_t (*fb_cgetrs_fn)(const fb_layout_t layout,
-                                const fb_transpose_t trans, const int64_t n,
-                                const int64_t nrhs, const fb_complex_float_t *A,
-                                const int64_t lda, const int64_t *ipiv,
-                                fb_complex_float_t *B, const int64_t ldb);
-typedef int64_t (*fb_zgetrs_fn)(const fb_layout_t layout,
-                                const fb_transpose_t trans, const int64_t n,
-                                const int64_t nrhs,
-                                const fb_complex_double_t *A, const int64_t lda,
-                                const int64_t *ipiv, fb_complex_double_t *B,
-                                const int64_t ldb);
+typedef int (*fb_sgetrs_fn)(const fb_layout_t layout,
+                                const fb_transpose_t trans, const int n,
+                                const int nrhs, const float *A,
+                                const int lda, const int *ipiv,
+                                float *B, const int ldb);
+typedef int (*fb_dgetrs_fn)(const fb_layout_t layout,
+                                const fb_transpose_t trans, const int n,
+                                const int nrhs, const double *A,
+                                const int lda, const int *ipiv,
+                                double *B, const int ldb);
+typedef int (*fb_cgetrs_fn)(const fb_layout_t layout,
+                                const fb_transpose_t trans, const int n,
+                                const int nrhs, const fb_complex_float_t *A,
+                                const int lda, const int *ipiv,
+                                fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zgetrs_fn)(const fb_layout_t layout,
+                                const fb_transpose_t trans, const int n,
+                                const int nrhs,
+                                const fb_complex_double_t *A, const int lda,
+                                const int *ipiv, fb_complex_double_t *B,
+                                const int ldb);
 
 /* POTRS - Solve using Cholesky factorization */
-typedef int64_t (*fb_spotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, const int64_t nrhs,
-                                const float *A, const int64_t lda, float *B,
-                                const int64_t ldb);
-typedef int64_t (*fb_dpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, const int64_t nrhs,
-                                const double *A, const int64_t lda, double *B,
-                                const int64_t ldb);
-typedef int64_t (*fb_cpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, const int64_t nrhs,
-                                const fb_complex_float_t *A, const int64_t lda,
-                                fb_complex_float_t *B, const int64_t ldb);
-typedef int64_t (*fb_zpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, const int64_t nrhs,
-                                const fb_complex_double_t *A, const int64_t lda,
-                                fb_complex_double_t *B, const int64_t ldb);
+typedef int (*fb_spotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, const int nrhs,
+                                const float *A, const int lda, float *B,
+                                const int ldb);
+typedef int (*fb_dpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, const int nrhs,
+                                const double *A, const int lda, double *B,
+                                const int ldb);
+typedef int (*fb_cpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, const int nrhs,
+                                const fb_complex_float_t *A, const int lda,
+                                fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zpotrs_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, const int nrhs,
+                                const fb_complex_double_t *A, const int lda,
+                                fb_complex_double_t *B, const int ldb);
 
 /* GETRI - Matrix inversion using LU factorization */
-typedef int64_t (*fb_sgetri_fn)(const fb_layout_t layout, const int64_t n,
-                                float *A, const int64_t lda,
-                                const int64_t *ipiv);
-typedef int64_t (*fb_dgetri_fn)(const fb_layout_t layout, const int64_t n,
-                                double *A, const int64_t lda,
-                                const int64_t *ipiv);
-typedef int64_t (*fb_cgetri_fn)(const fb_layout_t layout, const int64_t n,
-                                fb_complex_float_t *A, const int64_t lda,
-                                const int64_t *ipiv);
-typedef int64_t (*fb_zgetri_fn)(const fb_layout_t layout, const int64_t n,
-                                fb_complex_double_t *A, const int64_t lda,
-                                const int64_t *ipiv);
+typedef int (*fb_sgetri_fn)(const fb_layout_t layout, const int n,
+                                float *A, const int lda,
+                                const int *ipiv);
+typedef int (*fb_dgetri_fn)(const fb_layout_t layout, const int n,
+                                double *A, const int lda,
+                                const int *ipiv);
+typedef int (*fb_cgetri_fn)(const fb_layout_t layout, const int n,
+                                fb_complex_float_t *A, const int lda,
+                                const int *ipiv);
+typedef int (*fb_zgetri_fn)(const fb_layout_t layout, const int n,
+                                fb_complex_double_t *A, const int lda,
+                                const int *ipiv);
 
 /* POTRI - Matrix inversion using Cholesky factorization */
-typedef int64_t (*fb_spotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, float *A, const int64_t lda);
-typedef int64_t (*fb_dpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, double *A, const int64_t lda);
-typedef int64_t (*fb_cpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, fb_complex_float_t *A,
-                                const int64_t lda);
-typedef int64_t (*fb_zpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const int64_t n, fb_complex_double_t *A,
-                                const int64_t lda);
+typedef int (*fb_spotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, float *A, const int lda);
+typedef int (*fb_dpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, double *A, const int lda);
+typedef int (*fb_cpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, fb_complex_float_t *A,
+                                const int lda);
+typedef int (*fb_zpotri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const int n, fb_complex_double_t *A,
+                                const int lda);
 
 /* TRTRI - Triangular matrix inversion */
-typedef int64_t (*fb_strtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const fb_diag_t diag, const int64_t n, float *A,
-                                const int64_t lda);
-typedef int64_t (*fb_dtrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const fb_diag_t diag, const int64_t n,
-                                double *A, const int64_t lda);
-typedef int64_t (*fb_ctrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const fb_diag_t diag, const int64_t n,
-                                fb_complex_float_t *A, const int64_t lda);
-typedef int64_t (*fb_ztrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                                const fb_diag_t diag, const int64_t n,
-                                fb_complex_double_t *A, const int64_t lda);
+typedef int (*fb_strtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const fb_diag_t diag, const int n, float *A,
+                                const int lda);
+typedef int (*fb_dtrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const fb_diag_t diag, const int n,
+                                double *A, const int lda);
+typedef int (*fb_ctrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const fb_diag_t diag, const int n,
+                                fb_complex_float_t *A, const int lda);
+typedef int (*fb_ztrtri_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
+                                const fb_diag_t diag, const int n,
+                                fb_complex_double_t *A, const int lda);
 
 /* GEEV - Eigenvalue decomposition (general matrix) */
-typedef int64_t (*fb_sgeev_fn)(const fb_layout_t layout, const char jobvl,
-                               const char jobvr, const int64_t n, float *A,
-                               const int64_t lda, float *wr, float *wi,
-                               float *VL, const int64_t ldvl, float *VR,
-                               const int64_t ldvr);
-typedef int64_t (*fb_dgeev_fn)(const fb_layout_t layout, const char jobvl,
-                               const char jobvr, const int64_t n, double *A,
-                               const int64_t lda, double *wr, double *wi,
-                               double *VL, const int64_t ldvl, double *VR,
-                               const int64_t ldvr);
-typedef int64_t (*fb_cgeev_fn)(const fb_layout_t layout, const char jobvl,
-                               const char jobvr, const int64_t n,
-                               fb_complex_float_t *A, const int64_t lda,
+typedef int (*fb_sgeev_fn)(const fb_layout_t layout, const char jobvl,
+                               const char jobvr, const int n, float *A,
+                               const int lda, float *wr, float *wi,
+                               float *VL, const int ldvl, float *VR,
+                               const int ldvr);
+typedef int (*fb_dgeev_fn)(const fb_layout_t layout, const char jobvl,
+                               const char jobvr, const int n, double *A,
+                               const int lda, double *wr, double *wi,
+                               double *VL, const int ldvl, double *VR,
+                               const int ldvr);
+typedef int (*fb_cgeev_fn)(const fb_layout_t layout, const char jobvl,
+                               const char jobvr, const int n,
+                               fb_complex_float_t *A, const int lda,
                                fb_complex_float_t *w, fb_complex_float_t *VL,
-                               const int64_t ldvl, fb_complex_float_t *VR,
-                               const int64_t ldvr);
-typedef int64_t (*fb_zgeev_fn)(const fb_layout_t layout, const char jobvl,
-                               const char jobvr, const int64_t n,
-                               fb_complex_double_t *A, const int64_t lda,
+                               const int ldvl, fb_complex_float_t *VR,
+                               const int ldvr);
+typedef int (*fb_zgeev_fn)(const fb_layout_t layout, const char jobvl,
+                               const char jobvr, const int n,
+                               fb_complex_double_t *A, const int lda,
                                fb_complex_double_t *w, fb_complex_double_t *VL,
-                               const int64_t ldvl, fb_complex_double_t *VR,
-                               const int64_t ldvr);
+                               const int ldvl, fb_complex_double_t *VR,
+                               const int ldvr);
 
 /* SYEV - Eigenvalue decomposition (symmetric real matrix) */
-typedef int64_t (*fb_ssyev_fn)(const fb_layout_t layout, const char jobz,
-                               const fb_uplo_t uplo, const int64_t n, float *A,
-                               const int64_t lda, float *w);
-typedef int64_t (*fb_dsyev_fn)(const fb_layout_t layout, const char jobz,
-                               const fb_uplo_t uplo, const int64_t n, double *A,
-                               const int64_t lda, double *w);
+typedef int (*fb_ssyev_fn)(const fb_layout_t layout, const char jobz,
+                               const fb_uplo_t uplo, const int n, float *A,
+                               const int lda, float *w);
+typedef int (*fb_dsyev_fn)(const fb_layout_t layout, const char jobz,
+                               const fb_uplo_t uplo, const int n, double *A,
+                               const int lda, double *w);
 
 /* HEEV - Eigenvalue decomposition (Hermitian complex matrix) */
-typedef int64_t (*fb_cheev_fn)(const fb_layout_t layout, const char jobz,
-                               const fb_uplo_t uplo, const int64_t n,
-                               fb_complex_float_t *A, const int64_t lda,
+typedef int (*fb_cheev_fn)(const fb_layout_t layout, const char jobz,
+                               const fb_uplo_t uplo, const int n,
+                               fb_complex_float_t *A, const int lda,
                                float *w);
-typedef int64_t (*fb_zheev_fn)(const fb_layout_t layout, const char jobz,
-                               const fb_uplo_t uplo, const int64_t n,
-                               fb_complex_double_t *A, const int64_t lda,
+typedef int (*fb_zheev_fn)(const fb_layout_t layout, const char jobz,
+                               const fb_uplo_t uplo, const int n,
+                               fb_complex_double_t *A, const int lda,
                                double *w);
 
 /* GESVD - Singular value decomposition */
-typedef int64_t (*fb_sgesvd_fn)(const fb_layout_t layout, const char jobu,
-                                const char jobvt, const int64_t m,
-                                const int64_t n, float *A, const int64_t lda,
-                                float *s, float *U, const int64_t ldu,
-                                float *VT, const int64_t ldvt, float *superb);
-typedef int64_t (*fb_dgesvd_fn)(const fb_layout_t layout, const char jobu,
-                                const char jobvt, const int64_t m,
-                                const int64_t n, double *A, const int64_t lda,
-                                double *s, double *U, const int64_t ldu,
-                                double *VT, const int64_t ldvt, double *superb);
-typedef int64_t (*fb_cgesvd_fn)(const fb_layout_t layout, const char jobu,
-                                const char jobvt, const int64_t m,
-                                const int64_t n, fb_complex_float_t *A,
-                                const int64_t lda, float *s,
-                                fb_complex_float_t *U, const int64_t ldu,
-                                fb_complex_float_t *VT, const int64_t ldvt,
+typedef int (*fb_sgesvd_fn)(const fb_layout_t layout, const char jobu,
+                                const char jobvt, const int m,
+                                const int n, float *A, const int lda,
+                                float *s, float *U, const int ldu,
+                                float *VT, const int ldvt, float *superb);
+typedef int (*fb_dgesvd_fn)(const fb_layout_t layout, const char jobu,
+                                const char jobvt, const int m,
+                                const int n, double *A, const int lda,
+                                double *s, double *U, const int ldu,
+                                double *VT, const int ldvt, double *superb);
+typedef int (*fb_cgesvd_fn)(const fb_layout_t layout, const char jobu,
+                                const char jobvt, const int m,
+                                const int n, fb_complex_float_t *A,
+                                const int lda, float *s,
+                                fb_complex_float_t *U, const int ldu,
+                                fb_complex_float_t *VT, const int ldvt,
                                 float *superb);
-typedef int64_t (*fb_zgesvd_fn)(const fb_layout_t layout, const char jobu,
-                                const char jobvt, const int64_t m,
-                                const int64_t n, fb_complex_double_t *A,
-                                const int64_t lda, double *s,
-                                fb_complex_double_t *U, const int64_t ldu,
-                                fb_complex_double_t *VT, const int64_t ldvt,
+typedef int (*fb_zgesvd_fn)(const fb_layout_t layout, const char jobu,
+                                const char jobvt, const int m,
+                                const int n, fb_complex_double_t *A,
+                                const int lda, double *s,
+                                fb_complex_double_t *U, const int ldu,
+                                fb_complex_double_t *VT, const int ldvt,
                                 double *superb);
 
 /* GEQRF - QR factorization */
-typedef int64_t (*fb_sgeqrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, float *A, const int64_t lda,
+typedef int (*fb_sgeqrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, float *A, const int lda,
                                 float *tau);
-typedef int64_t (*fb_dgeqrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, double *A, const int64_t lda,
+typedef int (*fb_dgeqrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, double *A, const int lda,
                                 double *tau);
-typedef int64_t (*fb_cgeqrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, fb_complex_float_t *A,
-                                const int64_t lda, fb_complex_float_t *tau);
-typedef int64_t (*fb_zgeqrf_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, fb_complex_double_t *A,
-                                const int64_t lda, fb_complex_double_t *tau);
+typedef int (*fb_cgeqrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, fb_complex_float_t *A,
+                                const int lda, fb_complex_float_t *tau);
+typedef int (*fb_zgeqrf_fn)(const fb_layout_t layout, const int m,
+                                const int n, fb_complex_double_t *A,
+                                const int lda, fb_complex_double_t *tau);
 
 /* ORGQR - Generate Q from QR factorization (real) */
-typedef int64_t (*fb_sorgqr_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t k, float *A,
-                                const int64_t lda, const float *tau);
-typedef int64_t (*fb_dorgqr_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t k, double *A,
-                                const int64_t lda, const double *tau);
+typedef int (*fb_sorgqr_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int k, float *A,
+                                const int lda, const float *tau);
+typedef int (*fb_dorgqr_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int k, double *A,
+                                const int lda, const double *tau);
 
 /* UNGQR - Generate Q from QR factorization (complex) */
-typedef int64_t (*fb_cungqr_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                fb_complex_float_t *A, const int64_t lda,
+typedef int (*fb_cungqr_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int k,
+                                fb_complex_float_t *A, const int lda,
                                 const fb_complex_float_t *tau);
-typedef int64_t (*fb_zungqr_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                fb_complex_double_t *A, const int64_t lda,
+typedef int (*fb_zungqr_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int k,
+                                fb_complex_double_t *A, const int lda,
                                 const fb_complex_double_t *tau);
 
 /* GELS - Solve overdetermined/underdetermined linear systems using QR or LQ */
-typedef int64_t (*fb_sgels_fn)(const fb_layout_t layout,
-                               const fb_transpose_t trans, const int64_t m,
-                               const int64_t n, const int64_t nrhs, float *A,
-                               const int64_t lda, float *B, const int64_t ldb);
-typedef int64_t (*fb_dgels_fn)(const fb_layout_t layout,
-                               const fb_transpose_t trans, const int64_t m,
-                               const int64_t n, const int64_t nrhs, double *A,
-                               const int64_t lda, double *B, const int64_t ldb);
-typedef int64_t (*fb_cgels_fn)(const fb_layout_t layout,
-                               const fb_transpose_t trans, const int64_t m,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_float_t *A, const int64_t lda,
-                               fb_complex_float_t *B, const int64_t ldb);
-typedef int64_t (*fb_zgels_fn)(const fb_layout_t layout,
-                               const fb_transpose_t trans, const int64_t m,
-                               const int64_t n, const int64_t nrhs,
-                               fb_complex_double_t *A, const int64_t lda,
-                               fb_complex_double_t *B, const int64_t ldb);
+typedef int (*fb_sgels_fn)(const fb_layout_t layout,
+                               const fb_transpose_t trans, const int m,
+                               const int n, const int nrhs, float *A,
+                               const int lda, float *B, const int ldb);
+typedef int (*fb_dgels_fn)(const fb_layout_t layout,
+                               const fb_transpose_t trans, const int m,
+                               const int n, const int nrhs, double *A,
+                               const int lda, double *B, const int ldb);
+typedef int (*fb_cgels_fn)(const fb_layout_t layout,
+                               const fb_transpose_t trans, const int m,
+                               const int n, const int nrhs,
+                               fb_complex_float_t *A, const int lda,
+                               fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zgels_fn)(const fb_layout_t layout,
+                               const fb_transpose_t trans, const int m,
+                               const int n, const int nrhs,
+                               fb_complex_double_t *A, const int lda,
+                               fb_complex_double_t *B, const int ldb);
 
 /* ORMQR - Apply Q from QR factorization (real) */
-typedef int64_t (*fb_sormqr_fn)(const fb_layout_t layout, const fb_side_t side,
-                                const fb_transpose_t trans, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                const float *A, const int64_t lda,
-                                const float *tau, float *C, const int64_t ldc);
-typedef int64_t (*fb_dormqr_fn)(const fb_layout_t layout, const fb_side_t side,
-                                const fb_transpose_t trans, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                const double *A, const int64_t lda,
+typedef int (*fb_sormqr_fn)(const fb_layout_t layout, const fb_side_t side,
+                                const fb_transpose_t trans, const int m,
+                                const int n, const int k,
+                                const float *A, const int lda,
+                                const float *tau, float *C, const int ldc);
+typedef int (*fb_dormqr_fn)(const fb_layout_t layout, const fb_side_t side,
+                                const fb_transpose_t trans, const int m,
+                                const int n, const int k,
+                                const double *A, const int lda,
                                 const double *tau, double *C,
-                                const int64_t ldc);
+                                const int ldc);
 
 /* UNMQR - Apply Q from QR factorization (complex) */
-typedef int64_t (*fb_cunmqr_fn)(const fb_layout_t layout, const fb_side_t side,
-                                const fb_transpose_t trans, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                const fb_complex_float_t *A, const int64_t lda,
+typedef int (*fb_cunmqr_fn)(const fb_layout_t layout, const fb_side_t side,
+                                const fb_transpose_t trans, const int m,
+                                const int n, const int k,
+                                const fb_complex_float_t *A, const int lda,
                                 const fb_complex_float_t *tau,
-                                fb_complex_float_t *C, const int64_t ldc);
-typedef int64_t (*fb_zunmqr_fn)(const fb_layout_t layout, const fb_side_t side,
-                                const fb_transpose_t trans, const int64_t m,
-                                const int64_t n, const int64_t k,
-                                const fb_complex_double_t *A, const int64_t lda,
+                                fb_complex_float_t *C, const int ldc);
+typedef int (*fb_zunmqr_fn)(const fb_layout_t layout, const fb_side_t side,
+                                const fb_transpose_t trans, const int m,
+                                const int n, const int k,
+                                const fb_complex_double_t *A, const int lda,
                                 const fb_complex_double_t *tau,
-                                fb_complex_double_t *C, const int64_t ldc);
+                                fb_complex_double_t *C, const int ldc);
 
 /* GELSD - Least squares with SVD divide-and-conquer */
-typedef int64_t (*fb_sgelsd_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs, float *A,
-                                const int64_t lda, float *B, const int64_t ldb,
-                                float *s, float rcond, int64_t *rank);
-typedef int64_t (*fb_dgelsd_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs, double *A,
-                                const int64_t lda, double *B, const int64_t ldb,
-                                double *s, double rcond, int64_t *rank);
-typedef int64_t (*fb_cgelsd_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs,
-                                fb_complex_float_t *A, const int64_t lda,
-                                fb_complex_float_t *B, const int64_t ldb,
-                                float *s, float rcond, int64_t *rank);
-typedef int64_t (*fb_zgelsd_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs,
-                                fb_complex_double_t *A, const int64_t lda,
-                                fb_complex_double_t *B, const int64_t ldb,
-                                double *s, double rcond, int64_t *rank);
+typedef int (*fb_sgelsd_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs, float *A,
+                                const int lda, float *B, const int ldb,
+                                float *s, float rcond, int *rank);
+typedef int (*fb_dgelsd_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs, double *A,
+                                const int lda, double *B, const int ldb,
+                                double *s, double rcond, int *rank);
+typedef int (*fb_cgelsd_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs,
+                                fb_complex_float_t *A, const int lda,
+                                fb_complex_float_t *B, const int ldb,
+                                float *s, float rcond, int *rank);
+typedef int (*fb_zgelsd_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs,
+                                fb_complex_double_t *A, const int lda,
+                                fb_complex_double_t *B, const int ldb,
+                                double *s, double rcond, int *rank);
 
 /* GESDD - SVD with divide-and-conquer */
-typedef int64_t (*fb_sgesdd_fn)(const fb_layout_t layout, char jobz,
-                                const int64_t m, const int64_t n, float *A,
-                                const int64_t lda, float *s, float *U,
-                                const int64_t ldu, float *VT,
-                                const int64_t ldvt);
-typedef int64_t (*fb_dgesdd_fn)(const fb_layout_t layout, char jobz,
-                                const int64_t m, const int64_t n, double *A,
-                                const int64_t lda, double *s, double *U,
-                                const int64_t ldu, double *VT,
-                                const int64_t ldvt);
-typedef int64_t (*fb_cgesdd_fn)(const fb_layout_t layout, char jobz,
-                                const int64_t m, const int64_t n,
-                                fb_complex_float_t *A, const int64_t lda,
+typedef int (*fb_sgesdd_fn)(const fb_layout_t layout, char jobz,
+                                const int m, const int n, float *A,
+                                const int lda, float *s, float *U,
+                                const int ldu, float *VT,
+                                const int ldvt);
+typedef int (*fb_dgesdd_fn)(const fb_layout_t layout, char jobz,
+                                const int m, const int n, double *A,
+                                const int lda, double *s, double *U,
+                                const int ldu, double *VT,
+                                const int ldvt);
+typedef int (*fb_cgesdd_fn)(const fb_layout_t layout, char jobz,
+                                const int m, const int n,
+                                fb_complex_float_t *A, const int lda,
                                 float *s, fb_complex_float_t *U,
-                                const int64_t ldu, fb_complex_float_t *VT,
-                                const int64_t ldvt);
-typedef int64_t (*fb_zgesdd_fn)(const fb_layout_t layout, char jobz,
-                                const int64_t m, const int64_t n,
-                                fb_complex_double_t *A, const int64_t lda,
+                                const int ldu, fb_complex_float_t *VT,
+                                const int ldvt);
+typedef int (*fb_zgesdd_fn)(const fb_layout_t layout, char jobz,
+                                const int m, const int n,
+                                fb_complex_double_t *A, const int lda,
                                 double *s, fb_complex_double_t *U,
-                                const int64_t ldu, fb_complex_double_t *VT,
-                                const int64_t ldvt);
+                                const int ldu, fb_complex_double_t *VT,
+                                const int ldvt);
 
 /* SYGV - Generalized symmetric eigenvalue problem */
-typedef int64_t (*fb_ssygv_fn)(const fb_layout_t layout, const int64_t itype,
-                               char jobz, const fb_uplo_t uplo, const int64_t n,
-                               float *A, const int64_t lda, float *B,
-                               const int64_t ldb, float *w);
-typedef int64_t (*fb_dsygv_fn)(const fb_layout_t layout, const int64_t itype,
-                               char jobz, const fb_uplo_t uplo, const int64_t n,
-                               double *A, const int64_t lda, double *B,
-                               const int64_t ldb, double *w);
+typedef int (*fb_ssygv_fn)(const fb_layout_t layout, const int itype,
+                               char jobz, const fb_uplo_t uplo, const int n,
+                               float *A, const int lda, float *B,
+                               const int ldb, float *w);
+typedef int (*fb_dsygv_fn)(const fb_layout_t layout, const int itype,
+                               char jobz, const fb_uplo_t uplo, const int n,
+                               double *A, const int lda, double *B,
+                               const int ldb, double *w);
 
 /* HEGV - Generalized hermitian eigenvalue problem */
-typedef int64_t (*fb_chegv_fn)(const fb_layout_t layout, const int64_t itype,
-                               char jobz, const fb_uplo_t uplo, const int64_t n,
-                               fb_complex_float_t *A, const int64_t lda,
-                               fb_complex_float_t *B, const int64_t ldb,
+typedef int (*fb_chegv_fn)(const fb_layout_t layout, const int itype,
+                               char jobz, const fb_uplo_t uplo, const int n,
+                               fb_complex_float_t *A, const int lda,
+                               fb_complex_float_t *B, const int ldb,
                                float *w);
-typedef int64_t (*fb_zhegv_fn)(const fb_layout_t layout, const int64_t itype,
-                               char jobz, const fb_uplo_t uplo, const int64_t n,
-                               fb_complex_double_t *A, const int64_t lda,
-                               fb_complex_double_t *B, const int64_t ldb,
+typedef int (*fb_zhegv_fn)(const fb_layout_t layout, const int itype,
+                               char jobz, const fb_uplo_t uplo, const int n,
+                               fb_complex_double_t *A, const int lda,
+                               fb_complex_double_t *B, const int ldb,
                                double *w);
 
 /* GELSY - Least squares with QR and pivoting */
-typedef int64_t (*fb_sgelsy_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs, float *A,
-                                const int64_t lda, float *B, const int64_t ldb,
-                                int64_t *jpvt, float rcond, int64_t *rank);
-typedef int64_t (*fb_dgelsy_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs, double *A,
-                                const int64_t lda, double *B, const int64_t ldb,
-                                int64_t *jpvt, double rcond, int64_t *rank);
-typedef int64_t (*fb_cgelsy_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs,
-                                fb_complex_float_t *A, const int64_t lda,
-                                fb_complex_float_t *B, const int64_t ldb,
-                                int64_t *jpvt, float rcond, int64_t *rank);
-typedef int64_t (*fb_zgelsy_fn)(const fb_layout_t layout, const int64_t m,
-                                const int64_t n, const int64_t nrhs,
-                                fb_complex_double_t *A, const int64_t lda,
-                                fb_complex_double_t *B, const int64_t ldb,
-                                int64_t *jpvt, double rcond, int64_t *rank);
+typedef int (*fb_sgelsy_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs, float *A,
+                                const int lda, float *B, const int ldb,
+                                int *jpvt, float rcond, int *rank);
+typedef int (*fb_dgelsy_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs, double *A,
+                                const int lda, double *B, const int ldb,
+                                int *jpvt, double rcond, int *rank);
+typedef int (*fb_cgelsy_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs,
+                                fb_complex_float_t *A, const int lda,
+                                fb_complex_float_t *B, const int ldb,
+                                int *jpvt, float rcond, int *rank);
+typedef int (*fb_zgelsy_fn)(const fb_layout_t layout, const int m,
+                                const int n, const int nrhs,
+                                fb_complex_double_t *A, const int lda,
+                                fb_complex_double_t *B, const int ldb,
+                                int *jpvt, double rcond, int *rank);
 
 /* ============================================================================
- * Backend Virtual Table - All 212 Operations
+ * Backend Virtual Table
+ *   252 named operation fields  (BLAS L1/L2/L3 + LAPACK core)
+ * + 15  infrastructure fields  (unified, memory, streams, thread control)
+ * + ext_ops[] array covering the full 2266-op superset (FB_JUDGE_MAX_OPERATIONS)
  * ========================================================================= */
 
 typedef struct fb_backend_vtable {
@@ -1874,6 +1871,27 @@ typedef struct fb_backend_vtable {
    * GPU backends should ignore this
    */
   void (*set_num_threads)(void *backend_handle, int num_threads);
+
+  /* =========================================================================
+   * Extended operation dispatch table (full 2266-op superset)
+   * =========================================================================
+   *
+   * Indexed by FB_OP_* constants from judge_op_ids.h.
+   *
+   * For the 252 named operations above, fb_vtable_sync_ext_ops() mirrors
+   * each named field into the corresponding ext_ops[FB_OP_XXX] slot so that
+   * callers can index any operation uniformly:
+   *
+   *   fb_generic_fn fn = vtable->ext_ops[op_id];           // O(1)
+   *   if (fn) ((fb_saxpy_fn)fn)(n, alpha, x, incx, y, incy);
+   *
+   * For operations not covered by a named field (LAPACK supplement,
+   * ScaLAPACK, DNN, FFT, Sparse, Tensor, etc.) backends populate
+   * ext_ops[] directly before registration.
+   *
+   * NULL  →  operation not supported by this backend.
+   */
+  fb_generic_fn ext_ops[FB_JUDGE_MAX_OPERATIONS];
 
 } fb_backend_vtable_t;
 

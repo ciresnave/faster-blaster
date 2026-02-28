@@ -387,6 +387,8 @@ set(CORE_SOURCES
     src/core/device_memory_manager.c
     # Vtable auto-fill system (Phases 1-5)
     src/core/vtable_autofill.c
+    # Op-ID → vtable field mapping + ext_ops[] sync (2266-op dispatch)
+    src/core/op_vtable_map.c
     src/core/vtable_wrappers_gemm.c
     src/core/vtable_wrappers_normalization.c
     src/core/vtable_wrappers_reduction.c

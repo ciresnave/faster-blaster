@@ -523,3 +523,30 @@ void fb_ranked_table_get_stats(const fb_ranked_table_t *table,
 
     stats_out->distinct_winners = n_winners;
 }
+
+/* =========================================================================
+ * Operation-level dispatch helpers
+ * ========================================================================= */
+
+/* Global active ranked table (set at startup via fb_op_dispatch_set_table). */
+static fb_ranked_table_t *g_op_dispatch_table = NULL;
+
+void fb_op_dispatch_set_table(fb_ranked_table_t *table) {
+    g_op_dispatch_table = table;
+}
+
+const fb_ranked_table_t *fb_op_dispatch_get_table(void) {
+    return g_op_dispatch_table;
+}
+
+/**
+ * Select the best backend for op_id using the globally active ranked table.
+ * Falls back to FB_BACKEND_ID_REFERENCE when no table is registered or the
+ * operation has no ranked entries.
+ */
+uint32_t fb_select_backend_for_op(uint32_t op_id, fb_rank_criterion_t criterion) {
+    if (!g_op_dispatch_table) {
+        return FB_BACKEND_ID_REFERENCE;
+    }
+    return fb_ranked_get_best(g_op_dispatch_table, op_id, criterion);
+}

@@ -30,6 +30,8 @@
 /* Opaque vtable handle — full struct defined in backend_interface.h */
 typedef struct fb_backend_vtable fb_backend_vtable_t;
 
+/* fb_generic_fn is defined in fb_types.h (included above) */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -347,6 +349,33 @@ void fb_autofill_all_strided_from_array(fb_backend_vtable_t *vtable);
  * @param vtable Vtable to fill
  */
 void fb_autofill_all_precision_promotion(fb_backend_vtable_t *vtable);
+
+/* ============================================================================ 
+ * Extended Op Dispatch (ext_ops[] sync + lookup)
+ * ========================================================================= */
+
+/**
+ * @brief Mirror every populated named vtable field into vtable->ext_ops[op_id].
+ *
+ * Must be called once after the vtable is fully populated — typically at the
+ * end of fb_finalize_plugin_vtable().  Does not overwrite non-NULL ext_ops
+ * slots that backends have pre-populated with specialised variants.
+ *
+ * @param vtable Vtable to synchronise
+ */
+void fb_vtable_sync_ext_ops(fb_backend_vtable_t *vtable);
+
+/**
+ * @brief Return the function pointer for op_id, or NULL if unsupported.
+ *
+ * Requires a prior call to fb_vtable_sync_ext_ops().
+ * Call is O(1) — direct array index into vtable->ext_ops[].
+ *
+ * @param vtable   Backend vtable to query
+ * @param op_id    FB_OP_* constant from judge_op_ids.h
+ * @return         Type-erased fn pointer, NULL if not supported
+ */
+fb_generic_fn fb_vtable_get_op(const fb_backend_vtable_t *vtable, uint32_t op_id);
 
 #ifdef __cplusplus
 }
