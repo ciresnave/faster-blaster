@@ -3,6 +3,7 @@
 
 #include "benchmark_types.h"
 #include "dispatch_tables.h"
+#include "faster-blaster/ranked_dispatch.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -177,6 +178,20 @@ int fb_auto_benchmark_wait(fb_auto_benchmark_result_t* result_out);
  * @return 0 on success, negative on error
  */
 int fb_auto_benchmark_cancel(void);
+
+// ============================================================================
+// Ranked Dispatch Table Access
+// ============================================================================
+
+/**
+ * Get the ranked dispatch table built by the most recent background benchmark.
+ *
+ * Returns NULL if no benchmarking has completed yet or no ranked table is
+ * available.  The pointer is valid until the next benchmark pass replaces it.
+ *
+ * @return Ranked dispatch table, or NULL if not yet available.
+ */
+const fb_ranked_table_t *fb_auto_benchmark_get_ranked_table(void);
 
 // ============================================================================
 // Query & Diagnostics

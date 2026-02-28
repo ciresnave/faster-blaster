@@ -505,6 +505,8 @@ set(BACKEND_SOURCES
     src/backends/cpu/blis_trait_impl.c
     src/backends/cpu/openblas_trait_impl.c
     src/backends/cpu/reference_trait_impl.c
+    # Dynamic DLL reference backend loader
+    src/backends/blas_lapack_reference_backend.c
 )
 
 # Plugin sources (new architecture)
@@ -534,6 +536,8 @@ set(PLUGIN_SOURCES
     src/plugins/plugin_clblas.c
     # Reference backend: always-available correctness oracle and last-resort fallback
     src/plugins/plugin_reference.c
+    # Dynamic DLL reference backend plugin (score 10 > static reference score 5)
+    src/plugins/plugin_blas_lapack_reference.c
 )
 
 # Judge module sources (precision/accuracy profiling for operation routing)

@@ -226,6 +226,8 @@ void fb_register_metal_plugin(void);
 
 /* Fallback / correctness oracle */
 void fb_register_reference_plugin(void);
+/* Dynamic DLL correctness oracle (higher score than static reference) */
+void fb_register_blas_lapack_reference_plugin(void);
 
 /**
  * Initialize plugin system and register all built-in plugins

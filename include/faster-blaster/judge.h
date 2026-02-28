@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>   /* size_t */
 #include "../benchmark_types.h"  /* fb_size_class_t */
 
 /* For backend selection API (fb_judge_select_best_backend, FB_SELECT_* presets,
@@ -320,6 +321,35 @@ bool fb_judge_profiles_are_current(uint32_t backend_id, uint32_t device_id);
  * or when the judge module version increments).
  */
 void fb_judge_invalidate(uint32_t backend_id, uint32_t device_id);
+
+/* =========================================================================
+ * Internal-use helpers (also useful for auto_benchmark and testing)
+ * ========================================================================= */
+
+/**
+ * Fill @p ids_out with the IDs of all backends registered via
+ * fb_judge_register_backend().  At most @p max entries are written;
+ * *count_out receives the actual count.
+ */
+void fb_judge_get_registered_ids(uint32_t *ids_out, uint32_t max,
+                                  uint32_t *count_out);
+
+/**
+ * Copy the profile directory path (set by fb_judge_init()) into @p buf.
+ * At most @p capacity bytes including the NUL terminator are written.
+ */
+void fb_judge_get_profile_dir(char *buf, size_t capacity);
+
+/** Return true if fb_judge_init() has been called and not yet shut down. */
+bool fb_judge_is_initialized(void);
+
+/**
+ * Persist @p profile to the configured profile directory.
+ * Convenience wrapper so callers outside the judge module do not need
+ * to include private judge_store.h.
+ * Returns FB_JUDGE_OK, or FB_JUDGE_ERR_NOT_INITIALIZED / FB_JUDGE_ERR_IO.
+ */
+fb_judge_status_t fb_judge_save_profile(const fb_precision_profile_t *profile);
 
 #ifdef __cplusplus
 }

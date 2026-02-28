@@ -78,6 +78,14 @@
  */
 #define FB_BACKEND_ID_REFERENCE     11u
 
+/**
+ * faster-blaster-reference DLL — dynamic loader for the external
+ * faster_blaster_reference.dll / .so.  Score 10; higher than the static
+ * reference (score 5) but lower than any optimised backend.
+ * Available only when the DLL is found on the system.
+ */
+#define FB_BACKEND_ID_BLR           12u
+
 /* =========================================================================
  * Sentinel
  * ========================================================================= */
@@ -92,6 +100,6 @@
 /* =========================================================================
  * Next available ID (update when adding a new backend above)
  * ========================================================================= */
-#define FB_BACKEND_ID__NEXT_FREE    12u
+#define FB_BACKEND_ID__NEXT_FREE    13u
 
 #endif /* FASTER_BLASTER_BACKEND_IDS_H */

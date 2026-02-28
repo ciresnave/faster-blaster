@@ -13,7 +13,7 @@
  * @license MIT OR Apache-2.0
  */
 
-#include "faster_blaster_reference_backend.h"
+#include "blas_lapack_reference_backend.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -222,40 +222,70 @@ static void fb_blr_daxpy(const int n, const double alpha, const double *x,
   daxpy_fn(&n_copy, &alpha_copy, x, &incx_copy, y, &incy_copy);
 }
 
-static void fb_blr_sgemm(const char transa, const char transb, const int m,
-                         const int n, const int k, const float alpha,
-                         const float *a, const int lda, const float *b,
-                         const int ldb, const float beta, float *c,
-                         const int ldc) {
+/* Convert fb_transpose_t enum to the single-character Fortran BLAS convention. */
+static char fb_trans_to_char(fb_transpose_t t) {
+  if (t == FB_TRANS)      return 'T';
+  if (t == FB_CONJ_TRANS) return 'C';
+  return 'N';
+}
+
+static void fb_blr_sgemm(const fb_layout_t layout,
+                         const fb_transpose_t transA,
+                         const fb_transpose_t transB,
+                         const int m, const int n, const int k,
+                         const float alpha,
+                         const float *A, const int lda,
+                         const float *B, const int ldb,
+                         const float beta, float *C, const int ldc) {
   static fblas_sgemm_t sgemm_fn = NULL;
   if (!sgemm_fn) {
     sgemm_fn = (fblas_sgemm_t)FB_GET_PROC_ADDRESS(g_blr_handle, "sgemm_");
     if (!sgemm_fn)
       return;
   }
-  int m_copy = m, n_copy = n, k_copy = k;
-  int lda_copy = lda, ldb_copy = ldb, ldc_copy = ldc;
   float alpha_copy = alpha, beta_copy = beta;
-  sgemm_fn(&transa, &transb, &m_copy, &n_copy, &k_copy, &alpha_copy, a,
-           &lda_copy, b, &ldb_copy, &beta_copy, c, &ldc_copy);
+  /* Fortran BLAS is always column-major. For row-major callers, swap A↔B,
+   * transA↔transB and m↔n so the Fortran routine sees the column-major
+   * equivalent computation. */
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    char ta = fb_trans_to_char(transB), tb = fb_trans_to_char(transA);
+    int mc = n, nc = m, kc = k, ldac = ldb, ldbc = lda, ldcc = ldc;
+    sgemm_fn(&ta, &tb, &mc, &nc, &kc, &alpha_copy, B, &ldac, A, &ldbc,
+             &beta_copy, C, &ldcc);
+  } else {
+    char ta = fb_trans_to_char(transA), tb = fb_trans_to_char(transB);
+    int mc = m, nc = n, kc = k, ldac = lda, ldbc = ldb, ldcc = ldc;
+    sgemm_fn(&ta, &tb, &mc, &nc, &kc, &alpha_copy, A, &ldac, B, &ldbc,
+             &beta_copy, C, &ldcc);
+  }
 }
 
-static void fb_blr_dgemm(const char transa, const char transb, const int m,
-                         const int n, const int k, const double alpha,
-                         const double *a, const int lda, const double *b,
-                         const int ldb, const double beta, double *c,
-                         const int ldc) {
+static void fb_blr_dgemm(const fb_layout_t layout,
+                         const fb_transpose_t transA,
+                         const fb_transpose_t transB,
+                         const int m, const int n, const int k,
+                         const double alpha,
+                         const double *A, const int lda,
+                         const double *B, const int ldb,
+                         const double beta, double *C, const int ldc) {
   static fblas_dgemm_t dgemm_fn = NULL;
   if (!dgemm_fn) {
     dgemm_fn = (fblas_dgemm_t)FB_GET_PROC_ADDRESS(g_blr_handle, "dgemm_");
     if (!dgemm_fn)
       return;
   }
-  int m_copy = m, n_copy = n, k_copy = k;
-  int lda_copy = lda, ldb_copy = ldb, ldc_copy = ldc;
   double alpha_copy = alpha, beta_copy = beta;
-  dgemm_fn(&transa, &transb, &m_copy, &n_copy, &k_copy, &alpha_copy, a,
-           &lda_copy, b, &ldb_copy, &beta_copy, c, &ldc_copy);
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    char ta = fb_trans_to_char(transB), tb = fb_trans_to_char(transA);
+    int mc = n, nc = m, kc = k, ldac = ldb, ldbc = lda, ldcc = ldc;
+    dgemm_fn(&ta, &tb, &mc, &nc, &kc, &alpha_copy, B, &ldac, A, &ldbc,
+             &beta_copy, C, &ldcc);
+  } else {
+    char ta = fb_trans_to_char(transA), tb = fb_trans_to_char(transB);
+    int mc = m, nc = n, kc = k, ldac = lda, ldbc = ldb, ldcc = ldc;
+    dgemm_fn(&ta, &tb, &mc, &nc, &kc, &alpha_copy, A, &ldac, B, &ldbc,
+             &beta_copy, C, &ldcc);
+  }
 }
 
 /* TODO: Add all 1248 wrapper functions following this pattern */
@@ -297,10 +327,6 @@ int fb_blr_init(void) {
   }
 
   /* Populate vtable with wrapper functions */
-  g_blr_vtable.init = fb_blr_init_fn;
-  g_blr_vtable.finalize = fb_blr_finalize_fn;
-  g_blr_vtable.get_info = fb_blr_get_info_fn;
-
   /* Level 1 BLAS */
   g_blr_vtable.sdot = fb_blr_sdot;
   g_blr_vtable.ddot = fb_blr_ddot;

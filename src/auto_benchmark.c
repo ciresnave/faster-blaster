@@ -17,6 +17,8 @@
 #include "../include/benchmark_system.h"
 #include "../include/benchmark_types.h"
 #include "../include/dispatch_tables.h"
+#include "../include/faster-blaster/judge.h"
+#include "../include/faster-blaster/ranked_dispatch.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -51,6 +53,10 @@ static auto_benchmark_state_t g_auto_benchmark_state = {
     .status = FB_AUTO_BENCH_IDLE,
 };
 
+/** Ranked dispatch table built by the background benchmarking thread.
+ *  Written once by the thread; read-only after that. */
+static fb_ranked_table_t *g_ranked_table = NULL;
+
 /**
  * Simplified hardware change detection
  * 
@@ -77,102 +83,19 @@ static fb_change_reason_t detect_hardware_changes(
 }
 
 /**
- * Benchmark a single SGEMM operation (matrix multiply)
- * Used as representative test to characterize backend performance
- */
-static int benchmark_sgemm_operation(int m, int n, int k, int runs, 
-                                     fb_benchmark_stats_t *stats_out) {
-    if (!stats_out) return -1;
-    
-    // Allocate test matrices (smaller for faster benchmarking)
-    int real_m = (m > 256) ? 256 : m;
-    int real_n = (n > 256) ? 256 : n;
-    int real_k = (k > 256) ? 256 : k;
-    
-    float *A = (float *)malloc(real_m * real_k * sizeof(float));
-    float *B = (float *)malloc(real_k * real_n * sizeof(float));
-    float *C = (float *)malloc(real_m * real_n * sizeof(float));
-    
-    if (!A || !B || !C) {
-        free(A); free(B); free(C);
-        return -1;  // Memory allocation failed
-    }
-    
-    // Initialize with simple pattern (for reproducibility)
-    for (int i = 0; i < real_m * real_k; i++) A[i] = (float)(i % 100) / 100.0f;
-    for (int i = 0; i < real_k * real_n; i++) B[i] = (float)(i % 100) / 100.0f;
-    for (int i = 0; i < real_m * real_n; i++) C[i] = 0.0f;
-    
-    // Warm-up run
-    for (int warmup = 0; warmup < 2; warmup++) {
-        for (int i = 0; i < real_m; i++) {
-            for (int j = 0; j < real_n; j++) {
-                float sum = 0.0f;
-                for (int l = 0; l < real_k; l++) {
-                    sum += A[i * real_k + l] * B[l * real_n + j];
-                }
-                C[i * real_n + j] += sum;
-            }
-        }
-    }
-    
-    // Time actual runs
-    memset(stats_out, 0, sizeof(fb_benchmark_stats_t));
-    
-    uint32_t total_time_ns = 0;
-    
-    for (int run = 0; run < runs; run++) {
-        #ifdef _WIN32
-            LARGE_INTEGER start, end, freq;
-            QueryPerformanceCounter(&start);
-            QueryPerformanceFrequency(&freq);
-        #else
-            struct timespec start, end;
-            clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-        #endif
-        
-        // Perform SGEMM: C += A * B
-        for (int i = 0; i < real_m; i++) {
-            for (int j = 0; j < real_n; j++) {
-                float sum = C[i * real_n + j];
-                for (int l = 0; l < real_k; l++) {
-                    sum += A[i * real_k + l] * B[l * real_n + j];
-                }
-                C[i * real_n + j] = sum;
-            }
-        }
-        
-        #ifdef _WIN32
-            QueryPerformanceCounter(&end);
-            uint64_t elapsed_ns = (uint64_t)((end.QuadPart - start.QuadPart) 
-                                  * 1e9 / freq.QuadPart);
-        #else
-            clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-            uint64_t elapsed_ns = (end.tv_sec - start.tv_sec) * 1000000000ULL
-                                + (end.tv_nsec - start.tv_nsec);
-        #endif
-        
-        total_time_ns += (uint32_t)(elapsed_ns > UINT32_MAX ? UINT32_MAX : elapsed_ns);
-    }
-    
-    // Calculate average
-    stats_out->time_mean_ns = total_time_ns / runs;
-    stats_out->sample_count = runs;
-    stats_out->flags = FB_BENCH_FLAG_VALID;
-    
-    // Accuracy (placeholder: 100% accurate for reference implementation)
-    stats_out->accuracy_mean = 255;  // Max accuracy (0-255 scale)
-    stats_out->precision_mean = 255;
-    
-    free(A);
-    free(B);
-    free(C);
-    return 0;
-}
-
-/**
- * Background benchmarking thread function
- * Runs in separate thread, doesn't block main program
+ * Background benchmarking thread.
+ *
+ * When the judge module is initialised and at least one backend is registered,
+ * this thread:
+ *   1. Iterates over every registered backend × representative op × size class
+ *      × dtype and calls fb_judge_run() to produce a precision/timing profile.
+ *   2. Saves each profile to disk via fb_judge_save_profile().
+ *   3. Calls fb_ranked_table_build() on the profile directory to build in-memory
+ *      ranked dispatch tables.
+ *   4. Saves the ranked table to disk for fast reload on future startups.
+ *
+ * If the judge is not initialised (no profile directory, no oracle), the thread
+ * exits immediately without error — callers fall back to the cached data.
  */
 #ifdef _WIN32
 static unsigned int __stdcall benchmark_thread_func(void *arg) {
@@ -180,84 +103,152 @@ static unsigned int __stdcall benchmark_thread_func(void *arg) {
 static void* benchmark_thread_func(void *arg) {
 #endif
     auto_benchmark_state_t *state = (auto_benchmark_state_t *)arg;
-    
-    // Update status
-    state->status = FB_AUTO_BENCH_DETECTING;
+
+    state->status   = FB_AUTO_BENCH_DETECTING;
     state->progress = 0.0f;
-    
-    if (state->config.status_callback) {
-        state->config.status_callback(state->status, "Detecting hardware...");
+
+    if (state->config.status_callback)
+        state->config.status_callback(state->status,
+                                      "Checking judge module...");
+
+    /* Nothing to do if the judge is not initialised. */
+    if (!fb_judge_is_initialized()) {
+        state->status   = FB_AUTO_BENCH_IDLE;
+        state->progress = 1.0f;
+#ifdef _WIN32
+        return 0;
+#else
+        return NULL;
+#endif
     }
-    
-    // Step 1: Detect hardware (quick fingerprint)
-    #ifdef _WIN32
-        Sleep(100);
-    #else
-        usleep(100000);
-    #endif
-    
-    state->progress = 0.1f;
+
+    /* ------------------------------------------------------------------ */
+    /* 1.  Collect state from the judge singleton.                         */
+    /* ------------------------------------------------------------------ */
+    char profile_dir[512] = {0};
+    fb_judge_get_profile_dir(profile_dir, sizeof(profile_dir));
+
+    /* At most 32 registered backends (FB_JUDGE_MAX_BACKENDS). */
+    uint32_t backend_ids[32];
+    uint32_t n_backends = 0;
+    fb_judge_get_registered_ids(backend_ids, 32, &n_backends);
+
+    if (n_backends == 0 || profile_dir[0] == '\0') {
+        state->status   = FB_AUTO_BENCH_IDLE;
+        state->progress = 1.0f;
+#ifdef _WIN32
+        return 0;
+#else
+        return NULL;
+#endif
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 2.  Profile each backend x op x size class x dtype.                */
+    /* ------------------------------------------------------------------ */
     state->status = FB_AUTO_BENCH_BENCHMARKING;
-    
-    if (state->config.status_callback) {
-        state->config.status_callback(state->status, "Starting benchmarks...");
-    }
-    
-    // Step 2: Run benchmark suite
-    // Quick mode: just benchmark a few representative sizes
-    int test_sizes[][3] = {
-        {256, 256, 256},   // SMALL
-        {1024, 1024, 1024},   // MEDIUM
-        {4096, 4096, 4096}    // LARGE
+    if (state->config.status_callback)
+        state->config.status_callback(state->status,
+                                      "Profiling backends with judge...");
+
+    /* Representative op IDs — covers BLAS L1/L2/L3 in both precisions. */
+    static const uint32_t k_ops[] = {
+        4u,   /* FB_OP_SAXPY  - BLAS L1 representative                  */
+        57u,  /* FB_OP_SGEMV  - BLAS L2 representative                  */
+        119u, /* FB_OP_SGEMM  - BLAS L3 single-precision representative */
+        120u, /* FB_OP_DGEMM  - BLAS L3 double-precision representative */
     };
-    
-    fb_benchmark_stats_t stats = {0};
-    int num_benchmarks = sizeof(test_sizes) / sizeof(test_sizes[0]);
-    
-    for (int i = 0; i < num_benchmarks; i++) {
-        if (!state->thread_active) break;  // Early exit if requested
-        
-        int m = test_sizes[i][0];
-        int n = test_sizes[i][1];
-        int k = test_sizes[i][2];
-        
-        // Run benchmark
-        int runs = (i == 0) ? 10 : 5;  // Fewer runs for large matrices
-        if (benchmark_sgemm_operation(m, n, k, runs, &stats) == 0) {
-            // Record results (would normally save to cache)
-            // For now, just track progress
-        }
-        
-        // Update progress
-        state->progress = 0.1f + (0.8f * (i + 1) / num_benchmarks);
-        
-        if (state->config.progress_callback) {
-            state->config.progress_callback(state->progress);
+    static const uint32_t k_n_ops = sizeof(k_ops) / sizeof(k_ops[0]);
+
+    /* Size classes: SMALL (1), MEDIUM (2), LARGE (3). */
+    static const uint8_t k_sizes[] = {
+        (uint8_t)FB_SIZE_SMALL,
+        (uint8_t)FB_SIZE_MEDIUM,
+        (uint8_t)FB_SIZE_LARGE,
+    };
+    static const uint32_t k_n_sizes = sizeof(k_sizes) / sizeof(k_sizes[0]);
+
+    /* Data types: float32 (0), float64 (1) per internal fb_dtype_t. */
+    static const uint8_t k_dtypes[] = { 0u, 1u };
+    static const uint32_t k_n_dtypes = sizeof(k_dtypes) / sizeof(k_dtypes[0]);
+
+    uint32_t total_tasks =
+        n_backends * k_n_ops * k_n_sizes * k_n_dtypes;
+    uint32_t tasks_done = 0;
+
+    for (uint32_t bi = 0; bi < n_backends && state->thread_active; bi++) {
+        for (uint32_t oi = 0; oi < k_n_ops && state->thread_active; oi++) {
+            for (uint32_t si = 0; si < k_n_sizes && state->thread_active; si++) {
+                for (uint32_t di = 0; di < k_n_dtypes && state->thread_active; di++) {
+                    fb_precision_profile_t profile;
+                    fb_judge_status_t rc = fb_judge_run(
+                        k_ops[oi],
+                        backend_ids[bi],
+                        0u,              /* device_id = 0 (primary) */
+                        (fb_size_class_t)k_sizes[si],
+                        k_dtypes[di],
+                        false,           /* deep_audit */
+                        &profile
+                    );
+
+                    if (rc == FB_JUDGE_OK) {
+                        /* Persist to disk; ignore I/O errors gracefully. */
+                        fb_judge_save_profile(&profile);
+                    }
+                    /* FB_JUDGE_ERR_NOT_IMPL is normal — skip silently. */
+
+                    tasks_done++;
+                    state->progress =
+                        0.05f + 0.80f * ((float)tasks_done / (float)total_tasks);
+
+                    if (state->config.progress_callback)
+                        state->config.progress_callback(state->progress);
+                }
+            }
         }
     }
-    
-    state->progress = 0.95f;
-    
-    if (state->config.status_callback) {
-        state->config.status_callback(state->status, "Generating dispatch tables...");
+
+    /* ------------------------------------------------------------------ */
+    /* 3.  Build ranked dispatch table from freshly-written profiles.      */
+    /* ------------------------------------------------------------------ */
+    state->status = FB_AUTO_BENCH_GENERATING_TABLES;
+    if (state->config.status_callback)
+        state->config.status_callback(state->status,
+                                      "Building ranked dispatch tables...");
+    state->progress = 0.88f;
+
+    fb_ranked_table_t *table = fb_ranked_table_build(
+        profile_dir,
+        0u,           /* device_id */
+        0u,           /* primary_dtype: 0 = float32 */
+        backend_ids,
+        n_backends,
+        backend_ids[n_backends - 1]  /* fallback = last registered */
+    );
+
+    if (table) {
+        /* Swap in the new table atomically. */
+        fb_ranked_table_t *old = g_ranked_table;
+        g_ranked_table = table;
+        if (old)
+            fb_ranked_table_free(old);
+
+        /* Persist for fast reload on the next startup. */
+        char table_path[600];
+        snprintf(table_path, sizeof(table_path),
+                 "%s/ranked_table.fbrdt", profile_dir);
+        fb_ranked_table_save(table, table_path);
     }
-    
-    // Step 3: Generate dispatch tables from results
-    // (Would normally call fb_generate_dispatch_tables here)
-    #ifdef _WIN32
-        Sleep(50);
-    #else
-        usleep(50000);
-    #endif
-    
-    // Benchmarking complete
+
+    /* ------------------------------------------------------------------ */
+    /* 4.  Done.                                                           */
+    /* ------------------------------------------------------------------ */
     state->progress = 1.0f;
-    state->status = FB_AUTO_BENCH_COMPLETE;
-    
-    if (state->config.status_callback) {
+    state->status   = FB_AUTO_BENCH_COMPLETE;
+
+    if (state->config.status_callback)
         state->config.status_callback(state->status, "Benchmarking complete");
-    }
-    
+
     #ifdef _WIN32
         return 0;
     #else
@@ -306,53 +297,72 @@ int fb_auto_benchmark_check(const fb_auto_benchmark_config_t *config,
         return 0;
     }
     
-    // Step 1: Load cached benchmarks if they exist
-    // NOTE: benchmark_cache_t is internal to benchmark_system
-    // For now, just check if cache file exists
-    
-    char cache_path[1024] = {0};
-    fb_get_default_cache_path(cache_path, sizeof(cache_path));
-    
-    // Simplified: check if cache file exists at all
-    FILE *cache_file = fopen(cache_path, "rb");
-    int cache_loaded = (cache_file != NULL);
-    if (cache_file) fclose(cache_file);
-    
-    // Step 2: Generate current hardware fingerprint
-    fb_hardware_fingerprint_t current_fingerprint = {0};
-    if (fb_generate_hardware_fingerprint(&current_fingerprint) != 0) {
-        // Can't detect hardware - do full re-benchmark
-        if (result_out) {
-            result_out->change_reason = FB_CHANGE_FIRST_RUN;
+    /* ------------------------------------------------------------------ *
+     * Fast path: if the judge is initialised and all registered backends  *
+     * have current profiles, try loading a cached ranked table from disk. *
+     * ------------------------------------------------------------------ */
+    if (fb_judge_is_initialized()) {
+        char p_dir[512] = {0};
+        fb_judge_get_profile_dir(p_dir, sizeof(p_dir));
+
+        uint32_t bids[32];
+        uint32_t nb = 0;
+        fb_judge_get_registered_ids(bids, 32, &nb);
+
+        bool all_current = (nb > 0 && p_dir[0] != '\0');
+        for (uint32_t i = 0; i < nb && all_current; i++) {
+            if (!fb_judge_profiles_are_current(bids[i], 0u))
+                all_current = false;
+        }
+
+        if (all_current) {
+            /* Try loading the pre-built ranked table. */
+            char table_path[600];
+            snprintf(table_path, sizeof(table_path),
+                     "%s/ranked_table.fbrdt", p_dir);
+            fb_ranked_table_t *tbl = fb_ranked_table_load(table_path);
+            if (tbl) {
+                fb_ranked_table_t *old = g_ranked_table;
+                g_ranked_table = tbl;
+                if (old) fb_ranked_table_free(old);
+
+                if (result_out) {
+                    result_out->change_reason          = FB_CHANGE_NONE;
+                    result_out->benchmarking_performed = false;
+                }
+                g_auto_benchmark_state.status   = FB_AUTO_BENCH_IDLE;
+                g_auto_benchmark_state.progress = 1.0f;
+                return 0;  /* Fast path: cache valid */
+            }
+            /* Table file absent or version mismatch — fall through to rebuild. */
         }
     } else {
-        // Step 3: Simple logic - if cache exists, use it
-        if (!cache_loaded) {
+        /* Judge not initialised — check legacy cache file as a fallback. */
+        char cache_path[1024] = {0};
+        fb_get_default_cache_path(cache_path, sizeof(cache_path));
+        FILE *f = fopen(cache_path, "rb");
+        int cache_loaded = (f != NULL);
+        if (f) fclose(f);
+
+        fb_hardware_fingerprint_t fp = {0};
+        if (cache_loaded && fb_generate_hardware_fingerprint(&fp) == 0) {
             if (result_out) {
-                result_out->change_reason = FB_CHANGE_FIRST_RUN;
-            }
-        } else {
-            // Cache exists - assume valid for now
-            // (Full implementation would compare fingerprints)
-            if (result_out) {
-                result_out->change_reason = FB_CHANGE_NONE;
+                result_out->change_reason          = FB_CHANGE_NONE;
                 result_out->benchmarking_performed = false;
             }
-            
-            // Update status
-            g_auto_benchmark_state.status = FB_AUTO_BENCH_IDLE;
+            g_auto_benchmark_state.status   = FB_AUTO_BENCH_IDLE;
             g_auto_benchmark_state.progress = 1.0f;
-            
-            return 0;  // Fast path: cache valid
+            return 0;  /* Legacy fast path */
         }
     }
-    
-    // Step 4: Need to re-benchmark
+
+    /* Need to (re-)benchmark. */
     if (result_out) {
+        result_out->change_reason          = FB_CHANGE_FIRST_RUN;
         result_out->benchmarking_performed = true;
     }
-    
-    // Start background benchmarking thread if not already running
+
+    /* Start background benchmarking thread if not already running. */
     if (!g_auto_benchmark_state.thread_active) {
         g_auto_benchmark_state.config = *config;
         g_auto_benchmark_state.thread_active = 1;
@@ -386,64 +396,51 @@ int fb_auto_benchmark_check(const fb_auto_benchmark_config_t *config,
 /**
  * Wait for background benchmarking to complete (blocking)
  * 
- * Useful if caller needs benchmarks before proceeding.
- * Returns immediately if benchmarking not running.
+ * Blocks until benchmarking finishes.
  *
- * @param timeout_ms Maximum time to wait in milliseconds, -1 for infinite
- * @return 0 if complete, 1 if still running after timeout, <0 on error
+ * @param result_out Output: Benchmark result (can be NULL)
+ * @return 0 on success, negative on error
  */
-int fb_auto_benchmark_wait(int timeout_ms) {
+int fb_auto_benchmark_wait(fb_auto_benchmark_result_t* result_out) {
     if (!g_auto_benchmark_state.thread_active) {
         return 0;  // Not running
     }
     
     #ifdef _WIN32
-        DWORD timeout = (timeout_ms < 0) ? INFINITE : (DWORD)timeout_ms;
-        DWORD result = WaitForSingleObject(g_auto_benchmark_state.benchmark_thread, 
-                                          timeout);
-        if (result == WAIT_OBJECT_0) {
+        DWORD wait_result = WaitForSingleObject(g_auto_benchmark_state.benchmark_thread,
+                                                INFINITE);
+        if (wait_result == WAIT_OBJECT_0) {
             g_auto_benchmark_state.thread_active = 0;
             CloseHandle(g_auto_benchmark_state.benchmark_thread);
-            return 0;  // Complete
-        } else if (result == WAIT_TIMEOUT) {
-            return 1;  // Still running
+            return 0;
         } else {
-            return -1;  // Error
+            return -1;
         }
     #else
-        if (timeout_ms < 0) {
-            pthread_join(g_auto_benchmark_state.benchmark_thread, NULL);
-            g_auto_benchmark_state.thread_active = 0;
-            return 0;  // Complete
-        } else {
-            // TODO: pthread_timedjoin_np on Linux, or manual timeout with poll
-            // For now: just do blocking join (ignores timeout on non-Windows)
-            pthread_join(g_auto_benchmark_state.benchmark_thread, NULL);
-            g_auto_benchmark_state.thread_active = 0;
-            return 0;
-        }
+        pthread_join(g_auto_benchmark_state.benchmark_thread, NULL);
+        g_auto_benchmark_state.thread_active = 0;
+        return 0;
     #endif
+    (void)result_out; /* result_out population not yet implemented */
+    return 0;
 }
 
 /**
- * Get current benchmarking status and progress
+ * Get current auto-benchmark status
  *
- * @param status Output: current status
- * @param progress Output: progress 0.0-1.0 (can be NULL)
- * @return 0 if idle/complete, 1 if benchmarking in progress
+ * @return Current status
  */
-int fb_auto_benchmark_get_status(fb_auto_benchmark_status_t *status,
-                                  float *progress) {
-    if (!status) {
-        return -1;
-    }
-    
-    *status = g_auto_benchmark_state.status;
-    if (progress) {
-        *progress = g_auto_benchmark_state.progress;
-    }
-    
-    return g_auto_benchmark_state.thread_active ? 1 : 0;
+fb_auto_benchmark_status_t fb_auto_benchmark_get_status(void) {
+    return g_auto_benchmark_state.status;
+}
+
+/**
+ * Get auto-benchmark progress
+ *
+ * @return Progress (0.0-1.0)
+ */
+float fb_auto_benchmark_get_progress(void) {
+    return g_auto_benchmark_state.progress;
 }
 
 /**
@@ -469,4 +466,23 @@ int fb_auto_benchmark_cancel(void) {
     g_auto_benchmark_state.progress = 0.0f;
     
     return 0;
+}
+
+/**
+ * Get the ranked dispatch table built by the most recent background benchmark.
+ *
+ * Returns NULL if no benchmarking has completed yet (or if the benchmark thread
+ * has not been started).  The returned pointer remains valid until the next
+ * call to fb_auto_benchmark_check() that triggers a new benchmark pass.
+ *
+ * Typical use:
+ *   const fb_ranked_table_t *tbl = fb_auto_benchmark_get_ranked_table();
+ *   if (tbl)
+ *       uint32_t bid = fb_ranked_get_best(tbl, FB_OP_SGEMM, FB_RANK_FASTEST);
+ *
+ * @return Ranked dispatch table, or NULL if not yet available.
+ */
+const fb_ranked_table_t *fb_auto_benchmark_get_ranked_table(void)
+{
+    return g_ranked_table;
 }

@@ -87,6 +87,52 @@ void fb_judge_register_oracle(const fb_backend_vtable_t *vtable)
     fb_judge_g.oracle_vtable = vtable;
 }
 
+/* =========================================================================
+ * Query helpers — exposed via judge.h for auto_benchmark.c and alike
+ * ========================================================================= */
+
+/**
+ * Fill @p ids_out with the IDs of all registered candidate backends.
+ * At most @p max entries are written; *count_out receives the actual count.
+ */
+void fb_judge_get_registered_ids(uint32_t *ids_out, uint32_t max,
+                                  uint32_t *count_out)
+{
+    if (!ids_out || !count_out) return;
+    uint32_t n = fb_judge_g.backend_count < max ? fb_judge_g.backend_count : max;
+    for (uint32_t i = 0; i < n; i++)
+        ids_out[i] = fb_judge_g.backends[i].id;
+    *count_out = n;
+}
+
+/** Copy the configured profile-directory path into @p buf. */
+void fb_judge_get_profile_dir(char *buf, size_t capacity)
+{
+    if (!buf || capacity == 0) return;
+    strncpy(buf, fb_judge_g.profile_dir, capacity - 1);
+    buf[capacity - 1] = '\0';
+}
+
+/** Return true when fb_judge_init() has been called and not yet shut down. */
+bool fb_judge_is_initialized(void)
+{
+    return fb_judge_g.initialized;
+}
+
+/**
+ * Persist @p profile to the configured profile directory.
+ * Thin public wrapper around fb_judge_store_save() so callers outside the
+ * judge module do not need to include private judge_store.h.
+ */
+fb_judge_status_t fb_judge_save_profile(const fb_precision_profile_t *profile)
+{
+    if (!fb_judge_g.initialized)
+        return FB_JUDGE_ERR_NOT_INITIALIZED;
+    if (!profile)
+        return FB_JUDGE_ERR_INVALID_OP;
+    return fb_judge_store_save(fb_judge_g.profile_dir, profile);
+}
+
 /** Look up a candidate vtable by id. Returns NULL if not found. */
 static const fb_backend_vtable_t *find_candidate(uint32_t backend_id)
 {

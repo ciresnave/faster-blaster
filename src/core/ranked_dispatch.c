@@ -402,6 +402,53 @@ uint32_t fb_ranked_get_with_floor(
     return table->fallback_backend_id;
 }
 
+uint32_t fb_ranked_select_with_criteria(
+    const fb_ranked_table_t    *table,
+    uint32_t                    op_id,
+    const fb_select_criteria_t *criteria)
+{
+    if (!table || !criteria)
+        return table ? table->fallback_backend_id : UINT32_MAX;
+
+    switch (criteria->objective) {
+
+    case FB_SELECT_MAXIMIZE_PRECISION:
+        return fb_ranked_get_best(table, op_id, FB_RANK_MOST_ACCURATE);
+
+    case FB_SELECT_MAXIMIZE_SPEED:
+        return fb_ranked_get_best(table, op_id, FB_RANK_FASTEST);
+
+    case FB_SELECT_PRECISION_FLOOR_THEN_SPEED:
+        /* Fastest backend whose digit score meets the floor. */
+        return fb_ranked_get_with_floor(table, op_id,
+                                        FB_RANK_FASTEST,
+                                        criteria->min_digits);
+
+    case FB_SELECT_SPEED_FLOOR_THEN_PRECISION: {
+        /* Most accurate backend whose p50 latency is within the ceiling. */
+        uint32_t count = fb_ranked_entry_count(table, op_id,
+                                               FB_RANK_MOST_ACCURATE);
+        for (uint32_t r = 0; r < count; r++) {
+            const fb_ranked_entry_t *e =
+                fb_ranked_get_entry(table, op_id, FB_RANK_MOST_ACCURATE, r);
+            if (!e || !e->is_valid) break;
+            if (is_backend_unavailable(table, e->backend_id)) continue;
+            if (criteria->max_latency_ns == 0u ||
+                e->latency_p50_ns <= criteria->max_latency_ns)
+                return e->backend_id;
+        }
+        /* Nothing met the ceiling. */
+        if (criteria->allow_degraded)
+            return fb_ranked_get_best(table, op_id, FB_RANK_MOST_ACCURATE);
+        return table->fallback_backend_id;
+    }
+
+    case FB_SELECT_WEIGHTED:
+    default:
+        return fb_ranked_get_best(table, op_id, FB_RANK_BALANCED);
+    }
+}
+
 const fb_ranked_entry_t *fb_ranked_get_entry(
     const fb_ranked_table_t *table,
     uint32_t                 op_id,

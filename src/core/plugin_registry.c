@@ -201,4 +201,7 @@ void fb_init_plugins(void) {
   /* Reference backend: correctness oracle and last-resort fallback.
    * Always available (statically linked); deliberately lowest score. */
   fb_register_reference_plugin();
+  /* Dynamic DLL reference backend — preferred over static when the DLL is
+   * present (score 10 > 5). Silently skipped when DLL not found. */
+  fb_register_blas_lapack_reference_plugin();
 }

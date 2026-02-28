@@ -54,6 +54,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "judge.h"          /* FB_JUDGE_MAX_OPERATIONS, fb_dtype_t */
+#include "judge_select.h"   /* fb_select_criteria_t, fb_select_objective_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -260,6 +261,34 @@ uint32_t fb_ranked_get_with_floor(
     uint32_t                 op_id,
     fb_rank_criterion_t      criterion,
     uint8_t                  min_digits
+);
+
+/**
+ * Select the best available backend for @p op_id according to a full
+ * fb_select_criteria_t specification.
+ *
+ * Maps the criteria's objective to the most appropriate ranked-list axis
+ * and applies any hard constraint (min_digits or max_latency_ns):
+ *
+ *   MAXIMIZE_PRECISION         → fb_ranked_get_best(MOST_ACCURATE)
+ *   MAXIMIZE_SPEED             → fb_ranked_get_best(FASTEST)
+ *   PRECISION_FLOOR_THEN_SPEED → fb_ranked_get_with_floor(FASTEST, min_digits)
+ *   SPEED_FLOOR_THEN_PRECISION → walk MOST_ACCURATE list, skip over-latency entries
+ *   WEIGHTED / default         → fb_ranked_get_best(BALANCED)
+ *
+ * When allow_degraded is false and SPEED_FLOOR_THEN_PRECISION finds no
+ * backend within the latency ceiling, the table's fallback is returned.
+ * When allow_degraded is true, the precision-best available entry is used.
+ *
+ * @param table     Built or loaded ranked table (may not be NULL).
+ * @param op_id     Operation ID (FB_OP_* from judge_op_ids.h).
+ * @param criteria  Selection policy — must not be NULL.
+ * @return Backend ID to use, or fallback_backend_id when nothing qualifies.
+ */
+uint32_t fb_ranked_select_with_criteria(
+    const fb_ranked_table_t    *table,
+    uint32_t                    op_id,
+    const fb_select_criteria_t *criteria
 );
 
 /**
