@@ -10,39 +10,61 @@ option(BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with full features
 option(INTERACTIVE_BACKEND_SETUP "Prompt for backend installation decisions" ON)
 
 # Detect CPU vendor
+# Result is cached in CACHE INTERNAL variables so subsequent cmake reconfigures
+# skip the subprocess entirely (avoids 5-30 s WMI query on every cmake ..).
 function(detect_cpu_vendor OUT_VENDOR OUT_MODEL)
+    # Return cached result immediately on second+ cmake run.
+    if(DEFINED FB_CACHED_CPU_VENDOR AND DEFINED FB_CACHED_CPU_MODEL)
+        set(${OUT_VENDOR} "${FB_CACHED_CPU_VENDOR}" PARENT_SCOPE)
+        set(${OUT_MODEL}  "${FB_CACHED_CPU_MODEL}"  PARENT_SCOPE)
+        return()
+    endif()
+
+    set(_cpu_info "")
+    set(_vendor "Unknown")
+
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64|x86")
         if(WIN32)
-            # Use PowerShell for better parsing on Windows
+            # wmic launches in ~200 ms — far faster than powershell + WMI.
+            # TIMEOUT prevents a hung WMI service from blocking cmake forever.
             execute_process(
-                COMMAND powershell -NoProfile -Command "Get-CimInstance -ClassName Win32_Processor | Select-Object -ExpandProperty Name"
-                OUTPUT_VARIABLE CPU_INFO
+                COMMAND wmic cpu get Name /value
+                OUTPUT_VARIABLE _cpu_info
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                 ERROR_QUIET
+                TIMEOUT 10
             )
+            # wmic output format: "Name=Intel(R) Core(TM)..."
+            string(REGEX REPLACE ".*Name=" "" _cpu_info "${_cpu_info}")
         else()
             execute_process(
                 COMMAND sh -c "grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2"
-                OUTPUT_VARIABLE CPU_INFO
+                OUTPUT_VARIABLE _cpu_info
                 OUTPUT_STRIP_TRAILING_WHITESPACE
                 ERROR_QUIET
+                TIMEOUT 5
             )
         endif()
-        
-        string(STRIP "${CPU_INFO}" CPU_INFO)
-        set(${OUT_MODEL} "${CPU_INFO}" PARENT_SCOPE)
-        
-        if(CPU_INFO MATCHES "AMD|Ryzen|Threadripper|EPYC")
-            set(${OUT_VENDOR} "AMD" PARENT_SCOPE)
-        elseif(CPU_INFO MATCHES "Intel|Core|Xeon|Pentium|Celeron")
-            set(${OUT_VENDOR} "Intel" PARENT_SCOPE)
+
+        string(STRIP "${_cpu_info}" _cpu_info)
+
+        if(_cpu_info MATCHES "AMD|Ryzen|Threadripper|EPYC")
+            set(_vendor "AMD")
+        elseif(_cpu_info MATCHES "Intel|Core|Xeon|Pentium|Celeron")
+            set(_vendor "Intel")
         else()
-            set(${OUT_VENDOR} "Unknown" PARENT_SCOPE)
+            set(_vendor "Unknown")
         endif()
     else()
-        set(${OUT_VENDOR} "Unknown" PARENT_SCOPE)
-        set(${OUT_MODEL} "${CMAKE_SYSTEM_PROCESSOR}" PARENT_SCOPE)
+        set(_cpu_info "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
+
+    # Persist to CMake cache — zero cost on all future reconfigures.
+    set(FB_CACHED_CPU_VENDOR "${_vendor}"  CACHE INTERNAL "Detected CPU vendor (AMD/Intel/Unknown)")
+    set(FB_CACHED_CPU_MODEL  "${_cpu_info}" CACHE INTERNAL "Detected CPU model string")
+
+    set(${OUT_VENDOR} "${_vendor}"  PARENT_SCOPE)
+    set(${OUT_MODEL}  "${_cpu_info}" PARENT_SCOPE)
 endfunction()
 
 # Detect available GPUs
@@ -58,12 +80,42 @@ function(detect_gpus OUT_HAS_NVIDIA OUT_HAS_AMD OUT_HAS_OPENCL)
         message(STATUS "  NVIDIA CUDA Toolkit: ${CUDAToolkit_VERSION}")
     endif()
     
-    # Check for AMD ROCm
-    find_package(hip QUIET)
-    if(hip_FOUND)
-        set(${OUT_HAS_AMD} TRUE PARENT_SCOPE)
-        message(STATUS "  AMD ROCm/HIP: Found")
+    # Check for AMD ROCm.
+    # Guard: only call find_package(hip) if a ROCm directory actually exists on
+    # disk. Without this guard, cmake searches the Windows registry for
+    # hipConfig.cmake and — if a stale/partial ROCm install left registry entries —
+    # loads a broken package config that can block cmake for minutes while trying
+    # to run hipcc or enumerate GPU devices.
+    set(_hip_candidate_paths
+        "$ENV{ROCM_PATH}"
+        "$ENV{HIP_PATH}"
+        "C:/Program Files/AMD/ROCm"
+        "/opt/rocm"
+    )
+    set(_hip_present FALSE)
+    foreach(_p IN LISTS _hip_candidate_paths)
+        if(_p STREQUAL "")
+            continue()
+        endif()
+        if(EXISTS "${_p}")
+            set(_hip_present TRUE)
+            break()
+        endif()
+    endforeach()
+    unset(_hip_candidate_paths)
+
+    if(_hip_present)
+        find_package(hip QUIET)
+        if(hip_FOUND)
+            set(${OUT_HAS_AMD} TRUE PARENT_SCOPE)
+            message(STATUS "  AMD ROCm/HIP: Found")
+        else()
+            message(STATUS "  AMD ROCm/HIP: Directory found but hip package not detected")
+        endif()
+    else()
+        message(STATUS "  AMD ROCm/HIP: Not present")
     endif()
+    unset(_hip_present)
     
     # Check for OpenCL (catches all GPUs including AMD integrated)
     find_package(OpenCL QUIET)
