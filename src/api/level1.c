@@ -294,3 +294,278 @@ void fb_drotmg(
         fprintf(stderr, "fb_drotmg: No backend available\n");
     }
 }
+
+/* ==== SWAP: exchange two vectors ==== */
+
+void fb_sswap(const int N, float *X, const int incX, float *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSWAP);
+    if (backend && backend->sswap) {
+        backend->sswap(N, X, incX, Y, incY);
+    } else {
+        fprintf(stderr, "fb_sswap: No backend available\n");
+    }
+}
+
+void fb_dswap(const int N, double *X, const int incX, double *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSWAP);
+    if (backend && backend->dswap) {
+        backend->dswap(N, X, incX, Y, incY);
+    } else {
+        fprintf(stderr, "fb_dswap: No backend available\n");
+    }
+}
+
+/* ==== ASUM: sum of absolute values ==== */
+
+float fb_sasum(const int N, const float *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SASUM);
+    if (backend && backend->sasum) {
+        return backend->sasum(N, X, incX);
+    }
+    fprintf(stderr, "fb_sasum: No backend available\n");
+    return 0.0f;
+}
+
+double fb_dasum(const int N, const double *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DASUM);
+    if (backend && backend->dasum) {
+        return backend->dasum(N, X, incX);
+    }
+    fprintf(stderr, "fb_dasum: No backend available\n");
+    return 0.0;
+}
+
+/* ==== IAMAX: index of maximum absolute value ==== */
+
+size_t fb_isamax(const int N, const float *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ISAMAX);
+    if (backend && backend->isamax) {
+        return (size_t)backend->isamax(N, X, incX);
+    }
+    fprintf(stderr, "fb_isamax: No backend available\n");
+    return 0;
+}
+
+size_t fb_idamax(const int N, const double *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_IDAMAX);
+    if (backend && backend->idamax) {
+        return (size_t)backend->idamax(N, X, incX);
+    }
+    fprintf(stderr, "fb_idamax: No backend available\n");
+    return 0;
+}
+
+/* ==== Complex single-precision (C) Level 1 ==== */
+
+void fb_cswap(const int N, void *X, const int incX, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSWAP);
+    if (backend && backend->cswap) {
+        backend->cswap(N, (fb_complex_float_t *)X, incX,
+                       (fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_cswap: No backend available\n");
+    }
+}
+
+void fb_cscal(const int N, const void *alpha, void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSCAL);
+    if (backend && backend->cscal) {
+        backend->cscal(N, *(const fb_complex_float_t *)alpha,
+                       (fb_complex_float_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_cscal: No backend available\n");
+    }
+}
+
+void fb_ccopy(const int N, const void *X, const int incX, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CCOPY);
+    if (backend && backend->ccopy) {
+        backend->ccopy(N, (const fb_complex_float_t *)X, incX,
+                       (fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_ccopy: No backend available\n");
+    }
+}
+
+void fb_caxpy(const int N, const void *alpha, const void *X, const int incX,
+              void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CAXPY);
+    if (backend && backend->caxpy) {
+        backend->caxpy(N, *(const fb_complex_float_t *)alpha,
+                       (const fb_complex_float_t *)X, incX,
+                       (fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_caxpy: No backend available\n");
+    }
+}
+
+/* cdotu/cdotc: public API places result last; vtable places it first */
+void fb_cdotu(const int N, const void *X, const int incX,
+              const void *Y, const int incY, void *result)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CDOTU);
+    if (backend && backend->cdotu) {
+        backend->cdotu((fb_complex_float_t *)result, N,
+                       (const fb_complex_float_t *)X, incX,
+                       (const fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_cdotu: No backend available\n");
+    }
+}
+
+void fb_cdotc(const int N, const void *X, const int incX,
+              const void *Y, const int incY, void *result)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CDOTC);
+    if (backend && backend->cdotc) {
+        backend->cdotc((fb_complex_float_t *)result, N,
+                       (const fb_complex_float_t *)X, incX,
+                       (const fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_cdotc: No backend available\n");
+    }
+}
+
+float fb_scnrm2(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SCNRM2);
+    if (backend && backend->scnrm2) {
+        return backend->scnrm2(N, (const fb_complex_float_t *)X, incX);
+    }
+    fprintf(stderr, "fb_scnrm2: No backend available\n");
+    return 0.0f;
+}
+
+float fb_scasum(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SCASUM);
+    if (backend && backend->scasum) {
+        return backend->scasum(N, (const fb_complex_float_t *)X, incX);
+    }
+    fprintf(stderr, "fb_scasum: No backend available\n");
+    return 0.0f;
+}
+
+size_t fb_icamax(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ICAMAX);
+    if (backend && backend->icamax) {
+        return (size_t)backend->icamax(N, (const fb_complex_float_t *)X, incX);
+    }
+    fprintf(stderr, "fb_icamax: No backend available\n");
+    return 0;
+}
+
+/* ==== Complex double-precision (Z) Level 1 ==== */
+
+void fb_zswap(const int N, void *X, const int incX, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSWAP);
+    if (backend && backend->zswap) {
+        backend->zswap(N, (fb_complex_double_t *)X, incX,
+                       (fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zswap: No backend available\n");
+    }
+}
+
+void fb_zscal(const int N, const void *alpha, void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSCAL);
+    if (backend && backend->zscal) {
+        backend->zscal(N, *(const fb_complex_double_t *)alpha,
+                       (fb_complex_double_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_zscal: No backend available\n");
+    }
+}
+
+void fb_zcopy(const int N, const void *X, const int incX, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZCOPY);
+    if (backend && backend->zcopy) {
+        backend->zcopy(N, (const fb_complex_double_t *)X, incX,
+                       (fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zcopy: No backend available\n");
+    }
+}
+
+void fb_zaxpy(const int N, const void *alpha, const void *X, const int incX,
+              void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZAXPY);
+    if (backend && backend->zaxpy) {
+        backend->zaxpy(N, *(const fb_complex_double_t *)alpha,
+                       (const fb_complex_double_t *)X, incX,
+                       (fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zaxpy: No backend available\n");
+    }
+}
+
+void fb_zdotu(const int N, const void *X, const int incX,
+              const void *Y, const int incY, void *result)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZDOTU);
+    if (backend && backend->zdotu) {
+        backend->zdotu((fb_complex_double_t *)result, N,
+                       (const fb_complex_double_t *)X, incX,
+                       (const fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zdotu: No backend available\n");
+    }
+}
+
+void fb_zdotc(const int N, const void *X, const int incX,
+              const void *Y, const int incY, void *result)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZDOTC);
+    if (backend && backend->zdotc) {
+        backend->zdotc((fb_complex_double_t *)result, N,
+                       (const fb_complex_double_t *)X, incX,
+                       (const fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zdotc: No backend available\n");
+    }
+}
+
+double fb_dznrm2(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DZNRM2);
+    if (backend && backend->dznrm2) {
+        return backend->dznrm2(N, (const fb_complex_double_t *)X, incX);
+    }
+    fprintf(stderr, "fb_dznrm2: No backend available\n");
+    return 0.0;
+}
+
+double fb_dzasum(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DZASUM);
+    if (backend && backend->dzasum) {
+        return backend->dzasum(N, (const fb_complex_double_t *)X, incX);
+    }
+    fprintf(stderr, "fb_dzasum: No backend available\n");
+    return 0.0;
+}
+
+size_t fb_izamax(const int N, const void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_IZAMAX);
+    if (backend && backend->izamax) {
+        return (size_t)backend->izamax(N, (const fb_complex_double_t *)X, incX);
+    }
+    fprintf(stderr, "fb_izamax: No backend available\n");
+    return 0;
+}

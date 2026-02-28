@@ -676,3 +676,227 @@ void fb_dspr2(
         fprintf(stderr, "fb_dspr2: No backend available\n");
     }
 }
+
+/* ==== Complex single-precision (C) Level 2 ==== */
+
+void fb_cgemv(
+    const FB_LAYOUT Layout, const FB_TRANSPOSE TransA,
+    const int M, const int N, const void *alpha,
+    const void *A, const int lda,
+    const void *X, const int incX,
+    const void *beta, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CGEMV);
+    if (backend && backend->cgemv) {
+        backend->cgemv(Layout, TransA, M, N,
+                       *(const fb_complex_float_t *)alpha,
+                       (const fb_complex_float_t *)A, lda,
+                       (const fb_complex_float_t *)X, incX,
+                       *(const fb_complex_float_t *)beta,
+                       (fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_cgemv: No backend available\n");
+    }
+}
+
+void fb_chemv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const int N, const void *alpha,
+    const void *A, const int lda,
+    const void *X, const int incX,
+    const void *beta, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CHEMV);
+    if (backend && backend->chemv) {
+        backend->chemv(Layout, Uplo, N,
+                       *(const fb_complex_float_t *)alpha,
+                       (const fb_complex_float_t *)A, lda,
+                       (const fb_complex_float_t *)X, incX,
+                       *(const fb_complex_float_t *)beta,
+                       (fb_complex_float_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_chemv: No backend available\n");
+    }
+}
+
+void fb_ctrmv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const FB_TRANSPOSE TransA, const FB_DIAG Diag,
+    const int N, const void *A, const int lda,
+    void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CTRMV);
+    if (backend && backend->ctrmv) {
+        backend->ctrmv(Layout, Uplo, TransA, Diag, N,
+                       (const fb_complex_float_t *)A, lda,
+                       (fb_complex_float_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_ctrmv: No backend available\n");
+    }
+}
+
+void fb_ctrsv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const FB_TRANSPOSE TransA, const FB_DIAG Diag,
+    const int N, const void *A, const int lda,
+    void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CTRSV);
+    if (backend && backend->ctrsv) {
+        backend->ctrsv(Layout, Uplo, TransA, Diag, N,
+                       (const fb_complex_float_t *)A, lda,
+                       (fb_complex_float_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_ctrsv: No backend available\n");
+    }
+}
+
+void fb_cgeru(
+    const FB_LAYOUT Layout, const int M, const int N,
+    const void *alpha,
+    const void *X, const int incX,
+    const void *Y, const int incY,
+    void *A, const int lda)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CGERU);
+    if (backend && backend->cgeru) {
+        backend->cgeru(Layout, M, N,
+                       *(const fb_complex_float_t *)alpha,
+                       (const fb_complex_float_t *)X, incX,
+                       (const fb_complex_float_t *)Y, incY,
+                       (fb_complex_float_t *)A, lda);
+    } else {
+        fprintf(stderr, "fb_cgeru: No backend available\n");
+    }
+}
+
+void fb_cgerc(
+    const FB_LAYOUT Layout, const int M, const int N,
+    const void *alpha,
+    const void *X, const int incX,
+    const void *Y, const int incY,
+    void *A, const int lda)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CGERC);
+    if (backend && backend->cgerc) {
+        backend->cgerc(Layout, M, N,
+                       *(const fb_complex_float_t *)alpha,
+                       (const fb_complex_float_t *)X, incX,
+                       (const fb_complex_float_t *)Y, incY,
+                       (fb_complex_float_t *)A, lda);
+    } else {
+        fprintf(stderr, "fb_cgerc: No backend available\n");
+    }
+}
+
+/* ==== Complex double-precision (Z) Level 2 ==== */
+
+void fb_zgemv(
+    const FB_LAYOUT Layout, const FB_TRANSPOSE TransA,
+    const int M, const int N, const void *alpha,
+    const void *A, const int lda,
+    const void *X, const int incX,
+    const void *beta, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZGEMV);
+    if (backend && backend->zgemv) {
+        backend->zgemv(Layout, TransA, M, N,
+                       *(const fb_complex_double_t *)alpha,
+                       (const fb_complex_double_t *)A, lda,
+                       (const fb_complex_double_t *)X, incX,
+                       *(const fb_complex_double_t *)beta,
+                       (fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zgemv: No backend available\n");
+    }
+}
+
+void fb_zhemv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const int N, const void *alpha,
+    const void *A, const int lda,
+    const void *X, const int incX,
+    const void *beta, void *Y, const int incY)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZHEMV);
+    if (backend && backend->zhemv) {
+        backend->zhemv(Layout, Uplo, N,
+                       *(const fb_complex_double_t *)alpha,
+                       (const fb_complex_double_t *)A, lda,
+                       (const fb_complex_double_t *)X, incX,
+                       *(const fb_complex_double_t *)beta,
+                       (fb_complex_double_t *)Y, incY);
+    } else {
+        fprintf(stderr, "fb_zhemv: No backend available\n");
+    }
+}
+
+void fb_ztrmv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const FB_TRANSPOSE TransA, const FB_DIAG Diag,
+    const int N, const void *A, const int lda,
+    void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZTRMV);
+    if (backend && backend->ztrmv) {
+        backend->ztrmv(Layout, Uplo, TransA, Diag, N,
+                       (const fb_complex_double_t *)A, lda,
+                       (fb_complex_double_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_ztrmv: No backend available\n");
+    }
+}
+
+void fb_ztrsv(
+    const FB_LAYOUT Layout, const FB_UPLO Uplo,
+    const FB_TRANSPOSE TransA, const FB_DIAG Diag,
+    const int N, const void *A, const int lda,
+    void *X, const int incX)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZTRSV);
+    if (backend && backend->ztrsv) {
+        backend->ztrsv(Layout, Uplo, TransA, Diag, N,
+                       (const fb_complex_double_t *)A, lda,
+                       (fb_complex_double_t *)X, incX);
+    } else {
+        fprintf(stderr, "fb_ztrsv: No backend available\n");
+    }
+}
+
+void fb_zgeru(
+    const FB_LAYOUT Layout, const int M, const int N,
+    const void *alpha,
+    const void *X, const int incX,
+    const void *Y, const int incY,
+    void *A, const int lda)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZGERU);
+    if (backend && backend->zgeru) {
+        backend->zgeru(Layout, M, N,
+                       *(const fb_complex_double_t *)alpha,
+                       (const fb_complex_double_t *)X, incX,
+                       (const fb_complex_double_t *)Y, incY,
+                       (fb_complex_double_t *)A, lda);
+    } else {
+        fprintf(stderr, "fb_zgeru: No backend available\n");
+    }
+}
+
+void fb_zgerc(
+    const FB_LAYOUT Layout, const int M, const int N,
+    const void *alpha,
+    const void *X, const int incX,
+    const void *Y, const int incY,
+    void *A, const int lda)
+{
+    const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZGERC);
+    if (backend && backend->zgerc) {
+        backend->zgerc(Layout, M, N,
+                       *(const fb_complex_double_t *)alpha,
+                       (const fb_complex_double_t *)X, incX,
+                       (const fb_complex_double_t *)Y, incY,
+                       (fb_complex_double_t *)A, lda);
+    } else {
+        fprintf(stderr, "fb_zgerc: No backend available\n");
+    }
+}
