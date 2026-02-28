@@ -420,6 +420,8 @@ set(CORE_SOURCES
     src/core/timing.c
     # TODO: Re-enable after removing fb_dtype_t dependency
     # src/core/test_data.c
+    # ScaLAPACK / PBLAS dynamic-load dispatch layer
+    src/scalapack/scalapack_dispatch.c
 )
 
 # Benchmark system sources (Phase 3.0)
