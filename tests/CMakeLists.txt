@@ -609,6 +609,28 @@ if(ENABLE_HIPBLAS AND ROCM_AVAILABLE AND HIP_COMPILER_AVAILABLE
 endif()
 
 # ============================================================================
+# Ranked Dispatch Table Tests (Phase 3)
+# ============================================================================
+add_executable(test_ranked_dispatch
+    test_ranked_dispatch.c
+)
+
+target_link_libraries(test_ranked_dispatch faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_ranked_dispatch POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_ranked_dispatch>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME ranked_dispatch_tables COMMAND test_ranked_dispatch)
+
+message(STATUS "Ranked dispatch table tests enabled")
+
+# ============================================================================
 # Test Summary
 # ============================================================================
 message(STATUS "")

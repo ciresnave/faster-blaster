@@ -127,16 +127,25 @@ if(FB_ENABLE_CUDA STREQUAL "AUTO" OR FB_ENABLE_CUDA OR ENABLE_CUBLAS)
         # Check if nvcc compiler is available
         find_program(CUDA_NVCC_EXECUTABLE nvcc HINTS ${CUDAToolkit_BIN_DIR})
         if(CUDA_NVCC_EXECUTABLE)
-            # CUDA language with Visual Studio generator has issues
-            # For now, skip CUDA language enablement on MSVC and compile .cu files as C++
-            if(NOT MSVC)
+            # Allow CUDA language with clang-cl (MSVC-mode Clang); disable only for true MSVC (cl.exe)
+            if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND MSVC)
+                # clang-cl (MSVC-mode Clang): cuBLAS libraries work fine — just don't enable
+                # the CUDA language since nvcc does not support Clang-cl as a host compiler on
+                # Windows.  The cuBLAS plugin .c files are compiled by clang-cl, not nvcc.
+                message(STATUS "✓ CUDA compiler (nvcc) found: ${CUDA_NVCC_EXECUTABLE}")
+                message(STATUS "  Note: CUDA language not enabled with clang-cl (nvcc unsupported host on Windows)")
+                message(STATUS "  cuBLAS plugin links against CUDAToolkit::cublas directly")
+                set(CMAKE_CUDA_STANDARD 20)
+                set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+                message(STATUS "✓ CUDA compiler (nvcc) found and enabled with clang-cl host: ${CUDA_NVCC_EXECUTABLE}")
+            elseif(NOT MSVC)
                 enable_language(CUDA)
-                set(CMAKE_CUDA_STANDARD 17)
+                set(CMAKE_CUDA_STANDARD 20)
                 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
                 message(STATUS "✓ CUDA compiler (nvcc) found and enabled: ${CUDA_NVCC_EXECUTABLE}")
             else()
                 message(STATUS "✓ CUDA compiler (nvcc) found: ${CUDA_NVCC_EXECUTABLE}")
-                message(STATUS "  Note: CUDA language not enabled with MSVC generator (cuBLAS tests disabled)")
+                message(STATUS "  Note: CUDA language not enabled with MSVC cl.exe generator (cuBLAS tests disabled)")
             endif()
         else()
             message(STATUS "⚠ CUDA libraries found but nvcc compiler not available")
@@ -385,6 +394,7 @@ set(CORE_SOURCES
     src/core/vtable_wrappers_batched.c
     src/core/vtable_wrappers_strided_to_array.c
     src/core/vtable_wrappers_precision_promotion.c
+    src/core/ranked_dispatch.c
     # Old stubs (replaced with real implementations above)
     # src/core/device_registry_stub.c
     # src/core/compute_manager_stub.c
@@ -507,7 +517,7 @@ set(PLUGIN_SOURCES
     src/plugins/plugin_accelerate.c
     # GPU plugins
     # cuBLAS plugins enabled
-    src/backend_cublas.c
+    src/backends/gpu/cublas_trait_impl.c  # Real trait impl (replaces backend_cublas.c stub)
     src/plugins/plugin_cublas.c
     src/plugins/cublas_vtable_wrappers.c
     src/plugins/cublas_smart_wrappers.c
@@ -538,6 +548,7 @@ set(JUDGE_SOURCES
     src/judge/judge_spectral.c
     src/judge/judge_profile.c
     src/judge/judge_store.c
+    src/judge/judge_select.c
 )
 
 # Add backend source files based on what's enabled
@@ -836,6 +847,13 @@ endif()
 # Tests
 if(BUILD_TESTS)
     enable_testing()
+    # Auto-copy the DLL into the tests output directory so tests always load the fresh build
+    add_custom_command(TARGET faster-blaster POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            ${CMAKE_CURRENT_BINARY_DIR}/tests/$<TARGET_FILE_NAME:faster-blaster>
+        COMMENT "Copying faster-blaster DLL to tests directory"
+    )
     add_subdirectory(tests)
 endif()
 
