@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.15)
 
+# Enforce Ninja generator — the VS project generator produces MSBuild artifacts
+# that are incompatible with our clang-cl/LLD toolchain configuration.
+# Use:  cmake --preset clang   (or clang-release)
+if(NOT CMAKE_GENERATOR STREQUAL "Ninja")
+    message(FATAL_ERROR
+        "This project requires the Ninja generator.\n"
+        "Run:  cmake --preset clang          (Debug)\n"
+        "  or  cmake --preset clang-release  (Release)\n"
+        "Current generator: ${CMAKE_GENERATOR}")
+endif()
+
 # Auto-configure vcpkg toolchain if not already set
 # This allows `cmake -B build` to work without --preset or -DCMAKE_TOOLCHAIN_FILE
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
