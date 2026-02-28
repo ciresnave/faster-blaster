@@ -224,6 +224,9 @@ void fb_register_rocblas_plugin(void);
 void fb_register_onemkl_plugin(void);
 void fb_register_metal_plugin(void);
 
+/* Fallback / correctness oracle */
+void fb_register_reference_plugin(void);
+
 /**
  * Initialize plugin system and register all built-in plugins
  */

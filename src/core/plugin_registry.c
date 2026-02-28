@@ -13,6 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern void fb_register_clblast_plugin(void);
+extern void fb_register_clblas_plugin(void);
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -194,4 +197,8 @@ void fb_init_plugins(void) {
   fb_register_metal_plugin();
   fb_register_clblast_plugin();
   fb_register_clblas_plugin();
+
+  /* Reference backend: correctness oracle and last-resort fallback.
+   * Always available (statically linked); deliberately lowest score. */
+  fb_register_reference_plugin();
 }

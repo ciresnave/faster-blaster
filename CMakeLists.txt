@@ -532,6 +532,8 @@ set(PLUGIN_SOURCES
     src/plugins/plugin_clblast.c
     src/plugins/clblast_vtable_wrappers.c
     src/plugins/plugin_clblas.c
+    # Reference backend: always-available correctness oracle and last-resort fallback
+    src/plugins/plugin_reference.c
 )
 
 # Judge module sources (precision/accuracy profiling for operation routing)
