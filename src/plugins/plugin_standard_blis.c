@@ -15,20 +15,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-/* CBLAS enums */
-typedef enum {
-    CblasRowMajor = 101,
-    CblasColMajor = 102
-} CBLAS_ORDER;
-
-typedef enum {
-    CblasNoTrans = 111,
-    CblasTrans = 112,
-    CblasConjTrans = 113
-} CBLAS_TRANSPOSE;
-
-typedef CBLAS_ORDER CBLAS_LAYOUT;
-
 #ifdef _WIN32
     #include <windows.h>
     #define FB_GET_PROC_ADDRESS(handle, name) GetProcAddress((HMODULE)(handle), name)
@@ -37,47 +23,9 @@ typedef CBLAS_ORDER CBLAS_LAYOUT;
     #define FB_GET_PROC_ADDRESS(handle, name) dlsym(handle, name)
 #endif
 
-/* CBLAS function pointer typedefs (fallback for AOCL BLIS) */
-typedef float (*cblas_sasum_t)(const int n, const float* x, const int incx);
-typedef void (*cblas_saxpy_t)(const int n, const float alpha, const float* x, const int incx, float* y, const int incy);
-typedef float (*cblas_sdot_t)(const int n, const float* x, const int incx, const float* y, const int incy);
-typedef void (*cblas_scopy_t)(const int n, const float* x, const int incx, float* y, const int incy);
-typedef void (*cblas_sscal_t)(const int n, const float alpha, float* x, const int incx);
-typedef float (*cblas_snrm2_t)(const int n, const float* x, const int incx);
-typedef void (*cblas_sswap_t)(const int n, float* x, const int incx, float* y, const int incy);
-typedef int (*cblas_isamax_t)(const int n, const float* x, const int incx);
-
-/* Native BLIS function pointer typedefs */
-typedef void (*bli_saxpyv_t)(int conjalpha, int n, const float* alpha, const float* x, int incx, float* y, int incy);
-typedef void (*bli_sdotv_t)(int conjx, int conjy, int n, const float* x, int incx, const float* y, int incy, float* rho);
-typedef void (*bli_snormfv_t)(int n, const float* x, int incx, float* norm);
-typedef void (*bli_scopyv_t)(int n, const float* x, int incx, float* y, int incy);
-typedef void (*bli_sscalv_t)(int conjalpha, int n, const float* alpha, float* x, int incx);
-typedef void (*bli_sswapv_t)(int n, float* x, int incx, float* y, int incy);
-
 /* Plugin context */
 typedef struct {
     fb_lib_handle_t lib_handle;
-    bool use_cblas; /* true if CBLAS available (AOCL), false for native BLIS */
-    
-    /* CBLAS functions (fallback for AOCL) */
-    cblas_sasum_t cblas_sasum;
-    cblas_saxpy_t cblas_saxpy;
-    cblas_sdot_t cblas_sdot;
-    cblas_scopy_t cblas_scopy;
-    cblas_sscal_t cblas_sscal;
-    cblas_snrm2_t cblas_snrm2;
-    cblas_sswap_t cblas_sswap;
-    cblas_isamax_t cblas_isamax;
-    
-    /* Native BLIS functions */
-    bli_saxpyv_t bli_saxpyv;
-    bli_sdotv_t bli_sdotv;
-    bli_snormfv_t bli_snormfv;
-    bli_scopyv_t bli_scopyv;
-    bli_sscalv_t bli_sscalv;
-    bli_sswapv_t bli_sswapv;
-    
 } blis_plugin_context_t;
 
 static fb_backend_vtable_t g_blis_vtable;
@@ -93,120 +41,8 @@ static const fb_plugin_metadata_t g_blis_metadata = {
                    FB_PLUGIN_CAP_SINGLE_PREC | FB_PLUGIN_CAP_THREADSAFE
 };
 
-/* Wrapper functions */
-static float blis_sdot_wrapper(int n, const float* x, int incx, const float* y, int incy) {
-    if (!g_blis_context) return 0.0f;
-    
-    /* Try CBLAS first (for AOCL compatibility) */
-    if (g_blis_context->use_cblas && g_blis_context->cblas_sdot) {
-        return g_blis_context->cblas_sdot(n, x, incx, y, incy);
-    }
-    
-    /* Fall back to native BLIS */
-    if (g_blis_context->bli_sdotv) {
-        float result;
-        g_blis_context->bli_sdotv(0, 0, n, x, incx, y, incy, &result);
-        return result;
-    }
-    
-    return 0.0f;
-}
-
-static float blis_snrm2_wrapper(int n, const float* x, int incx) {
-    
-    if (!g_blis_context) return 0.0f;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_snrm2) {
-        return g_blis_context->cblas_snrm2(n, x, incx);
-    }
-    
-    if (g_blis_context->bli_snormfv) {
-        float result;
-        g_blis_context->bli_snormfv(n, x, incx, &result);
-        return result;
-    }
-    
-    return 0.0f;
-}
-
-static float blis_sasum_wrapper(int n, const float* x, int incx) {
-    
-    if (!g_blis_context) return 0.0f;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_sasum) {
-        return g_blis_context->cblas_sasum(n, x, incx);
-    }
-    
-    /* BLIS doesn't have asum in native API - would need to implement */
-    return 0.0f;
-}
-
-static int blis_isamax_wrapper(int n, const float* x, int incx) {
-    
-    if (!g_blis_context) return 0;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_isamax) {
-        return g_blis_context->cblas_isamax(n, x, incx);
-    }
-    
-    return 0;
-}
-
-static void blis_saxpy_wrapper(int n, float alpha, const float* x, int incx, float* y, int incy) {
-    
-    if (!g_blis_context) return;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_saxpy) {
-        g_blis_context->cblas_saxpy(n, alpha, x, incx, y, incy);
-        return;
-    }
-    
-    if (g_blis_context->bli_saxpyv) {
-        g_blis_context->bli_saxpyv(0, n, &alpha, x, incx, y, incy);
-    }
-}
-
-static void blis_scopy_wrapper(int n, const float* x, int incx, float* y, int incy) {
-    
-    if (!g_blis_context) return;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_scopy) {
-        g_blis_context->cblas_scopy(n, x, incx, y, incy);
-        return;
-    }
-    
-    if (g_blis_context->bli_scopyv) {
-        g_blis_context->bli_scopyv(n, x, incx, y, incy);
-    }
-}
-
-static void blis_sscal_wrapper(int n, float alpha, float* x, int incx) {
-    
-    if (!g_blis_context) return;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_sscal) {
-        g_blis_context->cblas_sscal(n, alpha, x, incx);
-        return;
-    }
-    
-    if (g_blis_context->bli_sscalv) {
-        g_blis_context->bli_sscalv(0, n, &alpha, x, incx);
-    }
-}
-
-static void blis_sswap_wrapper(int n, float* x, int incx, float* y, int incy) {
-    
-    if (!g_blis_context) return;
-    
-    if (g_blis_context->use_cblas && g_blis_context->cblas_sswap) {
-        g_blis_context->cblas_sswap(n, x, incx, y, incy);
-        return;
-    }
-    
-    if (g_blis_context->bli_sswapv) {
-        g_blis_context->bli_sswapv(n, x, incx, y, incy);
-    }
-}
+/* BLAS operations are dispatched directly via ext_ops[op][conv] populated by
+ * fb_enumerate_and_populate() — no per-operation wrapper functions needed. */
 
 /* Backend capability functions */
 static uint32_t fb_blis_get_capabilities_wrapper(void* handle) {
@@ -338,48 +174,17 @@ static int blis_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     
     ctx->lib_handle = lib_handle;
 
-    /* Auto-populate ext_ops[op][conv] for all exported symbols. */
+    /* Enumerate all exported BLAS/LAPACK symbols and fill ext_ops[op][conv]. */
     fb_enumerate_and_populate(&g_blis_vtable, lib_handle);
-    /* TODO(cleanup): Manual GetProcAddress block below superseded. */
+    fb_vtable_sync_ext_ops(&g_blis_vtable);
 
-    /* Try loading CBLAS functions first */
-    ctx->cblas_sasum = (cblas_sasum_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sasum");
-    ctx->cblas_saxpy = (cblas_saxpy_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_saxpy");
-    ctx->cblas_sdot = (cblas_sdot_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sdot");
-    ctx->cblas_scopy = (cblas_scopy_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_scopy");
-    ctx->cblas_sscal = (cblas_sscal_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sscal");
-    ctx->cblas_snrm2 = (cblas_snrm2_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_snrm2");
-    ctx->cblas_sswap = (cblas_sswap_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sswap");
-    ctx->cblas_isamax = (cblas_isamax_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_isamax");
-    
-    ctx->use_cblas = (ctx->cblas_sdot != NULL);
-    
-    /* Load native BLIS functions as fallback */
-    ctx->bli_saxpyv = (bli_saxpyv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_saxpyv");
-    ctx->bli_sdotv = (bli_sdotv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_sdotv");
-    ctx->bli_snormfv = (bli_snormfv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_snormfv");
-    ctx->bli_scopyv = (bli_scopyv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_scopyv");
-    ctx->bli_sscalv = (bli_sscalv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_sscalv");
-    ctx->bli_sswapv = (bli_sswapv_t)FB_GET_PROC_ADDRESS(lib_handle, "bli_sswapv");
-    
-    /* Need at least one working interface */
-    if (!ctx->cblas_sdot && !ctx->bli_sdotv) {
+    /* Require sdot to be present as basic sanity check. */
+    if (g_blis_vtable.sdot == NULL) {
         free(ctx);
         return -3;
     }
-    
-    /* Populate vtable */
-    fb_vtable_sync_ext_ops(&g_blis_vtable);
     g_blis_context = ctx;
-    g_blis_vtable.saxpy = blis_saxpy_wrapper;
-    g_blis_vtable.sdot = blis_sdot_wrapper;
-    g_blis_vtable.snrm2 = blis_snrm2_wrapper;
-    g_blis_vtable.sasum = blis_sasum_wrapper;
-    g_blis_vtable.isamax = blis_isamax_wrapper;
-    g_blis_vtable.scopy = blis_scopy_wrapper;
-    g_blis_vtable.sscal = blis_sscal_wrapper;
-    g_blis_vtable.sswap = blis_sswap_wrapper;
-    
+
     /* CPU backend properties */
     g_blis_vtable.mem_alloc = NULL;
     g_blis_vtable.mem_free = NULL;
