@@ -16,6 +16,14 @@ option(FB_BUILD_BLIS_FROM_SOURCE "Build BLIS from source" ON)
 # OpenBLAS: Now builds successfully on Windows using clang-cl (C99/VLA support + MSVC ABI)
 option(FB_BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with clang-cl" ON)
 option(FB_BUILD_CLBLAST_FROM_SOURCE "Build CLBlast from source" ON)
+# OxiBLAS: Pure-Rust BLAS/LAPACK — requires Rust 1.85+ and `cargo` on PATH.
+# Disabled by default so users without a Rust toolchain are unaffected.
+# Enable with -DFB_BUILD_OXIBLAS_FROM_SOURCE=ON; set OXIBLAS_CARGO_SOURCE_DIR
+# to the checked-out oxiblas repository root, or let CMake clone it.
+option(FB_BUILD_OXIBLAS_FROM_SOURCE
+    "Build OxiBLAS FFI from source (cargo build -p oxiblas-ffi, requires Rust 1.85+)" OFF)
+set(OXIBLAS_CARGO_SOURCE_DIR "" CACHE PATH
+    "Path to oxiblas repository root (leave empty to auto-clone from GitHub)")
 
 # Installation prefix for built libraries
 set(FB_BACKENDS_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/backends-install" CACHE PATH 
@@ -251,34 +259,60 @@ function(build_blis_from_source CPU_ARCH)
     
     # Platform-specific configuration
     if(WIN32)
-        # Convert Windows paths to WSL paths
+        # Windows: Windows git clones with CRLF line endings, making the BLIS bash
+        # configure shebang "bash\r" which WSL cannot execute (exit 127).
+        # Solution: delegate the git clone itself to WSL's git so the repo arrives
+        # with LF endings, then configure/build/install through WSL as normal.
+        execute_process(
+            COMMAND wsl echo "wsl_ok"
+            RESULT_VARIABLE WSL_RESULT
+            OUTPUT_VARIABLE WSL_OUTPUT
+            ERROR_QUIET
+            TIMEOUT 10
+        )
+        string(STRIP "${WSL_OUTPUT}" WSL_OUTPUT)
+        if(NOT WSL_RESULT EQUAL 0 OR NOT WSL_OUTPUT STREQUAL "wsl_ok")
+            message(STATUS "WSL not functional -- skipping BLIS from-source build. Using system-installed AOCL-BLIS instead.")
+            return()
+        endif()
+
         win_path_to_wsl_path("${BLIS_SOURCE_DIR}" BLIS_SOURCE_WSL)
         win_path_to_wsl_path("${BLIS_INSTALL_DIR}" BLIS_INSTALL_WSL)
-        
-        # Use WSL for building BLIS on Windows (configure is bash script)
-        set(CONFIGURE_COMMAND wsl bash -c "cd '${BLIS_SOURCE_WSL}' && ./configure --prefix='${BLIS_INSTALL_WSL}' --enable-cblas --enable-threading=openmp --enable-shared --enable-static ${CPU_ARCH}")
-        set(BUILD_COMMAND wsl bash -c "cd '${BLIS_SOURCE_WSL}' && make -j${NUM_CORES}")
-        set(INSTALL_COMMAND wsl bash -c "cd '${BLIS_SOURCE_WSL}' && make install")
+
+        # Clone via WSL git (LF endings) — skip if already cloned (idempotent)
+        set(BLIS_DOWNLOAD_CMD
+            wsl bash -c
+            "[ -d '${BLIS_SOURCE_WSL}/.git' ] || git clone --depth=1 https://github.com/amd/blis.git '${BLIS_SOURCE_WSL}'"
+        )
+
+        ExternalProject_Add(blis-backend
+            DOWNLOAD_COMMAND  ${BLIS_DOWNLOAD_CMD}
+            SOURCE_DIR        ${BLIS_SOURCE_DIR}
+            CONFIGURE_COMMAND wsl bash -c "cd '${BLIS_SOURCE_WSL}' && ./configure --prefix='${BLIS_INSTALL_WSL}' --enable-cblas --enable-threading=openmp --enable-shared --enable-static ${CPU_ARCH}"
+            BUILD_COMMAND     wsl bash -c "cd '${BLIS_SOURCE_WSL}' && make -j${NUM_CORES}"
+            INSTALL_COMMAND   wsl bash -c "cd '${BLIS_SOURCE_WSL}' && make install"
+            BUILD_IN_SOURCE   TRUE
+            LOG_DOWNLOAD      TRUE
+            LOG_CONFIGURE     TRUE
+            LOG_BUILD         TRUE
+            LOG_INSTALL       TRUE
+        )
     else()
-        set(CONFIGURE_COMMAND ./configure --prefix=${BLIS_INSTALL_DIR} --enable-cblas --enable-threading=openmp --enable-shared --enable-static ${CPU_ARCH})
-        set(BUILD_COMMAND make -j${NUM_CORES})
-        set(INSTALL_COMMAND make install)
+        ExternalProject_Add(blis-backend
+            GIT_REPOSITORY https://github.com/amd/blis.git
+            GIT_TAG        master
+            GIT_SHALLOW    TRUE
+            SOURCE_DIR        ${BLIS_SOURCE_DIR}
+            CONFIGURE_COMMAND ./configure --prefix=${BLIS_INSTALL_DIR} --enable-cblas --enable-threading=openmp --enable-shared --enable-static ${CPU_ARCH}
+            BUILD_COMMAND     make -j${NUM_CORES}
+            INSTALL_COMMAND   make install
+            BUILD_IN_SOURCE   TRUE
+            LOG_DOWNLOAD      TRUE
+            LOG_CONFIGURE     TRUE
+            LOG_BUILD         TRUE
+            LOG_INSTALL       TRUE
+        )
     endif()
-    
-    ExternalProject_Add(blis-backend
-        GIT_REPOSITORY https://github.com/amd/blis.git
-        GIT_TAG master
-        GIT_SHALLOW TRUE
-        SOURCE_DIR ${BLIS_SOURCE_DIR}
-        CONFIGURE_COMMAND ${CONFIGURE_COMMAND}
-        BUILD_COMMAND ${BUILD_COMMAND}
-        INSTALL_COMMAND ${INSTALL_COMMAND}
-        BUILD_IN_SOURCE TRUE
-        LOG_DOWNLOAD TRUE
-        LOG_CONFIGURE TRUE
-        LOG_BUILD TRUE
-        LOG_INSTALL TRUE
-    )
     
     # Export variables for main project
     set(BLIS_FOUND TRUE PARENT_SCOPE)
@@ -408,8 +442,13 @@ function(build_clblast_from_source HAS_OPENCL)
             -DCMAKE_INSTALL_PREFIX=${CLBLAST_INSTALL_DIR}
             -DCMAKE_BUILD_TYPE=Release
             -DBUILD_SHARED_LIBS=ON
-            -DTUNERS=OFF  # Disable auto-tuning for faster build
+            -DTUNERS=OFF
+            -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+            -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+            -DCMAKE_CXX_STANDARD=17
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON
         BUILD_COMMAND ${CMAKE_COMMAND} --build . --config Release -j${NUM_CORES}
+        INSTALL_COMMAND ${CMAKE_COMMAND} --install . --config Release --prefix ${CLBLAST_INSTALL_DIR}
         LOG_DOWNLOAD TRUE
         LOG_CONFIGURE TRUE
         LOG_BUILD TRUE
@@ -427,6 +466,79 @@ endfunction()
 #==============================================================================
 # MAIN CONFIGURATION
 #==============================================================================
+
+#==============================================================================
+# OXIBLAS FROM SOURCE (cargo build)
+#==============================================================================
+
+function(build_oxiblas_from_source)
+    if(NOT FB_BUILD_OXIBLAS_FROM_SOURCE)
+        return()
+    endif()
+
+    # Locate cargo
+    find_program(CARGO_EXECUTABLE cargo)
+    if(NOT CARGO_EXECUTABLE)
+        message(WARNING "OxiBLAS from-source build requested but 'cargo' not found. "
+                        "Install Rust 1.85+ from https://rustup.rs/ and try again.")
+        return()
+    endif()
+
+    # Determine source directory
+    if(OXIBLAS_CARGO_SOURCE_DIR AND EXISTS "${OXIBLAS_CARGO_SOURCE_DIR}/Cargo.toml")
+        set(OXIBLAS_SRC "${OXIBLAS_CARGO_SOURCE_DIR}")
+    else()
+        # Clone from GitHub if not provided
+        set(OXIBLAS_SRC "${CMAKE_BINARY_DIR}/oxiblas-src")
+        if(NOT EXISTS "${OXIBLAS_SRC}/Cargo.toml")
+            message(STATUS "Cloning OxiBLAS repository...")
+            execute_process(
+                COMMAND git clone --depth 1
+                    https://github.com/cool-japan/oxiblas.git
+                    "${OXIBLAS_SRC}"
+                RESULT_VARIABLE _clone_result
+            )
+            if(NOT _clone_result EQUAL 0)
+                message(WARNING "Failed to clone OxiBLAS repository. "
+                                "Set OXIBLAS_CARGO_SOURCE_DIR to an existing checkout.")
+                return()
+            endif()
+        endif()
+    endif()
+
+    set(OXIBLAS_INSTALL_DIR "${FB_BACKENDS_INSTALL_PREFIX}/oxiblas")
+    set(OXIBLAS_TARGET_DIR  "${CMAKE_BINARY_DIR}/oxiblas-cargo-target")
+
+    message(STATUS "Building OxiBLAS FFI from source:")
+    message(STATUS "  Source : ${OXIBLAS_SRC}")
+    message(STATUS "  Output : ${OXIBLAS_INSTALL_DIR}/lib")
+    message(STATUS "  cargo  : ${CARGO_EXECUTABLE}")
+
+    # Run cargo build
+    execute_process(
+        COMMAND ${CARGO_EXECUTABLE} build --release -p oxiblas-ffi
+            --target-dir "${OXIBLAS_TARGET_DIR}"
+        WORKING_DIRECTORY "${OXIBLAS_SRC}"
+        RESULT_VARIABLE _cargo_result
+    )
+    if(NOT _cargo_result EQUAL 0)
+        message(WARNING "cargo build --release -p oxiblas-ffi failed "
+                        "(exit ${_cargo_result}). OxiBLAS will not be available.")
+        return()
+    endif()
+
+    # Install the built artifacts
+    file(MAKE_DIRECTORY "${OXIBLAS_INSTALL_DIR}/lib")
+    foreach(_lib
+            "${OXIBLAS_TARGET_DIR}/release/${CMAKE_SHARED_LIBRARY_PREFIX}oxiblas_ffi${CMAKE_SHARED_LIBRARY_SUFFIX}"
+            "${OXIBLAS_TARGET_DIR}/release/${CMAKE_STATIC_LIBRARY_PREFIX}oxiblas_ffi${CMAKE_STATIC_LIBRARY_SUFFIX}")
+        if(EXISTS "${_lib}")
+            file(COPY "${_lib}" DESTINATION "${OXIBLAS_INSTALL_DIR}/lib")
+        endif()
+    endforeach()
+
+    message(STATUS "✓ OxiBLAS FFI installed to ${OXIBLAS_INSTALL_DIR}/lib")
+endfunction()
 
 if(FB_BUILD_BACKENDS_FROM_SOURCE)
     # Disable BackendInstaller's conflicting OpenBLAS build
@@ -468,6 +580,7 @@ if(FB_BUILD_BACKENDS_FROM_SOURCE)
     build_blis_from_source(${CPU_ARCH})
     build_openblas_from_source(${CPU_VENDOR} ${CPU_CONFIG})
     build_clblast_from_source(${HAS_OPENCL})
+    build_oxiblas_from_source()
     
     message(STATUS "")
     message(STATUS "All backends will be installed to: ${FB_BACKENDS_INSTALL_PREFIX}")

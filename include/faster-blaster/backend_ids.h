@@ -100,6 +100,6 @@
 /* =========================================================================
  * Next available ID (update when adding a new backend above)
  * ========================================================================= */
-#define FB_BACKEND_ID__NEXT_FREE    13u
+#define FB_BACKEND_ID__NEXT_FREE    14u
 
 #endif /* FASTER_BLASTER_BACKEND_IDS_H */

@@ -17,6 +17,7 @@
 
 extern void fb_register_clblast_plugin(void);
 extern void fb_register_clblas_plugin(void);
+extern void fb_register_oxiblas_plugin(void);
 
 
 #ifdef _WIN32
@@ -79,6 +80,7 @@ static const fb_backend_id_name_t k_backend_id_names[] = {
     { FB_BACKEND_ID_CLBLAS,       "clblas"                 },
     { FB_BACKEND_ID_REFERENCE,    "reference"              },
     { FB_BACKEND_ID_BLR,          "blas-lapack-reference"  },
+    { FB_BACKEND_ID_OXIBLAS,       "oxiblas"                },
 };
 #define K_BACKEND_ID_NAMES_COUNT \
     (sizeof(k_backend_id_names)/sizeof(k_backend_id_names[0]))

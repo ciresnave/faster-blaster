@@ -62,6 +62,7 @@ option(ENABLE_ONEMKL "Enable Intel oneMKL GPU backend" OFF)
 option(ENABLE_ACCELERATE "Enable Apple Accelerate backend" ON)
 option(ENABLE_BLIS "Enable BLIS backend" ON)
 option(ENABLE_OPENBLAS "Enable OpenBLAS backend" ON)
+option(ENABLE_OXIBLAS "Enable OxiBLAS backend (pure-Rust, requires liboxiblas_ffi)" ON)
 option(ENABLE_AOCL "Enable AMD AOCL backend" ON)
 
 # C23 standard required
@@ -322,6 +323,21 @@ if(ENABLE_OPENBLAS)
     endif()
 endif()
 
+# OxiBLAS Detection (for OxiBLAS plugin — pure-Rust BLAS/LAPACK)
+set(OXIBLAS_CPU_AVAILABLE OFF)
+if(ENABLE_OXIBLAS)
+    find_package(OxiBLAS QUIET)
+    if(OXIBLAS_FOUND)
+        set(OXIBLAS_CPU_AVAILABLE ON)
+        message(STATUS "✓ OxiBLAS ${OXIBLAS_VERSION} detected (EXPERIMENTAL)")
+        message(STATUS "  OxiBLAS plugin will be enabled")
+    else()
+        message(STATUS "✗ OxiBLAS not found - OxiBLAS plugin disabled")
+        message(STATUS "  Build oxiblas-ffi: cargo build --release -p oxiblas-ffi")
+        set(ENABLE_OXIBLAS OFF)
+    endif()
+endif()
+
 # BLIS Detection (for BLIS plugin)
 set(BLIS_CPU_AVAILABLE OFF)
 if(ENABLE_BLIS)
@@ -362,6 +378,7 @@ message(STATUS "")
 message(STATUS "CPU Backend Configuration:")
 message(STATUS "  Intel MKL:      ${MKL_CPU_AVAILABLE}")
 message(STATUS "  OpenBLAS:       ${OPENBLAS_CPU_AVAILABLE}")
+message(STATUS "  OxiBLAS:        ${OXIBLAS_CPU_AVAILABLE} (EXPERIMENTAL)")
 message(STATUS "  BLIS:           ${BLIS_CPU_AVAILABLE}")
 message(STATUS "  AMD AOCL:       ${AOCL_CPU_AVAILABLE}")
 message(STATUS "  Accelerate:     ${ACCELERATE_CPU_AVAILABLE}")
@@ -547,6 +564,7 @@ set(PLUGIN_SOURCES
     src/plugins/plugin_aocl_blis.c
     src/plugins/plugin_standard_blis.c
     src/plugins/plugin_openblas.c
+    src/plugins/plugin_oxiblas.c
     src/plugins/plugin_mkl.c
     src/plugins/plugin_accelerate.c
     # GPU plugins
@@ -838,6 +856,19 @@ if(OPENBLAS_CPU_AVAILABLE)
     target_link_libraries(faster-blaster PRIVATE ${OPENBLAS_LIBRARIES})
     target_compile_definitions(faster-blaster PRIVATE FB_ENABLE_OPENBLAS)
     message(STATUS "Linking OpenBLAS libraries")
+endif()
+
+if(OXIBLAS_CPU_AVAILABLE)
+    # OxiBLAS has no C headers — no include dir needed.
+    # The plugin uses fb_enumerate_and_populate() for dynamic loading;
+    # we also link the static library so that the backend adapter test works.
+    target_link_libraries(faster-blaster PRIVATE ${OXIBLAS_LIBRARIES})
+    target_compile_definitions(faster-blaster PRIVATE FB_ENABLE_OXIBLAS)
+    if(UNIX)
+        # Rust FFI static libs may require the Rust standard library
+        target_link_libraries(faster-blaster PRIVATE dl pthread)
+    endif()
+    message(STATUS "Linking OxiBLAS FFI library")
 endif()
 
 if(BLIS_CPU_AVAILABLE)

@@ -583,6 +583,37 @@ if(ENABLE_OPENBLAS)
 endif()
 
 # ============================================================================
+# OxiBLAS CPU Tests (pure-Rust BLAS/LAPACK)
+# ============================================================================
+if(ENABLE_OXIBLAS)
+    # Minimal backend adapter library (avoids pulling in entire plugin infra)
+    add_library(oxiblas_backend_lib STATIC
+        ${CMAKE_SOURCE_DIR}/src/backends/oxiblas_backend.c
+    )
+
+    target_include_directories(oxiblas_backend_lib PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+    )
+
+    if(OXIBLAS_CPU_AVAILABLE)
+        target_link_libraries(oxiblas_backend_lib PRIVATE ${OXIBLAS_LIBRARIES})
+    endif()
+
+    # OxiBLAS test executable
+    add_executable(test_oxiblas_backend test_oxiblas_backend.c)
+    target_include_directories(test_oxiblas_backend PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(test_oxiblas_backend oxiblas_backend_lib)
+
+    if(UNIX)
+        target_link_libraries(test_oxiblas_backend m dl pthread)
+    endif()
+
+    add_test(NAME OxiBLAS_Backend_Tests COMMAND test_oxiblas_backend)
+    message(STATUS "OxiBLAS CPU tests enabled")
+endif()
+
+# ============================================================================
 # rocBLAS GPU Tests (AMD) - Requires ROCm installed
 # ============================================================================
 # TODO: Re-enable when rocBLAS backend is fixed (currently disabled due to incomplete CUDA->HIP conversion)
