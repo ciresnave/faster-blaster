@@ -665,26 +665,25 @@ faster-blaster-reference fills the gap: **a readable, trustworthy, pure-C refere
 
 ## Code Completeness Requirements
 
-**REQUIREMENT**: Before marking ANY BLAS or LAPACK operation as "complete," BOTH the reference implementation and CBLAS wrapper MUST be implemented, tested, and passing.
+**REQUIREMENT**: Before marking ANY operation (BLAS, LAPACK, statistics, DNN, parallel primitives, tensor ops — the full superset) as "complete," the internal implementation and its CBLAS-convention export MUST both exist, compile, and pass all tests.
 
-> **Architecture note**: faster-blaster-reference exports CBLAS as its primary API. Fortran ABI compatibility (`*_` trailing-underscore symbols) is provided automatically by consolidated per-level wrapper files (`blas_l1_fortran_wrappers.c`, etc.) that delegate to `cblas_*`. Do NOT add per-operation Fortran wrapper bodies to individual source files. faster-blaster's `conv_thunks.c` provides Fortran↔CBLAS conversion at dispatch time, so the reference library does not need to export Fortran symbols at all for correctness in normal use.
+> **Architecture note**: faster-blaster-reference exports **one calling convention**: CBLAS (`cblas_*`). `_ref` functions are internal implementations called by those wrappers — they are not a second exported convention. Fortran ABI compatibility (`*_` trailing-underscore symbols) is provided automatically by consolidated per-level wrapper files (`blas_l1_fortran_wrappers.c`, etc.) that delegate to `cblas_*`. Do NOT add per-operation Fortran wrapper bodies to individual source files. faster-blaster's `conv_thunks.c` provides Fortran↔CBLAS conversion at dispatch time.
 
-### Two Required Variants for Every Operation
+### One Exported Convention Per Operation
 
-For each operation (e.g., `saxpy`, `sgemv`, `csymv`), provide:
+For each operation (e.g., `saxpy`, `sgemv`, `csymv`, `fb_batch_norm`, `fb_reduce_sum`), provide:
 
-1. **Reference Implementation (`*_ref`)**
+1. **Internal Implementation (`*_ref`)**
    - **Signature**: `void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy)`
    - **Location**: Source file (e.g., `src/blas/level1/saxpy.c`)
-   - **Purpose**: Portable, correctness-focused, educational reference
-   - **Calling Convention**: C convention (pass-by-value scalars)
+   - **Purpose**: Portable, correctness-focused implementation body
+   - **Visibility**: May be `static inline` (file-local) or exported — callers use `cblas_*`, not `_ref` directly
 
-2. **CBLAS Wrapper (`cblas_*`)**
+2. **CBLAS-Convention Export (`cblas_*`)**
    - **Signature**: `void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy)`
-   - **Location**: CBLAS wrappers file (e.g., `src/blas/level1/blas_l1_cblas_wrappers.c`)
-   - **Purpose**: C BLAS standard interface — the primary exported API
-   - **Calling Convention**: C convention (pass-by-value scalars, arrays as pointers)
-   - **Header Declaration**: Must be in appropriate `blas_l*_reference.h` file
+   - **Location**: Consolidated wrappers file (e.g., `src/blas/level1/blas_l1_cblas_wrappers.c`)
+   - **Purpose**: The **one** exported public API for this operation
+   - **Header Declaration**: Must be in appropriate `*_reference.h` header file
 
 ### Fortran ABI (Consolidated — Do NOT add per-operation wrappers)
 
