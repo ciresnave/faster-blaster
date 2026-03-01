@@ -672,8 +672,43 @@ target_include_directories(faster-blaster
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends
 )
 
+# ---- faster-blaster-reference: canonical BLAS/LAPACK correctness oracle ----
+# Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE variable
+# conflicts in faster-blaster-reference's CMakeLists.txt pre-project() block.
+set(_FBR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../faster-blaster-reference")
+set(_FBR_LIB "${_FBR_DIR}/build-extended/libblas_lapack_reference.a")
+if(NOT EXISTS "${_FBR_LIB}")
+    message(FATAL_ERROR
+        "faster-blaster-reference library not found at:\n  ${_FBR_LIB}\n"
+        "Build it first:\n"
+        "  cd ../faster-blaster-reference\n"
+        "  cmake -B build-extended -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
+        "  cmake --build build-extended")
+endif()
+add_library(blas_lapack_reference STATIC IMPORTED GLOBAL)
+set_target_properties(blas_lapack_reference PROPERTIES
+    IMPORTED_LOCATION "${_FBR_LIB}")
+target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
+
+# libblas_lapack_reference.a uses C23 _Complex arithmetic which requires
+# Clang compiler-rt builtins (__mulsc3, __muldc3, __divsc3, __divdc3 etc.)
+# clang-cl does not support --print-runtime-dir; use file(GLOB) to find lib.
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    file(GLOB _clang_rt_candidates
+        "C:/Program Files/LLVM/lib/clang/*/lib/windows/clang_rt.builtins-x86_64.lib")
+    if(_clang_rt_candidates)
+        list(GET _clang_rt_candidates 0 _clang_rt_builtins)
+        message(STATUS "Clang builtins: ${_clang_rt_builtins}")
+    else()
+        message(WARNING "clang_rt.builtins-x86_64.lib not found; _Complex ops may fail to link")
+    endif()
+endif()
+# ---------------------------------------------------------------------------
+
 target_link_libraries(faster-blaster
     PRIVATE
+        blas_lapack_reference
+        $<$<BOOL:${_clang_rt_builtins}>:${_clang_rt_builtins}>
         cpuinfo_internals
         OpenCL::OpenCL
 )

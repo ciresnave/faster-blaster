@@ -58,7 +58,7 @@ static int load_rocblas_backend(fb_backend_vtable_t* vtable);
 static int load_onemkl_gpu_backend(fb_backend_vtable_t* vtable);
 
 /* Reference backend (always available) */
-extern const fb_backend_vtable_t fb_reference_vtable;
+extern const fb_backend_vtable_t *fb_reference_backend(void);
 
 /* Global backend registry */
 static fb_backend_metadata_t g_backends[FB_BACKEND_COUNT];
@@ -444,7 +444,7 @@ int fb_backend_load(fb_backend_type_t type, fb_backend_vtable_t* vtable) {
     int result = -1;
     switch (type) {
         case FB_BACKEND_REFERENCE:
-            *vtable = fb_reference_vtable;
+            *vtable = *fb_reference_backend();
             result = 0;
             break;
         case FB_BACKEND_OPENBLAS:
