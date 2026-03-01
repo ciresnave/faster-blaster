@@ -8,6 +8,8 @@
 
 #include "faster-blaster/backend_plugin.h"
 #include "../backends/backend_interface.h"
+#include "../backends/backend_auto_detect.h"   /* fb_enumerate_and_populate  */
+#include "faster-blaster/vtable_autofill.h"    /* fb_vtable_sync_ext_ops     */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -584,7 +586,7 @@ static void fb_openblas_set_num_threads_wrapper(void* handle, int num_threads) {
     }
 }
 
-static fb_plugin_probe_result_t openblas_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t openblas_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
     const char* lib_names[] = {
@@ -691,7 +693,17 @@ static int openblas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_o
     }
     
     ctx->lib_handle = lib_handle;
-    
+
+    /* Auto-populate ext_ops[op][conv] by scanning every exported symbol in the
+     * library — replaces the manual GetProcAddress block below and the wrapper
+     * assignments in "Populate vtable".  All 2200+ BLAS/LAPACK slots are filled
+     * in a single forward pass through the DLL export table.              */
+    fb_enumerate_and_populate(&g_openblas_vtable, lib_handle);
+
+    /* TODO(cleanup): The manual GetProcAddress and wrapper-assignment blocks
+     * below are superseded by fb_enumerate_and_populate above.  They are kept
+     * until the new mechanism is validated in CI, then will be removed.   */
+
     /* Load CBLAS Level 1 functions */
     ctx->sasum = (cblas_sasum_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sasum");
     ctx->saxpy = (cblas_saxpy_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_saxpy");
@@ -804,6 +816,10 @@ static int openblas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_o
     }
     
     /* Populate vtable */
+    /* Sync any named typed fields that fb_enumerate_and_populate may have missed
+     * (e.g. ops only reachable through named vtable fields, not export table). */
+    fb_vtable_sync_ext_ops(&g_openblas_vtable);
+    /* NOTE: wrapper assignments below are now superseded — retained for safety. */
     g_openblas_context = ctx;
     g_openblas_vtable.saxpy = openblas_saxpy_wrapper;
     g_openblas_vtable.sdot = openblas_sdot_wrapper;

@@ -8,6 +8,8 @@
 
 #include "faster-blaster/backend_plugin.h"
 #include "../backends/backend_interface.h"
+#include "../backends/backend_auto_detect.h"   /* fb_enumerate_and_populate  */
+#include "faster-blaster/vtable_autofill.h"    /* fb_vtable_sync_ext_ops     */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -655,7 +657,7 @@ static void fb_aocl_set_num_threads_wrapper(void* handle, int num_threads) {
 }
 
 /* Plugin probe function - search for AOCL BLIS and return compatibility score */
-static fb_plugin_probe_result_t aocl_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t aocl_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
     const char* lib_names[] = {
@@ -794,7 +796,11 @@ static int aocl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     
     printf("[AOCL] Setting lib_handle...\n");
     ctx->lib_handle = lib_handle;
-    
+
+    /* Auto-populate ext_ops[op][conv] for all exported BLAS/LAPACK symbols. */
+    fb_enumerate_and_populate(&g_aocl_vtable, lib_handle);
+    /* TODO(cleanup): Manual GetProcAddress + wrapper blocks below superseded. */
+
     printf("[AOCL] Loading CBLAS functions...\n");
     /* Load CBLAS Level 1 functions */
     ctx->sasum = (cblas_sasum_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sasum");
@@ -869,6 +875,8 @@ static int aocl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     }
     
     printf("[AOCL] Populating vtable...\n");
+    /* Sync named typed fields from auto-populated ext_ops table. */
+    fb_vtable_sync_ext_ops(&g_aocl_vtable);
     /* Populate vtable with wrappers */
     g_aocl_context = ctx;
     g_aocl_vtable.saxpy = aocl_saxpy_wrapper;

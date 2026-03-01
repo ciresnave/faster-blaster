@@ -410,6 +410,8 @@ set(CORE_SOURCES
     src/core/ranked_dispatch.c
     # Auto-detect: dlsym-based ext_ops[] fill from symbol tables
     src/core/backend_auto_detect.c
+    # Cross-convention thunks: Fortran↔CBLAS per-op static thunk arrays
+    src/core/conv_thunks.c
     # Old stubs (replaced with real implementations above)
     # src/core/device_registry_stub.c
     # src/core/compute_manager_stub.c
@@ -537,8 +539,6 @@ set(BACKEND_SOURCES
     src/backends/cpu/blis_trait_impl.c
     src/backends/cpu/openblas_trait_impl.c
     src/backends/cpu/reference_trait_impl.c
-    # Dynamic DLL reference backend loader
-    src/backends/blas_lapack_reference_backend.c
 )
 
 # Plugin sources (new architecture)
@@ -568,8 +568,6 @@ set(PLUGIN_SOURCES
     src/plugins/plugin_clblas.c
     # Reference backend: always-available correctness oracle and last-resort fallback
     src/plugins/plugin_reference.c
-    # Dynamic DLL reference backend plugin (score 10 > static reference score 5)
-    src/plugins/plugin_blas_lapack_reference.c
 )
 
 # Judge module sources (precision/accuracy profiling for operation routing)
@@ -676,7 +674,7 @@ target_include_directories(faster-blaster
 # Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE variable
 # conflicts in faster-blaster-reference's CMakeLists.txt pre-project() block.
 set(_FBR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../faster-blaster-reference")
-set(_FBR_LIB "${_FBR_DIR}/build-extended/libblas_lapack_reference.a")
+set(_FBR_LIB "${_FBR_DIR}/build-extended/libfaster_blaster_reference.a")
 if(NOT EXISTS "${_FBR_LIB}")
     message(FATAL_ERROR
         "faster-blaster-reference library not found at:\n  ${_FBR_LIB}\n"
@@ -685,12 +683,12 @@ if(NOT EXISTS "${_FBR_LIB}")
         "  cmake -B build-extended -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
         "  cmake --build build-extended")
 endif()
-add_library(blas_lapack_reference STATIC IMPORTED GLOBAL)
-set_target_properties(blas_lapack_reference PROPERTIES
+add_library(faster_blaster_reference STATIC IMPORTED GLOBAL)
+set_target_properties(faster_blaster_reference PROPERTIES
     IMPORTED_LOCATION "${_FBR_LIB}")
 target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
 
-# libblas_lapack_reference.a uses C23 _Complex arithmetic which requires
+# libfaster_blaster_reference.a uses C23 _Complex arithmetic which requires
 # Clang compiler-rt builtins (__mulsc3, __muldc3, __divsc3, __divdc3 etc.)
 # clang-cl does not support --print-runtime-dir; use file(GLOB) to find lib.
 if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -707,7 +705,7 @@ endif()
 
 target_link_libraries(faster-blaster
     PRIVATE
-        blas_lapack_reference
+        faster_blaster_reference
         $<$<BOOL:${_clang_rt_builtins}>:${_clang_rt_builtins}>
         cpuinfo_internals
         OpenCL::OpenCL

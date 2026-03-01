@@ -11,6 +11,7 @@
  */
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include "../backends/backend_interface.h"
@@ -2314,13 +2315,300 @@ void fb_vtable_sync_ext_ops(fb_backend_vtable_t *v) {
         ptrdiff_t off   = k_op_field_map[i].offset;
         fb_generic_fn fn = NULL;
         memcpy(&fn, (const char *)v + off, sizeof(fb_generic_fn));
-        if (fn != NULL && v->ext_ops[op_id] == NULL) {
-            v->ext_ops[op_id] = fn;
+        /* Mirror named typed field → CBLAS convention slot (only if empty). */
+        if (fn != NULL && v->ext_ops[op_id][FB_CONV_CBLAS] == NULL) {
+            v->ext_ops[op_id][FB_CONV_CBLAS] = fn;
         }
     }
 }
 
 fb_generic_fn fb_vtable_get_op(const fb_backend_vtable_t *v, uint32_t op_id) {
     if (!v || op_id >= (uint32_t)FB_JUDGE_MAX_OPERATIONS) return NULL;
-    return v->ext_ops[op_id];
+    /* Prefer CBLAS convention; fall back to Fortran or REF. */
+    if (v->ext_ops[op_id][FB_CONV_CBLAS]   != NULL) return v->ext_ops[op_id][FB_CONV_CBLAS];
+    if (v->ext_ops[op_id][FB_CONV_FORTRAN] != NULL) return v->ext_ops[op_id][FB_CONV_FORTRAN];
+    return v->ext_ops[op_id][FB_CONV_REF];
+}
+
+/* ============================================================================
+ * Reverse stem → FB_OP_* table
+ *
+ * Used by fb_classify_symbol() in backend_auto_detect.c to convert a canonical
+ * BLAS/LAPACK stem (e.g. "saxpy", "dgemm") to the FB_OP_* constant needed to
+ * index ext_ops[][].
+ *
+ * The table MUST be sorted alphabetically by stem for bsearch() to work.
+ * Re-generate with gen_sym_tables.py when new operations are added.
+ * ========================================================================== */
+
+typedef struct { const char *stem; uint32_t op_id; } fb_stem_entry_t;
+
+/* Alphabetically sorted — DO NOT reorder manually. */
+static const fb_stem_entry_t k_op_stem_map[] = {
+    /* ---- BLAS Level 1 -------------------------------------------------- */
+    { "caxpy",      FB_OP_CAXPY      },
+    { "ccopy",      FB_OP_CCOPY      },
+    { "cdotc",      FB_OP_CDOTC      },
+    { "cdotu",      FB_OP_CDOTU      },
+    { "crotg",      FB_OP_CROTG      },
+    { "cscal",      FB_OP_CSCAL      },
+    { "csscal",     FB_OP_CSSCAL     },
+    { "cswap",      FB_OP_CSWAP      },
+    { "dasum",      FB_OP_DASUM      },
+    { "daxpy",      FB_OP_DAXPY      },
+    { "dcopy",      FB_OP_DCOPY      },
+    { "ddot",       FB_OP_DDOT       },
+    { "dnrm2",      FB_OP_DNRM2      },
+    { "drot",       FB_OP_DROT       },
+    { "drotg",      FB_OP_DROTG      },
+    { "drotm",      FB_OP_DROTM      },
+    { "drotmg",     FB_OP_DROTMG     },
+    { "dscal",      FB_OP_DSCAL      },
+    { "dsdot",      FB_OP_DSDOT      },
+    { "dswap",      FB_OP_DSWAP      },
+    { "dzasum",     FB_OP_DZASUM     },
+    { "dznrm2",     FB_OP_DZNRM2     },
+    { "icamax",     FB_OP_ICAMAX     },
+    { "idamax",     FB_OP_IDAMAX     },
+    { "isamax",     FB_OP_ISAMAX     },
+    { "izamax",     FB_OP_IZAMAX     },
+    { "sasum",      FB_OP_SASUM      },
+    { "saxpy",      FB_OP_SAXPY      },
+    { "scasum",     FB_OP_SCASUM     },
+    { "scnrm2",     FB_OP_SCNRM2     },
+    { "scopy",      FB_OP_SCOPY      },
+    { "sdot",       FB_OP_SDOT       },
+    { "sdsdot",     FB_OP_SDSDOT     },
+    { "snrm2",      FB_OP_SNRM2      },
+    { "srot",       FB_OP_SROT       },
+    { "srotg",      FB_OP_SROTG      },
+    { "srotm",      FB_OP_SROTM      },
+    { "srotmg",     FB_OP_SROTMG     },
+    { "sscal",      FB_OP_SSCAL      },
+    { "sswap",      FB_OP_SSWAP      },
+    { "zaxpy",      FB_OP_ZAXPY      },
+    { "zcopy",      FB_OP_ZCOPY      },
+    { "zdotc",      FB_OP_ZDOTC      },
+    { "zdotu",      FB_OP_ZDOTU      },
+    { "zdrot",      FB_OP_ZDROT      },
+    { "zdscal",     FB_OP_ZDSCAL     },
+    { "zrotg",      FB_OP_ZROTG      },
+    { "zscal",      FB_OP_ZSCAL      },
+    { "zswap",      FB_OP_ZSWAP      },
+    /* ---- BLAS Level 2 -------------------------------------------------- */
+    { "cgbmv",      FB_OP_CGBMV      },
+    { "cgerc",      FB_OP_CGERC      },
+    { "cgeru",      FB_OP_CGERU      },
+    { "chbmv",      FB_OP_CHBMV      },
+    { "chemv",      FB_OP_CHEMV      },
+    { "cher",       FB_OP_CHER       },
+    { "cher2",      FB_OP_CHER2      },
+    { "chpmv",      FB_OP_CHPMV      },
+    { "chpr",       FB_OP_CHPR       },
+    { "chpr2",      FB_OP_CHPR2      },
+    { "csymv",      FB_OP_CSYMV      },
+    { "csyr",       FB_OP_CSYR       },
+    { "ctbmv",      FB_OP_CTBMV      },
+    { "ctbsv",      FB_OP_CTBSV      },
+    { "ctpmv",      FB_OP_CTPMV      },
+    { "ctpsv",      FB_OP_CTPSV      },
+    { "ctrmv",      FB_OP_CTRMV      },
+    { "ctrsv",      FB_OP_CTRSV      },
+    { "dgbmv",      FB_OP_DGBMV      },
+    { "dger",       FB_OP_DGER       },
+    { "dsbmv",      FB_OP_DSBMV      },
+    { "dspmv",      FB_OP_DSPMV      },
+    { "dspr",       FB_OP_DSPR       },
+    { "dspr2",      FB_OP_DSPR2      },
+    { "dsymv",      FB_OP_DSYMV      },
+    { "dsyr",       FB_OP_DSYR       },
+    { "dsyr2",      FB_OP_DSYR2      },
+    { "dtbmv",      FB_OP_DTBMV      },
+    { "dtbsv",      FB_OP_DTBSV      },
+    { "dtpmv",      FB_OP_DTPMV      },
+    { "dtpsv",      FB_OP_DTPSV      },
+    { "dtrmv",      FB_OP_DTRMV      },
+    { "dtrsv",      FB_OP_DTRSV      },
+    { "sgbmv",      FB_OP_SGBMV      },
+    { "sger",       FB_OP_SGER       },
+    { "ssbmv",      FB_OP_SSBMV      },
+    { "sspmv",      FB_OP_SSPMV      },
+    { "sspr",       FB_OP_SSPR       },
+    { "sspr2",      FB_OP_SSPR2      },
+    { "ssymv",      FB_OP_SSYMV      },
+    { "ssyr",       FB_OP_SSYR       },
+    { "ssyr2",      FB_OP_SSYR2      },
+    { "stbmv",      FB_OP_STBMV      },
+    { "stbsv",      FB_OP_STBSV      },
+    { "stpmv",      FB_OP_STPMV      },
+    { "stpsv",      FB_OP_STPSV      },
+    { "strmv",      FB_OP_STRMV      },
+    { "strsv",      FB_OP_STRSV      },
+    { "zgbmv",      FB_OP_ZGBMV      },
+    { "zgerc",      FB_OP_ZGERC      },
+    { "zgeru",      FB_OP_ZGERU      },
+    { "zhbmv",      FB_OP_ZHBMV      },
+    { "zhemv",      FB_OP_ZHEMV      },
+    { "zher",       FB_OP_ZHER       },
+    { "zher2",      FB_OP_ZHER2      },
+    { "zhpmv",      FB_OP_ZHPMV      },
+    { "zhpr",       FB_OP_ZHPR       },
+    { "zhpr2",      FB_OP_ZHPR2      },
+    { "zsymv",      FB_OP_ZSYMV      },
+    { "zsyr",       FB_OP_ZSYR       },
+    { "ztbmv",      FB_OP_ZTBMV      },
+    { "ztbsv",      FB_OP_ZTBSV      },
+    { "ztpmv",      FB_OP_ZTPMV      },
+    { "ztpsv",      FB_OP_ZTPSV      },
+    { "ztrmv",      FB_OP_ZTRMV      },
+    { "ztrsv",      FB_OP_ZTRSV      },
+    /* ---- BLAS Level 3 -------------------------------------------------- */
+    { "cgemm",      FB_OP_CGEMM      },
+    { "chemm",      FB_OP_CHEMM      },
+    { "cher2k",     FB_OP_CHER2K     },
+    { "cherk",      FB_OP_CHERK      },
+    { "csymm",      FB_OP_CSYMM      },
+    { "csyr2k",     FB_OP_CSYR2K     },
+    { "csyrk",      FB_OP_CSYRK      },
+    { "ctrmm",      FB_OP_CTRMM      },
+    { "ctrsm",      FB_OP_CTRSM      },
+    { "dgemm",      FB_OP_DGEMM      },
+    { "dsymm",      FB_OP_DSYMM      },
+    { "dsyr2k",     FB_OP_DSYR2K     },
+    { "dsyrk",      FB_OP_DSYRK      },
+    { "dtrmm",      FB_OP_DTRMM      },
+    { "dtrsm",      FB_OP_DTRSM      },
+    { "sgemm",      FB_OP_SGEMM      },
+    { "ssymm",      FB_OP_SSYMM      },
+    { "ssyr2k",     FB_OP_SSYR2K     },
+    { "ssyrk",      FB_OP_SSYRK      },
+    { "strmm",      FB_OP_STRMM      },
+    { "strsm",      FB_OP_STRSM      },
+    { "zgemm",      FB_OP_ZGEMM      },
+    { "zhemm",      FB_OP_ZHEMM      },
+    { "zher2k",     FB_OP_ZHER2K     },
+    { "zherk",      FB_OP_ZHERK      },
+    { "zsymm",      FB_OP_ZSYMM      },
+    { "zsyr2k",     FB_OP_ZSYR2K     },
+    { "zsyrk",      FB_OP_ZSYRK      },
+    { "ztrmm",      FB_OP_ZTRMM      },
+    { "ztrsm",      FB_OP_ZTRSM      },
+    /* ---- LAPACK driver routines ----------------------------------------- */
+    { "cgeev",      FB_OP_CGEEV      },
+    { "cgels",      FB_OP_CGELS      },
+    { "cgelsd",     FB_OP_CGELSD     },
+    { "cgelss",     FB_OP_CGELSS     },
+    { "cgelsy",     FB_OP_CGELSY     },
+    { "cgesdd",     FB_OP_CGESDD     },
+    { "cgesv",      FB_OP_CGESV      },
+    { "cgesvd",     FB_OP_CGESVD     },
+    { "cgetrf",     FB_OP_CGETRF     },
+    { "cgetri",     FB_OP_CGETRI     },
+    { "cgetrs",     FB_OP_CGETRS     },
+    { "cheev",      FB_OP_CHEEV      },
+    { "chegv",      FB_OP_CHEGV      },
+    { "chesv",      FB_OP_CHESV      },
+    { "cposv",      FB_OP_CPOSV      },
+    { "cpotrf",     FB_OP_CPOTRF     },
+    { "cpotri",     FB_OP_CPOTRI     },
+    { "cpotrs",     FB_OP_CPOTRS     },
+    { "csysv",      FB_OP_CSYSV      },
+    { "ctrtri",     FB_OP_CTRTRI     },
+    { "cungqr",     FB_OP_CUNGQR     },
+    { "cunmqr",     FB_OP_CUNMQR     },
+    { "cgeqrf",     FB_OP_CGEQRF     },
+    { "dgeev",      FB_OP_DGEEV      },
+    { "dgels",      FB_OP_DGELS      },
+    { "dgelsd",     FB_OP_DGELSD     },
+    { "dgelss",     FB_OP_DGELSS     },
+    { "dgelsy",     FB_OP_DGELSY     },
+    { "dgesdd",     FB_OP_DGESDD     },
+    { "dgesv",      FB_OP_DGESV      },
+    { "dgesvd",     FB_OP_DGESVD     },
+    { "dgetrf",     FB_OP_DGETRF     },
+    { "dgetri",     FB_OP_DGETRI     },
+    { "dgetrs",     FB_OP_DGETRS     },
+    { "dormqr",     FB_OP_DORMQR     },
+    { "dorgqr",     FB_OP_DORGQR     },
+    { "dposv",      FB_OP_DPOSV      },
+    { "dpotrf",     FB_OP_DPOTRF     },
+    { "dpotri",     FB_OP_DPOTRI     },
+    { "dpotrs",     FB_OP_DPOTRS     },
+    { "dsyev",      FB_OP_DSYEV      },
+    { "dsygv",      FB_OP_DSYGV      },
+    { "dsysv",      FB_OP_DSYSV      },
+    { "dtrtri",     FB_OP_DTRTRI     },
+    { "dgeqrf",     FB_OP_DGEQRF     },
+    { "sgeev",      FB_OP_SGEEV      },
+    { "sgels",      FB_OP_SGELS      },
+    { "sgelsd",     FB_OP_SGELSD     },
+    { "sgelss",     FB_OP_SGELSS     },
+    { "sgelsy",     FB_OP_SGELSY     },
+    { "sgesdd",     FB_OP_SGESDD     },
+    { "sgesv",      FB_OP_SGESV      },
+    { "sgesvd",     FB_OP_SGESVD     },
+    { "sgetrf",     FB_OP_SGETRF     },
+    { "sgetri",     FB_OP_SGETRI     },
+    { "sgetrs",     FB_OP_SGETRS     },
+    { "sormqr",     FB_OP_SORMQR     },
+    { "sorgqr",     FB_OP_SORGQR     },
+    { "sposv",      FB_OP_SPOSV      },
+    { "spotrf",     FB_OP_SPOTRF     },
+    { "spotri",     FB_OP_SPOTRI     },
+    { "spotrs",     FB_OP_SPOTRS     },
+    { "ssyev",      FB_OP_SSYEV      },
+    { "ssygv",      FB_OP_SSYGV      },
+    { "ssysv",      FB_OP_SSYSV      },
+    { "strtri",     FB_OP_STRTRI     },
+    { "sgeqrf",     FB_OP_SGEQRF     },
+    { "zgeev",      FB_OP_ZGEEV      },
+    { "zgels",      FB_OP_ZGELS      },
+    { "zgelsd",     FB_OP_ZGELSD     },
+    { "zgelss",     FB_OP_ZGELSS     },
+    { "zgelsy",     FB_OP_ZGELSY     },
+    { "zgesdd",     FB_OP_ZGESDD     },
+    { "zgesv",      FB_OP_ZGESV      },
+    { "zgesvd",     FB_OP_ZGESVD     },
+    { "zgetrf",     FB_OP_ZGETRF     },
+    { "zgetri",     FB_OP_ZGETRI     },
+    { "zgetrs",     FB_OP_ZGETRS     },
+    { "zheev",      FB_OP_ZHEEV      },
+    { "zhegv",      FB_OP_ZHEGV      },
+    { "zhesv",      FB_OP_ZHESV      },
+    { "zposv",      FB_OP_ZPOSV      },
+    { "zpotrf",     FB_OP_ZPOTRF     },
+    { "zpotri",     FB_OP_ZPOTRI     },
+    { "zpotrs",     FB_OP_ZPOTRS     },
+    { "zsysv",      FB_OP_ZSYSV      },
+    { "ztrtri",     FB_OP_ZTRTRI     },
+    { "zungqr",     FB_OP_ZUNGQR     },
+    { "zunmqr",     FB_OP_ZUNMQR     },
+    { "zgeqrf",     FB_OP_ZGEQRF     },
+};
+
+#define K_OP_STEM_MAP_COUNT \
+    ((int)(sizeof(k_op_stem_map) / sizeof(k_op_stem_map[0])))
+
+static int stem_compare(const void *key, const void *elem)
+{
+    return strcmp((const char *)key,
+                  ((const fb_stem_entry_t *)elem)->stem);
+}
+
+/**
+ * Look up a canonical BLAS/LAPACK stem (e.g. "saxpy", "dgemm") and return the
+ * corresponding FB_OP_* constant.  Returns FB_JUDGE_MAX_OPERATIONS if the stem
+ * is not found in the table (i.e. it is not a recognised standard operation).
+ *
+ * Uses bsearch — O(log N) over ~220 entries.
+ */
+uint32_t fb_stem_to_op_id(const char *stem)
+{
+    if (!stem) return (uint32_t)FB_JUDGE_MAX_OPERATIONS;
+    const fb_stem_entry_t *e =
+        (const fb_stem_entry_t *)bsearch(stem, k_op_stem_map,
+                                          K_OP_STEM_MAP_COUNT,
+                                          sizeof(k_op_stem_map[0]),
+                                          stem_compare);
+    return e ? e->op_id : (uint32_t)FB_JUDGE_MAX_OPERATIONS;
 }

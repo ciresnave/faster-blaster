@@ -8,6 +8,8 @@
 
 #include "faster-blaster/backend_plugin.h"
 #include "../backends/backend_interface.h"
+#include "../backends/backend_auto_detect.h"   /* fb_enumerate_and_populate  */
+#include "faster-blaster/vtable_autofill.h"    /* fb_vtable_sync_ext_ops     */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -225,7 +227,7 @@ static void fb_blis_set_num_threads_wrapper(void* handle, int num_threads) {
     /* No-op */
 }
 
-static fb_plugin_probe_result_t blis_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t blis_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
     const char* lib_names[] = {
@@ -335,7 +337,11 @@ static int blis_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     }
     
     ctx->lib_handle = lib_handle;
-    
+
+    /* Auto-populate ext_ops[op][conv] for all exported symbols. */
+    fb_enumerate_and_populate(&g_blis_vtable, lib_handle);
+    /* TODO(cleanup): Manual GetProcAddress block below superseded. */
+
     /* Try loading CBLAS functions first */
     ctx->cblas_sasum = (cblas_sasum_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sasum");
     ctx->cblas_saxpy = (cblas_saxpy_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_saxpy");
@@ -363,6 +369,7 @@ static int blis_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     }
     
     /* Populate vtable */
+    fb_vtable_sync_ext_ops(&g_blis_vtable);
     g_blis_context = ctx;
     g_blis_vtable.saxpy = blis_saxpy_wrapper;
     g_blis_vtable.sdot = blis_sdot_wrapper;

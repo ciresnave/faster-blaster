@@ -8,6 +8,8 @@
 
 #include "faster-blaster/backend_plugin.h"
 #include "../backends/backend_interface.h"
+#include "../backends/backend_auto_detect.h"   /* fb_enumerate_and_populate  */
+#include "faster-blaster/vtable_autofill.h"    /* fb_vtable_sync_ext_ops     */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -235,24 +237,21 @@ static void mkl_sswap_wrapper(int n, float* x, int incx, float* y, int incy) {
     }
 }
 
-static void mkl_sgemv_wrapper(char trans, int m, int n, float alpha,
+static void mkl_sgemv_wrapper(const fb_layout_t layout, const fb_transpose_t trans, int m, int n, float alpha,
                               const float* a, int lda, const float* x, int incx,
                               float beta, float* y, int incy) {
     if (!g_mkl_context || !g_mkl_context->sgemv) return;
     
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->sgemv(CblasColMajor, cblas_trans, m, n, alpha, a, lda, x, incx, beta, y, incy);
+    g_mkl_context->sgemv((CBLAS_LAYOUT)(int)layout, (CBLAS_TRANSPOSE)(int)trans, m, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
-static void mkl_sgemm_wrapper(char transa, char transb, int m, int n, int k,
+static void mkl_sgemm_wrapper(const fb_layout_t layout, const fb_transpose_t transa, const fb_transpose_t transb, int m, int n, int k,
                               float alpha, const float* a, int lda,
                               const float* b, int ldb, float beta,
                               float* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->sgemm) return;
     
-    CBLAS_TRANSPOSE cblas_transa = (transa == 'N' || transa == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_TRANSPOSE cblas_transb = (transb == 'N' || transb == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->sgemm(CblasColMajor, cblas_transa, cblas_transb, m, n, k,
+    g_mkl_context->sgemm((CBLAS_LAYOUT)(int)layout, (CBLAS_TRANSPOSE)(int)transa, (CBLAS_TRANSPOSE)(int)transb, m, n, k,
                alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
@@ -305,188 +304,142 @@ static void mkl_drotmg_wrapper(double* d1, double* d2, double* x1, double y1, do
     }
 }
 
-static void mkl_ssymv_wrapper(char uplo, int n, float alpha, const float* a, int lda,
+static void mkl_ssymv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* a, int lda,
                               const float* x, int incx, float beta, float* y, int incy) {
     if (!g_mkl_context || !g_mkl_context->ssymv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->ssymv(CblasColMajor, cblas_uplo, n, alpha, a, lda, x, incx, beta, y, incy);
+    g_mkl_context->ssymv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
-static void mkl_dsymv_wrapper(char uplo, int n, double alpha, const double* a, int lda,
+static void mkl_dsymv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* a, int lda,
                               const double* x, int incx, double beta, double* y, int incy) {
     if (!g_mkl_context || !g_mkl_context->dsymv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->dsymv(CblasColMajor, cblas_uplo, n, alpha, a, lda, x, incx, beta, y, incy);
+    g_mkl_context->dsymv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, a, lda, x, incx, beta, y, incy);
 }
 
-static void mkl_sger_wrapper(int m, int n, float alpha, const float* x, int incx,
+static void mkl_sger_wrapper(const fb_layout_t layout, int m, int n, float alpha, const float* x, int incx,
                              const float* y, int incy, float* a, int lda) {
     if (g_mkl_context && g_mkl_context->sger) {
-        g_mkl_context->sger(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        g_mkl_context->sger((CBLAS_LAYOUT)(int)layout, m, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void mkl_dger_wrapper(int m, int n, double alpha, const double* x, int incx,
+static void mkl_dger_wrapper(const fb_layout_t layout, int m, int n, double alpha, const double* x, int incx,
                              const double* y, int incy, double* a, int lda) {
     if (g_mkl_context && g_mkl_context->dger) {
-        g_mkl_context->dger(CblasColMajor, m, n, alpha, x, incx, y, incy, a, lda);
+        g_mkl_context->dger((CBLAS_LAYOUT)(int)layout, m, n, alpha, x, incx, y, incy, a, lda);
     }
 }
 
-static void mkl_ssyr_wrapper(char uplo, int n, float alpha, const float* x, int incx,
+static void mkl_ssyr_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx,
                              float* a, int lda) {
     if (!g_mkl_context || !g_mkl_context->ssyr) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->ssyr(CblasColMajor, cblas_uplo, n, alpha, x, incx, a, lda);
+    g_mkl_context->ssyr((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, x, incx, a, lda);
 }
 
-static void mkl_dsyr_wrapper(char uplo, int n, double alpha, const double* x, int incx,
+static void mkl_dsyr_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx,
                              double* a, int lda) {
     if (!g_mkl_context || !g_mkl_context->dsyr) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->dsyr(CblasColMajor, cblas_uplo, n, alpha, x, incx, a, lda);
+    g_mkl_context->dsyr((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, x, incx, a, lda);
 }
 
-static void mkl_ssyr2_wrapper(char uplo, int n, float alpha, const float* x, int incx,
+static void mkl_ssyr2_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, float alpha, const float* x, int incx,
                               const float* y, int incy, float* a, int lda) {
     if (!g_mkl_context || !g_mkl_context->ssyr2) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->ssyr2(CblasColMajor, cblas_uplo, n, alpha, x, incx, y, incy, a, lda);
+    g_mkl_context->ssyr2((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, x, incx, y, incy, a, lda);
 }
 
-static void mkl_dsyr2_wrapper(char uplo, int n, double alpha, const double* x, int incx,
+static void mkl_dsyr2_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, int n, double alpha, const double* x, int incx,
                               const double* y, int incy, double* a, int lda) {
     if (!g_mkl_context || !g_mkl_context->dsyr2) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->dsyr2(CblasColMajor, cblas_uplo, n, alpha, x, incx, y, incy, a, lda);
+    g_mkl_context->dsyr2((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, n, alpha, x, incx, y, incy, a, lda);
 }
 
-static void mkl_strmv_wrapper(char uplo, char trans, char diag, int n,
+static void mkl_strmv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n,
                               const float* a, int lda, float* x, int incx) {
     if (!g_mkl_context || !g_mkl_context->strmv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->strmv(CblasColMajor, cblas_uplo, cblas_trans, cblas_diag, n, a, lda, x, incx);
+    g_mkl_context->strmv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, n, a, lda, x, incx);
 }
 
-static void mkl_dtrmv_wrapper(char uplo, char trans, char diag, int n,
+static void mkl_dtrmv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n,
                               const double* a, int lda, double* x, int incx) {
     if (!g_mkl_context || !g_mkl_context->dtrmv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->dtrmv(CblasColMajor, cblas_uplo, cblas_trans, cblas_diag, n, a, lda, x, incx);
+    g_mkl_context->dtrmv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, n, a, lda, x, incx);
 }
 
-static void mkl_strsv_wrapper(char uplo, char trans, char diag, int n,
+static void mkl_strsv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n,
                               const float* a, int lda, float* x, int incx) {
     if (!g_mkl_context || !g_mkl_context->strsv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->strsv(CblasColMajor, cblas_uplo, cblas_trans, cblas_diag, n, a, lda, x, incx);
+    g_mkl_context->strsv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, n, a, lda, x, incx);
 }
 
-static void mkl_dtrsv_wrapper(char uplo, char trans, char diag, int n,
+static void mkl_dtrsv_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int n,
                               const double* a, int lda, double* x, int incx) {
     if (!g_mkl_context || !g_mkl_context->dtrsv) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->dtrsv(CblasColMajor, cblas_uplo, cblas_trans, cblas_diag, n, a, lda, x, incx);
+    g_mkl_context->dtrsv((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, n, a, lda, x, incx);
 }
 
-static void mkl_strmm_wrapper(char side, char uplo, char trans, char diag, int m, int n,
+static void mkl_strmm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int m, int n,
                               float alpha, const float* a, int lda, float* b, int ldb) {
     if (!g_mkl_context || !g_mkl_context->strmm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->strmm(CblasColMajor, cblas_side, cblas_uplo, cblas_trans, cblas_diag, m, n, alpha, a, lda, b, ldb);
+    g_mkl_context->strmm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, m, n, alpha, a, lda, b, ldb);
 }
 
-static void mkl_dtrmm_wrapper(char side, char uplo, char trans, char diag, int m, int n,
+static void mkl_dtrmm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int m, int n,
                               double alpha, const double* a, int lda, double* b, int ldb) {
     if (!g_mkl_context || !g_mkl_context->dtrmm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->dtrmm(CblasColMajor, cblas_side, cblas_uplo, cblas_trans, cblas_diag, m, n, alpha, a, lda, b, ldb);
+    g_mkl_context->dtrmm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, m, n, alpha, a, lda, b, ldb);
 }
 
-static void mkl_strsm_wrapper(char side, char uplo, char trans, char diag, int m, int n,
+static void mkl_strsm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int m, int n,
                               float alpha, const float* a, int lda, float* b, int ldb) {
     if (!g_mkl_context || !g_mkl_context->strsm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->strsm(CblasColMajor, cblas_side, cblas_uplo, cblas_trans, cblas_diag, m, n, alpha, a, lda, b, ldb);
+    g_mkl_context->strsm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, m, n, alpha, a, lda, b, ldb);
 }
 
-static void mkl_dtrsm_wrapper(char side, char uplo, char trans, char diag, int m, int n,
+static void mkl_dtrsm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, const fb_transpose_t trans, const fb_diag_t diag, int m, int n,
                               double alpha, const double* a, int lda, double* b, int ldb) {
     if (!g_mkl_context || !g_mkl_context->dtrsm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    CBLAS_DIAG cblas_diag = (diag == 'U' || diag == 'u') ? CblasUnit : CblasNonUnit;
-    g_mkl_context->dtrsm(CblasColMajor, cblas_side, cblas_uplo, cblas_trans, cblas_diag, m, n, alpha, a, lda, b, ldb);
+    g_mkl_context->dtrsm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, (CBLAS_DIAG)(int)diag, m, n, alpha, a, lda, b, ldb);
 }
 
-static void mkl_ssymm_wrapper(char side, char uplo, int m, int n, float alpha,
+static void mkl_ssymm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, float alpha,
                               const float* a, int lda, const float* b, int ldb,
                               float beta, float* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->ssymm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->ssymm(CblasColMajor, cblas_side, cblas_uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+    g_mkl_context->ssymm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
-static void mkl_dsymm_wrapper(char side, char uplo, int m, int n, double alpha,
+static void mkl_dsymm_wrapper(const fb_layout_t layout, const fb_side_t side, const fb_uplo_t uplo, int m, int n, double alpha,
                               const double* a, int lda, const double* b, int ldb,
                               double beta, double* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->dsymm) return;
-    CBLAS_SIDE cblas_side = (side == 'L' || side == 'l') ? CblasLeft : CblasRight;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    g_mkl_context->dsymm(CblasColMajor, cblas_side, cblas_uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
+    g_mkl_context->dsymm((CBLAS_LAYOUT)(int)layout, (CBLAS_SIDE)(int)side, (CBLAS_UPLO)(int)uplo, m, n, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
-static void mkl_ssyrk_wrapper(char uplo, char trans, int n, int k, float alpha,
+static void mkl_ssyrk_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, float alpha,
                               const float* a, int lda, float beta, float* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->ssyrk) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->ssyrk(CblasColMajor, cblas_uplo, cblas_trans, n, k, alpha, a, lda, beta, c, ldc);
+    g_mkl_context->ssyrk((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, n, k, alpha, a, lda, beta, c, ldc);
 }
 
-static void mkl_dsyrk_wrapper(char uplo, char trans, int n, int k, double alpha,
+static void mkl_dsyrk_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, double alpha,
                               const double* a, int lda, double beta, double* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->dsyrk) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->dsyrk(CblasColMajor, cblas_uplo, cblas_trans, n, k, alpha, a, lda, beta, c, ldc);
+    g_mkl_context->dsyrk((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, n, k, alpha, a, lda, beta, c, ldc);
 }
 
-static void mkl_ssyr2k_wrapper(char uplo, char trans, int n, int k, float alpha,
+static void mkl_ssyr2k_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, float alpha,
                                const float* a, int lda, const float* b, int ldb,
                                float beta, float* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->ssyr2k) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->ssyr2k(CblasColMajor, cblas_uplo, cblas_trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+    g_mkl_context->ssyr2k((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
-static void mkl_dsyr2k_wrapper(char uplo, char trans, int n, int k, double alpha,
+static void mkl_dsyr2k_wrapper(const fb_layout_t layout, const fb_uplo_t uplo, const fb_transpose_t trans, int n, int k, double alpha,
                                const double* a, int lda, const double* b, int ldb,
                                double beta, double* c, int ldc) {
     if (!g_mkl_context || !g_mkl_context->dsyr2k) return;
-    CBLAS_UPLO cblas_uplo = (uplo == 'U' || uplo == 'u') ? CblasUpper : CblasLower;
-    CBLAS_TRANSPOSE cblas_trans = (trans == 'N' || trans == 'n') ? CblasNoTrans : CblasTrans;
-    g_mkl_context->dsyr2k(CblasColMajor, cblas_uplo, cblas_trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+    g_mkl_context->dsyr2k((CBLAS_LAYOUT)(int)layout, (CBLAS_UPLO)(int)uplo, (CBLAS_TRANSPOSE)(int)trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
 /* Backend capability functions */
@@ -513,7 +466,7 @@ static void fb_mkl_set_num_threads_wrapper(void* handle, int num_threads) {
     }
 }
 
-static fb_plugin_probe_result_t mkl_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t mkl_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
     const char* lib_names[] = {
@@ -626,7 +579,11 @@ static int mkl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) {
     }
     
     ctx->lib_handle = lib_handle;
-    
+
+    /* Auto-populate ext_ops[op][conv] for all exported MKL BLAS/LAPACK symbols. */
+    fb_enumerate_and_populate(&g_mkl_vtable, lib_handle);
+    /* TODO(cleanup): Manual GetProcAddress block below superseded. */
+
     /* Load CBLAS Level 1 functions */
     ctx->sasum = (cblas_sasum_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_sasum");
     ctx->saxpy = (cblas_saxpy_t)FB_GET_PROC_ADDRESS(lib_handle, "cblas_saxpy");
@@ -685,6 +642,7 @@ static int mkl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) {
     }
     
     /* Populate vtable */
+    fb_vtable_sync_ext_ops(&g_mkl_vtable);
     g_mkl_context = ctx;
     g_mkl_vtable.saxpy = mkl_saxpy_wrapper;
     g_mkl_vtable.sdot = mkl_sdot_wrapper;
@@ -755,12 +713,10 @@ static void* mkl_get_context(fb_plugin_context_t* ctx) {
     return ctx;
 }
 
-static int mkl_set_num_threads(fb_plugin_context_t* ctx, int num_threads) {
+static void mkl_set_num_threads(fb_plugin_context_t* ctx, int num_threads) {
     if (g_mkl_context && g_mkl_context->set_num_threads) {
         g_mkl_context->set_num_threads(num_threads);
-        return 0;
     }
-    return -1;
 }
 
 static int mkl_get_num_threads(fb_plugin_context_t* ctx) {

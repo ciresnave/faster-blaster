@@ -151,6 +151,24 @@ typedef enum {
   FB_SCAN_EXCLUSIVE  /* Exclusive scan */
 } fb_scan_mode_t;
 
+/**
+ * Calling convention tags used by the 2-D ext_ops table.
+ *
+ * FB_CONV_CBLAS   — cblas_saxpy(n, alpha, x, incx, y, incy)  (scalars by value)
+ * FB_CONV_FORTRAN — saxpy_(&n, &alpha, x, &incx, y, &incy)   (everything by ptr, trailing _)
+ * FB_CONV_REF     — saxpy_ref(n, alpha, x, incx, y, incy)    (C convention, _ref suffix)
+ *
+ * CBLAS and vtable enum values are ABI-identical (FB_NO_TRANS==CBLAS_NO_TRANS==111),
+ * so FB_CONV_CBLAS slots can be direct-cast from CBLAS function pointers without thunks.
+ * Fortran↔CBLAS thunks are generated per-operation in src/core/conv_thunks.c.
+ */
+typedef enum {
+  FB_CONV_CBLAS   = 0, /* cblas_* prefix, scalars pass-by-value          */
+  FB_CONV_FORTRAN = 1, /* trailing underscore, all args pass-by-pointer   */
+  FB_CONV_REF     = 2, /* _ref suffix, C convention (same ABI as CBLAS)   */
+  FB_CONV_COUNT   = 3
+} fb_conv_t;
+
 /* Opaque communicator handle for collective operations */
 typedef void *fb_comm_t;
 
@@ -4018,8 +4036,16 @@ typedef struct fb_backend_vtable {
    * ext_ops[] directly before registration.
    *
    * NULL  →  operation not supported by this backend.
+   *
+   * ext_ops[op_id][FB_CONV_CBLAS]   — CBLAS convention slot (direct cast, no thunk)
+   * ext_ops[op_id][FB_CONV_FORTRAN] — Fortran convention slot (thunk-generated if absent)
+   * ext_ops[op_id][FB_CONV_REF]     — _ref convention slot (same ABI as CBLAS)
+   *
+   * Use fb_enumerate_and_populate(vtable, handle) to auto-fill all three slots
+   * from a DLL/SO's exports.  fb_finalize_plugin_vtable() (Strategy 5) fills any
+   * remaining empty slots via static cross-convention thunks from conv_thunks.c.
    */
-  fb_generic_fn ext_ops[FB_JUDGE_MAX_OPERATIONS];
+  fb_generic_fn ext_ops[FB_JUDGE_MAX_OPERATIONS][FB_CONV_COUNT];
 
 } fb_backend_vtable_t;
 

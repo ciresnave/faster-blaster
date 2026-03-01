@@ -348,6 +348,215 @@ over batching, fusion, and mixed-precision, use `fb_gemm_unified()` directly.
 
 ---
 
+## Auto-Convention Vtable Loading
+
+### Overview
+
+When a backend DLL/SO is loaded, faster-blaster can **automatically enumerate every
+exported symbol**, classify each by its naming convention, and fill the matching
+`ext_ops[op_id][conv]` slot — with no manual `typedef` or `GetProcAddress` boilerplate
+required in the plugin.  For any convention slot that the library does not export, a
+static cross-convention **thunk** is installed automatically, so all three conventions
+are always reachable.
+
+### Calling Convention Enum (`fb_conv_t`)
+
+```c
+// src/backends/backend_interface.h
+typedef enum {
+    FB_CONV_CBLAS    = 0,  // cblas_saxpy(n, alpha, x, incx, y, incy)   — pass-by-value scalars
+    FB_CONV_FORTRAN  = 1,  // saxpy_(&n, &alpha, x, &incx, y, &incy)    — everything by pointer, trailing _
+    FB_CONV_REF      = 2,  // saxpy_ref(n, alpha, x, incx, y, incy)     — C convention, _ref suffix
+    FB_CONV_COUNT    = 3
+} fb_conv_t;
+```
+
+### 2-D `ext_ops` Table
+
+```c
+// Was (1D):
+fb_generic_fn ext_ops[FB_JUDGE_MAX_OPERATIONS];
+
+// Now (2D):
+fb_generic_fn ext_ops[FB_JUDGE_MAX_OPERATIONS][FB_CONV_COUNT];
+// Access:  vtable->ext_ops[FB_OP_SAXPY][FB_CONV_CBLAS]
+```
+
+Every op × convention pair has its own slot.  The dispatch layer picks the best
+available slot: native slots win, thunk-generated slots serve as fallbacks.
+
+### Symbol Classifier (`fb_classify_symbol`)
+
+Three naming patterns cover all major BLAS/LAPACK libraries:
+
+| Pattern | Convention | Example |
+|---|---|---|
+| `cblas_<stem>` | `FB_CONV_CBLAS` | `cblas_saxpy` |
+| `<stem>_` (trailing underscore) | `FB_CONV_FORTRAN` | `saxpy_` |
+| `<stem>_ref` | `FB_CONV_REF` | `saxpy_ref` |
+
+```c
+// src/core/backend_auto_detect.c
+fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id);
+// Returns FB_CONV_COUNT if the symbol is not a recognised BLAS/LAPACK operation.
+```
+
+The classifier strips the prefix/suffix, looks up the canonical stem in the
+**reverse `stem → FB_OP_*` table** (see `src/core/op_vtable_map.c`), and returns the
+convention.
+
+### Export Enumerator (`fb_enumerate_and_populate`)
+
+```c
+// Enumerate all DLL/SO exports, classify each, fill ext_ops[op][conv]
+void fb_enumerate_and_populate(fb_backend_vtable_t *vtable, void *lib_handle);
+```
+
+**Platform implementations** (all in `src/core/backend_auto_detect.c`):
+- **Windows**: Walk the PE Export Directory (`IMAGE_EXPORT_DIRECTORY`) directly from
+  the in-memory module.
+- **Linux/BSD**: Iterate `.dynsym` section via `dl_iterate_phdr` + `ElfW(Sym)`.
+- **macOS**: Walk Mach-O `LC_DYSYMTAB` / `nlist` table via `dlopen`+`dyld`.
+
+Typical plugin `init()` replaces ~100 lines of typedef boilerplate with:
+
+```c
+// Before (manual):
+typedef void (*saxpy_t)(int, float, const float*, int, float*, int);
+saxpy_t saxpy_fn = (saxpy_t)GetProcAddress(handle, "cblas_saxpy");
+vtable->saxpy = ...;
+// ... × 200 operations
+
+// After (automatic):
+fb_enumerate_and_populate(vtable, handle);   // fills all 2266 × 3 slots in one pass
+```
+
+### ABI Compatibility: Why CBLAS Needs No Thunk
+
+`CBLAS_TRANSPOSE` and `fb_transpose_t` share identical integer values by design:
+
+```c
+CBLAS_NO_TRANS=111 == FB_NO_TRANS=111
+CBLAS_TRANS=112    == FB_TRANS=112
+CBLAS_CONJ_TRANS=113 == FB_CONJ_TRANS=113
+```
+
+All vtable enum parameters match CBLAS values. A CBLAS function pointer can therefore
+be assigned directly to the matching `ext_ops[op][FB_CONV_CBLAS]` slot with a plain
+cast — no thunk, no conversion, zero overhead.
+
+### Cross-Convention Thunks (`conv_thunks.c`)
+
+**Fortran↔CBLAS thunks are necessary** because Fortran passes every argument by
+pointer while CBLAS passes scalars by value.  Thunks are arity- and type-specific (one
+per operation), but they are entirely **mechanical and codegen-able** from the typed
+field declarations in `backend_interface.h`.
+
+Static thunks live in `src/core/conv_thunks.c` and are installed by
+`fb_finalize_plugin_vtable()` (Strategy 5 — new, runs after existing Strategies 1-4):
+
+```c
+// Strategy 5: fill empty conv slots from occupied ones via thunks
+for (uint32_t op = 0; op < FB_JUDGE_MAX_OPERATIONS; op++) {
+    if (vtable->ext_ops[op][FB_CONV_CBLAS] != NULL &&
+        vtable->ext_ops[op][FB_CONV_FORTRAN] == NULL) {
+        vtable->ext_ops[op][FB_CONV_FORTRAN] = k_cblas_to_fortran_thunks[op];
+    }
+    if (vtable->ext_ops[op][FB_CONV_FORTRAN] != NULL &&
+        vtable->ext_ops[op][FB_CONV_CBLAS] == NULL) {
+        vtable->ext_ops[op][FB_CONV_CBLAS] = k_fortran_to_cblas_thunks[op];
+    }
+    // FB_CONV_REF ↔ FB_CONV_CBLAS (same ABI; _ref implementations use C conv)
+    if (vtable->ext_ops[op][FB_CONV_REF] != NULL &&
+        vtable->ext_ops[op][FB_CONV_CBLAS] == NULL) {
+        vtable->ext_ops[op][FB_CONV_CBLAS] = vtable->ext_ops[op][FB_CONV_REF];
+    }
+}
+```
+
+Example generated thunk for `saxpy`:
+
+```c
+// cblas_saxpy → saxpy_   (CBLAS→Fortran wrapper)
+static void thunk_saxpy_cblas_to_fortran(
+        int n, float alpha, const float *x, int incx, float *y, int incy) {
+    // Fortran expects everything by pointer
+    int    n_    = n;
+    float  a_    = alpha;
+    int    incx_ = incx;
+    int    incy_ = incy;
+    ((void(*)(int*,float*,const float*,int*,float*,int*))
+        g_saxpy_fortran)(&n_, &a_, x, &incx_, y, &incy_);
+}
+```
+
+### Reverse Stem Table (for classifier)
+
+Located in `src/core/op_vtable_map.c` (appended after the existing forward table):
+
+```c
+// AUTO-GENERATED by gen_sym_tables.py — do not edit manually
+static const struct { const char *stem; uint32_t op_id; } k_op_stem_map[] = {
+    { "sasum",   FB_OP_SASUM   },
+    { "dasum",   FB_OP_DASUM   },
+    { "saxpy",   FB_OP_SAXPY   },
+    { "daxpy",   FB_OP_DAXPY   },
+    // ... 237 total entries
+};
+uint32_t fb_stem_to_op_id(const char *stem);  // binary search over k_op_stem_map
+```
+
+### `fb_sym_entry_t` Extension
+
+The pre-generated symbol tables in `src/backends/sym_tables/` use `fb_sym_entry_t`.
+After this change, the struct gains a `conv` field:
+
+```c
+// Was:
+typedef struct { uint32_t op_id; const char *symbol; } fb_sym_entry_t;
+
+// Now:
+typedef struct { uint32_t op_id; fb_conv_t conv; const char *symbol; } fb_sym_entry_t;
+```
+
+`gen_sym_tables.py` is updated to emit the `conv` field.  Existing tables are all
+`cblas_*` → `FB_CONV_CBLAS`; ScaLAPACK tables are `p*_` → `FB_CONV_FORTRAN`.
+
+### Dead Code Removed by This Mechanism
+
+| File | Reason |
+|---|---|
+| `src/backends/blas_lapack_reference_backend.c` | Dead DLL-load code; DLL was never built |
+| `src/backends/blas_lapack_reference_backend.h` | Header for dead file |
+| `src/plugins/plugin_blas_lapack_reference.c` | Plugin wiring the dead backend |
+
+### Impact on Existing Plugins
+
+In `plugin_openblas.c`, `plugin_aocl_blis.c`, `plugin_standard_blis.c`, `plugin_mkl.c`:
+
+```c
+// Remove: ~100 lines of per-symbol manual typedef + GetProcAddress
+// Replace with single call in init():
+fb_enumerate_and_populate(vtable, handle);
+```
+
+Named vtable fields (`vtable->saxpy`, `vtable->sgemm`, etc.) are still populated by
+`fb_vtable_sync_ext_ops()` which mirrors `ext_ops[op][FB_CONV_CBLAS]` into them —
+so no callers need to change.
+
+### Key Files
+
+| File | Role |
+|---|---|
+| `src/backends/backend_interface.h` | `fb_conv_t` enum; 2D `ext_ops[MAX_OPS][FB_CONV_COUNT]` |
+| `src/backends/backend_auto_detect.h` | Updated `fb_sym_entry_t`; new function declarations |
+| `src/core/backend_auto_detect.c` | `fb_enumerate_and_populate`, `fb_classify_symbol`, PE/ELF/Mach-O scanner |
+| `src/core/op_vtable_map.c` | Reverse `stem→FB_OP_*` table; `fb_stem_to_op_id()` |
+| `src/core/conv_thunks.c` | Static per-op Fortran↔CBLAS thunk arrays |
+| `src/backends/sym_tables/` | Pre-generated `fb_sym_entry_t` tables (now with `conv` field) |
+
+---
+
 ## Hardware Detection Implementation
 
 ### CPU Detection ([src/device_detection/](src/device_detection/))
