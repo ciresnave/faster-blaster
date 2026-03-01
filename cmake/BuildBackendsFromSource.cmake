@@ -16,12 +16,28 @@ option(FB_BUILD_BLIS_FROM_SOURCE "Build BLIS from source" ON)
 # OpenBLAS: Now builds successfully on Windows using clang-cl (C99/VLA support + MSVC ABI)
 option(FB_BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with clang-cl" ON)
 option(FB_BUILD_CLBLAST_FROM_SOURCE "Build CLBlast from source" ON)
-# OxiBLAS: Pure-Rust BLAS/LAPACK — requires Rust 1.85+ and `cargo` on PATH.
-# Disabled by default so users without a Rust toolchain are unaffected.
-# Enable with -DFB_BUILD_OXIBLAS_FROM_SOURCE=ON; set OXIBLAS_CARGO_SOURCE_DIR
-# to the checked-out oxiblas repository root, or let CMake clone it.
+
+# OxiBLAS: Pure-Rust BLAS/LAPACK via oxiblas-ffi.
+# Auto-detected at configure time: enabled by default when both `cargo` (Rust
+# 1.85+) and `git` are found on PATH.  Override with
+#   -DFB_BUILD_OXIBLAS_FROM_SOURCE=ON|OFF
+# Set OXIBLAS_CARGO_SOURCE_DIR to an existing checkout to skip the git clone.
+find_program(CARGO_EXECUTABLE cargo DOC "Rust cargo package manager (https://rustup.rs)")
+find_package(Git QUIET)
+if(CARGO_EXECUTABLE AND Git_FOUND)
+    message(STATUS "cargo and git found — OxiBLAS from-source build ON by default")
+    set(_oxiblas_default ON)
+else()
+    if(NOT CARGO_EXECUTABLE)
+        message(STATUS "cargo not found — OxiBLAS from-source disabled (https://rustup.rs)")
+    elseif(NOT Git_FOUND)
+        message(STATUS "git not found — OxiBLAS from-source disabled")
+    endif()
+    set(_oxiblas_default OFF)
+endif()
 option(FB_BUILD_OXIBLAS_FROM_SOURCE
-    "Build OxiBLAS FFI from source (cargo build -p oxiblas-ffi, requires Rust 1.85+)" OFF)
+    "Build OxiBLAS FFI from source (cargo build -p oxiblas-ffi, requires Rust 1.85+)"
+    ${_oxiblas_default})
 set(OXIBLAS_CARGO_SOURCE_DIR "" CACHE PATH
     "Path to oxiblas repository root (leave empty to auto-clone from GitHub)")
 
