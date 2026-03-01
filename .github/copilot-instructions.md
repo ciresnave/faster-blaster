@@ -665,9 +665,11 @@ faster-blaster-reference fills the gap: **a readable, trustworthy, pure-C refere
 
 ## Code Completeness Requirements
 
-**REQUIREMENT**: Before marking ANY BLAS or LAPACK operation as "complete," ALL THREE calling conventions MUST be implemented, tested, and passing.
+**REQUIREMENT**: Before marking ANY BLAS or LAPACK operation as "complete," BOTH the reference implementation and CBLAS wrapper MUST be implemented, tested, and passing.
 
-### Three Required Variants for Every Operation
+> **Architecture note**: faster-blaster-reference exports CBLAS as its primary API. Fortran ABI compatibility (`*_` trailing-underscore symbols) is provided automatically by consolidated per-level wrapper files (`blas_l1_fortran_wrappers.c`, etc.) that delegate to `cblas_*`. Do NOT add per-operation Fortran wrapper bodies to individual source files. faster-blaster's `conv_thunks.c` provides Fortran↔CBLAS conversion at dispatch time, so the reference library does not need to export Fortran symbols at all for correctness in normal use.
+
+### Two Required Variants for Every Operation
 
 For each operation (e.g., `saxpy`, `sgemv`, `csymv`), provide:
 
@@ -679,17 +681,19 @@ For each operation (e.g., `saxpy`, `sgemv`, `csymv`), provide:
 
 2. **CBLAS Wrapper (`cblas_*`)**
    - **Signature**: `void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy)`
-   - **Location**: Wrapper file (e.g., `src/blas/level1/blas_l1_cblas_wrappers.c`)
-   - **Purpose**: C BLAS standard interface
+   - **Location**: CBLAS wrappers file (e.g., `src/blas/level1/blas_l1_cblas_wrappers.c`)
+   - **Purpose**: C BLAS standard interface — the primary exported API
    - **Calling Convention**: C convention (pass-by-value scalars, arrays as pointers)
    - **Header Declaration**: Must be in appropriate `blas_l*_reference.h` file
 
-3. **Fortran Wrapper (`*_`)**
-   - **Signature**: `void saxpy_(int *n, float *alpha, float *x, int *incx, float *y, int *incy)`
-   - **Location**: Wrapper file (e.g., `src/blas/level1/blas_l1_fortran_wrappers.c`)
-   - **Purpose**: Fortran BLAS compatibility
-   - **Calling Convention**: Fortran convention (everything pass-by-reference, trailing underscore)
-   - **Header Declaration**: Must be in appropriate `blas_l*_reference.h` file
+### Fortran ABI (Consolidated — Do NOT add per-operation wrappers)
+
+Fortran `*_` wrappers are maintained in consolidated files, **not** in individual operation source files:
+- `src/blas/level1/blas_l1_fortran_wrappers.c` — all L1 Fortran wrappers, calling `cblas_*`
+- `src/blas/level2/blas_l2_fortran_wrappers.c` — all L2 Fortran wrappers, calling `cblas_*`
+- `src/blas/level3/blas_l3_fortran_wrappers.c` — all L3 Fortran wrappers, calling `cblas_*`
+
+When adding a new operation, add its `foo_` Fortran wrapper to the appropriate consolidated file. Do not declare `foo_` in headers.
 
 ### Verification Checklist
 
@@ -697,18 +701,19 @@ Before declaring operation complete:
 
 - [ ] `*_ref` implementation exists and compiles
 - [ ] `cblas_*` wrapper exists and compiles
-- [ ] `*_` (Fortran) wrapper exists and compiles
-- [ ] All three declarations in header file match implementations
+- [ ] Both declarations in header file match implementations
 - [ ] No "undeclared identifier" compiler errors
 - [ ] All precision variants (S/D/C/Z where applicable) implemented
-- [ ] Unit tests exist for all three variants
+- [ ] Unit tests exist for the CBLAS variant
 - [ ] **ALL tests passing** (0 failures, 100% pass rate)
 - [ ] Integration tests pass (cross-module dependencies)
 - [ ] Changes committed to Git with clear commit message
 
 ### Red Flags (Operation Incomplete If)
 
-❌ Only `_ref` exists but missing `cblas_*` or `*_`  
+❌ `_ref` implementation missing  
+❌ `cblas_*` wrapper missing  
+❌ Fortran `*_` body added to an individual operation `.c` file (use consolidated wrapper file instead)  
 ❌ Function declared in header but not implemented  
 ❌ Tests pass locally but fail in CI  
 ❌ Partial coverage (e.g., S/D precisions but not C/Z)  
@@ -722,7 +727,7 @@ For `saxpy` (single-precision AXPY):
 
 ```c
 // src/blas/level1/saxpy.c
-void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy) {
+BLAS_L1_KERNEL void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy) {
     // Reference implementation
 }
 
@@ -731,22 +736,22 @@ void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int inc
     saxpy_ref(n, alpha, x, incx, y, incy);
 }
 
-// src/blas/level1/blas_l1_fortran_wrappers.c
+// src/blas/level1/blas_l1_fortran_wrappers.c  (consolidated — NOT in saxpy.c)
 void saxpy_(int *n, float *alpha, float *x, int *incx, float *y, int *incy) {
-    saxpy_ref(*n, *alpha, x, *incx, y, *incy);
+    cblas_saxpy(*n, *alpha, x, *incx, y, *incy);  // delegate to cblas_, not _ref
 }
 
 // include/blas_l1_reference.h
 BLAS_L1_KERNEL void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy);
 void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy);
-void saxpy_(int *n, float *alpha, float *x, int *incx, float *y, int *incy);
+// Note: saxpy_  is NOT declared in this header (lives only in fortran_wrappers.c)
 ```
 
 ### Project-Specific Notes
 
-- **faster-blaster-reference**: All 1248+ BLAS/LAPACK operations require this three-variant pattern
-- **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle
-- **Build verification**: `cmake -B build && ninja && ctest` must show 0 failures
+- **faster-blaster-reference**: CBLAS is the primary API; Fortran ABI is a compatibility layer in consolidated wrapper files
+- **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle; provides Fortran↔CBLAS thunks automatically via `conv_thunks.c`
+- **Build verification**: `cd build-extended && ninja 2>&1 | Where-Object { $_ -match 'error:' } | Where-Object { $_ -notmatch 'test_cgesv|test_zgesv|test_chesv|test_zhesv' }` must produce no output
 - **C23 standard**: All code must compile with `-std=c23` flag
 
 ---
