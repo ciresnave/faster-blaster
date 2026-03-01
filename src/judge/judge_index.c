@@ -60,7 +60,7 @@
  */
 static inline float cmag_f32(fb_complex_float_t z)
 {
-    return fabsf(crealf(z)) + fabsf(cimagf(z));
+    return fabsf((float)__real__(z)) + fabsf((float)__imag__(z));
 }
 
 /**
@@ -69,7 +69,7 @@ static inline float cmag_f32(fb_complex_float_t z)
  */
 static inline double cmag_f64(fb_complex_double_t z)
 {
-    return fabs(creal(z)) + fabs(cimag(z));
+    return fabs((double)__real__(z)) + fabs((double)__imag__(z));
 }
 
 /**
@@ -180,28 +180,29 @@ static fb_judge_status_t run_isamax(
 {
     if (!oracle->isamax || !cand->isamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int      n = (int)tc->m;  /* L1: vector length in tc->m (tc->n == 0) */
     const float *x = (const float *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
 
-    int64_t oracle_idx = oracle->isamax(n, x, 1);
-    int64_t cand_idx   = cand->isamax(n, x, 1);
+    int oracle_idx = oracle->isamax(n, x, 1);
+    int cand_idx   = cand->isamax(n, x, 1);
 
-    /* Oracle validity check. */
-    if (oracle_idx < 0 || oracle_idx >= n) {
+    /* cblas_isamax in faster-blaster-reference returns 1-based index (1..n).
+     * Validate, then convert to 0-based for array access. */
+    if (oracle_idx < 1 || oracle_idx > n) {
         make_oracle_fatal(res); return FB_JUDGE_OK;
     }
 
-    double abs_oracle = (double)fabsf(x[oracle_idx]);
+    double abs_oracle = (double)fabsf(x[oracle_idx - 1]);  /* 1→0 based */
     double tau        = (double)FLT_EPSILON * abs_oracle;
 
     /* Candidate out-of-bounds → treat as fatal for the candidate. */
-    if (cand_idx < 0 || cand_idx >= n) {
+    if (cand_idx < 1 || cand_idx > n) {
         make_cand_fatal(res); return FB_JUDGE_OK;
     }
 
-    double abs_cand = (double)fabsf(x[cand_idx]);
+    double abs_cand = (double)fabsf(x[cand_idx - 1]);  /* 1→0 based */
 
     /* Value sub-result (always computed). */
     make_value_result(abs_oracle, abs_cand, tau, &res->value);
@@ -236,20 +237,20 @@ static fb_judge_status_t run_idamax(
 {
     if (!oracle->idamax || !cand->idamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int       n = (int)tc->m;  /* L1: vector length in tc->m (tc->n == 0) */
     const double *x = (const double *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
 
-    int64_t oracle_idx = oracle->idamax(n, x, 1);
-    int64_t cand_idx   = cand->idamax(n, x, 1);
+    int oracle_idx = oracle->idamax(n, x, 1);
+    int cand_idx   = cand->idamax(n, x, 1);
 
-    if (oracle_idx < 0 || oracle_idx >= n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* 1-based index from reference cblas_idamax; validate and convert to 0-based. */
+    if (oracle_idx < 1 || oracle_idx > n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
+    if (cand_idx   < 1 || cand_idx   > n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
 
-    if (cand_idx < 0 || cand_idx >= n) { make_cand_fatal(res); return FB_JUDGE_OK; }
-
-    double abs_oracle = fabs(x[oracle_idx]);
-    double abs_cand   = fabs(x[cand_idx]);
+    double abs_oracle = fabs(x[oracle_idx - 1]);  /* 1→0 based */
+    double abs_cand   = fabs(x[cand_idx - 1]);    /* 1→0 based */
     double tau        = DBL_EPSILON * abs_oracle;
 
     make_value_result(abs_oracle, abs_cand, tau, &res->value);
@@ -282,13 +283,13 @@ static fb_judge_status_t run_icamax(
 {
     if (!oracle->icamax || !cand->icamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t                    n = (int64_t)tc->n;
+    int                    n = (int)tc->n;
     const fb_complex_float_t  *x = (const fb_complex_float_t *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
 
-    int64_t oracle_idx = oracle->icamax(n, x, 1);
-    int64_t cand_idx   = cand->icamax(n, x, 1);
+    int oracle_idx = oracle->icamax(n, x, 1);
+    int cand_idx   = cand->icamax(n, x, 1);
 
     if (oracle_idx < 0 || oracle_idx >= n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
     if (cand_idx   < 0 || cand_idx   >= n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
@@ -327,13 +328,13 @@ static fb_judge_status_t run_izamax(
 {
     if (!oracle->izamax || !cand->izamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t                    n = (int64_t)tc->n;
+    int                    n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
 
-    int64_t oracle_idx = oracle->izamax(n, x, 1);
-    int64_t cand_idx   = cand->izamax(n, x, 1);
+    int oracle_idx = oracle->izamax(n, x, 1);
+    int cand_idx   = cand->izamax(n, x, 1);
 
     if (oracle_idx < 0 || oracle_idx >= n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
     if (cand_idx   < 0 || cand_idx   >= n) { make_cand_fatal(res);   return FB_JUDGE_OK; }

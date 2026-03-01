@@ -21,8 +21,15 @@ extern "C" {
 
 /* Number of standard test cases per (op, size_class, dtype). */
 #define FB_CORPUS_STANDARD_CASES   8
-/* Number of edge-case test cases per (op, size_class, dtype). */
-#define FB_CORPUS_EDGE_CASES       4
+/* Number of edge-case test cases per (op, size_class, dtype).
+ * 5 edge cases:
+ *   1. Extreme-scale underflow
+ *   2. Extreme-scale overflow
+ *   3. Near-zero alpha/beta
+ *   4. Large alpha
+ *   5. Degenerate spectrum (F64/CF64 only; array slot allocated for all dtypes)
+ */
+#define FB_CORPUS_EDGE_CASES       5
 /* Total cases per configuration. */
 #define FB_CORPUS_TOTAL_CASES      (FB_CORPUS_STANDARD_CASES + FB_CORPUS_EDGE_CASES)
 

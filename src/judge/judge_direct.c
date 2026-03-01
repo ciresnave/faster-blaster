@@ -134,7 +134,7 @@ static fb_judge_status_t run_saxpy(
 {
     if (!oracle->saxpy || !cand->saxpy) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n    = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     float   alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A;
 
@@ -188,7 +188,7 @@ static fb_judge_status_t run_daxpy(
 {
     if (!oracle->daxpy || !cand->daxpy) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t  n     = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     double   alpha = tc->alpha;
     const double *x = (const double *)tc->A;
 
@@ -239,7 +239,7 @@ static fb_judge_status_t run_sscal(
 {
     if (!oracle->sscal || !cand->sscal) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n     = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     float   alpha = (float)tc->alpha;
 
     float *x_oracle = (float *)clone_buf(tc->A, (size_t)n, sizeof(float));
@@ -289,7 +289,7 @@ static fb_judge_status_t run_dscal(
 {
     if (!oracle->dscal || !cand->dscal) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n     = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     double  alpha = tc->alpha;
 
     double *x_oracle = (double *)clone_buf(tc->A, (size_t)n, sizeof(double));
@@ -339,7 +339,7 @@ static fb_judge_status_t run_scopy(
 {
     if (!oracle->scopy || !cand->scopy) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const float *x = (const float *)tc->A;
 
     float *y_oracle = (float *)malloc((size_t)n * sizeof(float));
@@ -388,7 +388,7 @@ static fb_judge_status_t run_dcopy(
 {
     if (!oracle->dcopy || !cand->dcopy) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const double *x = (const double *)tc->A;
 
     double *y_oracle = (double *)malloc((size_t)n * sizeof(double));
@@ -437,7 +437,7 @@ static fb_judge_status_t run_sswap(
 {
     if (!oracle->sswap || !cand->sswap) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
 
     /* Oracle: clone both x and y, swap them. */
     float *xo = (float *)clone_buf(tc->A, (size_t)n, sizeof(float));
@@ -494,7 +494,7 @@ static fb_judge_status_t run_dswap(
 {
     if (!oracle->dswap || !cand->dswap) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
 
     double *xo = (double *)clone_buf(tc->A, (size_t)n, sizeof(double));
     double *yo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
@@ -555,7 +555,7 @@ static fb_judge_status_t run_sdot(
 {
     if (!oracle->sdot || !cand->sdot) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const float *x = (const float *)tc->A;
     const float *y = (const float *)tc->B;
 
@@ -592,7 +592,7 @@ static fb_judge_status_t run_ddot(
 {
     if (!oracle->ddot || !cand->ddot) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const double *x = (const double *)tc->A;
     const double *y = (const double *)tc->B;
 
@@ -627,7 +627,7 @@ static fb_judge_status_t run_snrm2(
 {
     if (!oracle->snrm2 || !cand->snrm2) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const float *x = (const float *)tc->A;
 
     float oracle_val = oracle->snrm2(n, x, 1);
@@ -659,7 +659,7 @@ static fb_judge_status_t run_dnrm2(
 {
     if (!oracle->dnrm2 || !cand->dnrm2) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const double *x = (const double *)tc->A;
 
     double oracle_val = oracle->dnrm2(n, x, 1);
@@ -690,7 +690,7 @@ static fb_judge_status_t run_sasum(
 {
     if (!oracle->sasum || !cand->sasum) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const float *x = (const float *)tc->A;
 
     float oracle_val = oracle->sasum(n, x, 1);
@@ -722,7 +722,7 @@ static fb_judge_status_t run_dasum(
 {
     if (!oracle->dasum || !cand->dasum) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const double *x = (const double *)tc->A;
 
     double oracle_val = oracle->dasum(n, x, 1);
@@ -761,13 +761,15 @@ static fb_judge_status_t run_isamax(
 {
     if (!oracle->isamax || !cand->isamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const float *x = (const float *)tc->A;
 
-    int64_t oracle_idx = oracle->isamax(n, x, 1);
-    int64_t cand_idx   = cand->isamax(n, x, 1);
+    int oracle_idx = oracle->isamax(n, x, 1);
+    int cand_idx   = cand->isamax(n, x, 1);
 
-    if (oracle_idx < 0 || oracle_idx >= n) {
+    /* cblas_isamax in faster-blaster-reference returns 1-based index (1..n).
+     * Guard: reject 0 (empty result) and anything > n. */
+    if (oracle_idx < 1 || oracle_idx > n) {
         result_oracle_fatal(res); return FB_JUDGE_OK;
     }
 
@@ -778,10 +780,9 @@ static fb_judge_status_t run_isamax(
         res->is_fatal       = false;
         res->is_oracle_fatal = false;
     } else {
-        /* Check whether the magnitudes are within tolerance (could be a tie). */
-        float abs_ref  = fabsf(x[oracle_idx]);
-        float abs_cand = (cand_idx >= 0 && cand_idx < n) ? fabsf(x[cand_idx]) : 0.0f;
-        /* If |x[cand]| < |x[oracle]| * (1 - eps), the candidate picked the wrong max. */
+        /* Check whether the magnitudes are within tolerance (tie-breaking). */
+        float abs_ref  = fabsf(x[oracle_idx - 1]);  /* 1-based → 0-based */
+        float abs_cand = (cand_idx >= 1 && cand_idx <= n) ? fabsf(x[cand_idx - 1]) : 0.0f;
         double err = fabs((double)(abs_ref - abs_cand)) /
                      fmax((double)abs_ref, (double)FLT_EPSILON);
         result_from_relerr(res, err < (double)FLT_EPSILON * 4.0 ? 0.0 : err);
@@ -809,13 +810,14 @@ static fb_judge_status_t run_idamax(
 {
     if (!oracle->idamax || !cand->idamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       n = (int64_t)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused) */
     const double *x = (const double *)tc->A;
 
-    int64_t oracle_idx = oracle->idamax(n, x, 1);
-    int64_t cand_idx   = cand->idamax(n, x, 1);
+    int oracle_idx = oracle->idamax(n, x, 1);
+    int cand_idx   = cand->idamax(n, x, 1);
 
-    if (oracle_idx < 0 || oracle_idx >= n) {
+    /* 1-based index from reference cblas_idamax. */
+    if (oracle_idx < 1 || oracle_idx > n) {
         result_oracle_fatal(res); return FB_JUDGE_OK;
     }
 
@@ -823,8 +825,8 @@ static fb_judge_status_t run_idamax(
         res->digits = 16.0; res->relative_error = 0.0;
         res->is_fatal = false; res->is_oracle_fatal = false;
     } else {
-        double abs_ref  = fabs(x[oracle_idx]);
-        double abs_cand = (cand_idx >= 0 && cand_idx < n) ? fabs(x[cand_idx]) : 0.0;
+        double abs_ref  = fabs(x[oracle_idx - 1]);  /* 1-based → 0-based */
+        double abs_cand = (cand_idx >= 1 && cand_idx <= n) ? fabs(x[cand_idx - 1]) : 0.0;
         double err = fabs(abs_ref - abs_cand) /
                      fmax(abs_ref, DBL_EPSILON);
         result_from_relerr(res, err < DBL_EPSILON * 4.0 ? 0.0 : err);
@@ -862,9 +864,9 @@ static fb_judge_status_t run_sgemv(
 {
     if (!oracle->sgemv || !cand->sgemv) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      m    = (int64_t)tc->m;
-    int64_t      n    = (int64_t)tc->n;
-    int64_t      lda  = (int64_t)tc->lda;
+    int      m    = (int)tc->m;
+    int      n    = (int)tc->n;
+    int      lda  = (int)tc->lda;
     float        alpha = (float)tc->alpha;
     float        beta  = (float)tc->beta;
     const float *A    = (const float *)tc->A;
@@ -921,9 +923,9 @@ static fb_judge_status_t run_dgemv(
 {
     if (!oracle->dgemv || !cand->dgemv) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       m    = (int64_t)tc->m;
-    int64_t       n    = (int64_t)tc->n;
-    int64_t       lda  = (int64_t)tc->lda;
+    int       m    = (int)tc->m;
+    int       n    = (int)tc->n;
+    int       lda  = (int)tc->lda;
     double        alpha = tc->alpha;
     double        beta  = tc->beta;
     const double *A    = (const double *)tc->A;
@@ -990,12 +992,12 @@ static fb_judge_status_t run_sgemm(
 {
     if (!oracle->sgemm || !cand->sgemm) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t      m    = (int64_t)tc->m;
-    int64_t      n    = (int64_t)tc->n;
-    int64_t      k    = (int64_t)tc->k;
-    int64_t      lda  = (int64_t)tc->lda;
-    int64_t      ldb  = (int64_t)tc->ldb;
-    int64_t      ldc  = (int64_t)tc->ldc;
+    int      m    = (int)tc->m;
+    int      n    = (int)tc->n;
+    int      k    = (int)tc->k;
+    int      lda  = (int)tc->lda;
+    int      ldb  = (int)tc->ldb;
+    int      ldc  = (int)tc->ldc;
     float        alpha = (float)tc->alpha;
     float        beta  = (float)tc->beta;
     const float *A    = (const float *)tc->A;
@@ -1055,12 +1057,12 @@ static fb_judge_status_t run_dgemm(
 {
     if (!oracle->dgemm || !cand->dgemm) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t       m    = (int64_t)tc->m;
-    int64_t       n    = (int64_t)tc->n;
-    int64_t       k    = (int64_t)tc->k;
-    int64_t       lda  = (int64_t)tc->lda;
-    int64_t       ldb  = (int64_t)tc->ldb;
-    int64_t       ldc  = (int64_t)tc->ldc;
+    int       m    = (int)tc->m;
+    int       n    = (int)tc->n;
+    int       k    = (int)tc->k;
+    int       lda  = (int)tc->lda;
+    int       ldb  = (int)tc->ldb;
+    int       ldc  = (int)tc->ldc;
     double        alpha = tc->alpha;
     double        beta  = tc->beta;
     const double *A    = (const double *)tc->A;
@@ -1122,9 +1124,9 @@ static fb_judge_status_t run_caxpy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->caxpy || !cand->caxpy) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     fb_complex_float_t alpha;
-    alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
 
     fb_complex_float_t *y_oracle = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -1163,9 +1165,9 @@ static fb_judge_status_t run_zaxpy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zaxpy || !cand->zaxpy) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     fb_complex_double_t alpha;
-    alpha.real = tc->alpha; alpha.imag = 0.0;
+    __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
 
     fb_complex_double_t *y_oracle = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -1204,9 +1206,9 @@ static fb_judge_status_t run_cscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cscal || !cand->cscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     fb_complex_float_t alpha;
-    alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
 
     fb_complex_float_t *x_oracle = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
     if (!x_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -1244,9 +1246,9 @@ static fb_judge_status_t run_zscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zscal || !cand->zscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     fb_complex_double_t alpha;
-    alpha.real = tc->alpha; alpha.imag = 0.0;
+    __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
 
     fb_complex_double_t *x_oracle = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
     if (!x_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -1284,7 +1286,7 @@ static fb_judge_status_t run_csscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->csscal || !cand->csscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float alpha = (float)tc->alpha;
 
     fb_complex_float_t *x_oracle = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
@@ -1323,7 +1325,7 @@ static fb_judge_status_t run_zdscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zdscal || !cand->zdscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double alpha = tc->alpha;
 
     fb_complex_double_t *x_oracle = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
@@ -1362,7 +1364,7 @@ static fb_judge_status_t run_ccopy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ccopy || !cand->ccopy) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
 
     fb_complex_float_t *y_oracle = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -1401,7 +1403,7 @@ static fb_judge_status_t run_zcopy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zcopy || !cand->zcopy) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
 
     fb_complex_double_t *y_oracle = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -1440,7 +1442,7 @@ static fb_judge_status_t run_cswap(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cswap || !cand->cswap) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
 
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
     fb_complex_float_t *yo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -1486,7 +1488,7 @@ static fb_judge_status_t run_zswap(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zswap || !cand->zswap) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
 
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
     fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -1535,13 +1537,13 @@ static fb_judge_status_t run_cdotu(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cdotu || !cand->cdotu) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     fb_complex_float_t r_oracle, r_cand;
-    r_oracle.real = 0.0f; r_oracle.imag = 0.0f;
+    __real__(r_oracle) = 0.0f; __imag__(r_oracle) = 0.0f;
     oracle->cdotu(&r_oracle, n, x, 1, y, 1);
-    r_cand.real = 0.0f; r_cand.imag = 0.0f;
+    __real__(r_cand) = 0.0f; __imag__(r_cand) = 0.0f;
     cand->cdotu(&r_cand, n, x, 1, y, 1);
     /* Compare as 2-element float array */
     double scale = fb_norm_frob_cf32((const float *)&r_oracle, 1);
@@ -1565,13 +1567,13 @@ static fb_judge_status_t run_cdotc(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cdotc || !cand->cdotc) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     fb_complex_float_t r_oracle, r_cand;
-    r_oracle.real = 0.0f; r_oracle.imag = 0.0f;
+    __real__(r_oracle) = 0.0f; __imag__(r_oracle) = 0.0f;
     oracle->cdotc(&r_oracle, n, x, 1, y, 1);
-    r_cand.real = 0.0f; r_cand.imag = 0.0f;
+    __real__(r_cand) = 0.0f; __imag__(r_cand) = 0.0f;
     cand->cdotc(&r_cand, n, x, 1, y, 1);
     double scale = fb_norm_frob_cf32((const float *)&r_oracle, 1);
     double relerr = fb_judge_relerr(&r_cand, &r_oracle, 1, FB_DTYPE_CF32, scale);
@@ -1594,13 +1596,13 @@ static fb_judge_status_t run_zdotu(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zdotu || !cand->zdotu) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     fb_complex_double_t r_oracle, r_cand;
-    r_oracle.real = 0.0; r_oracle.imag = 0.0;
+    __real__(r_oracle) = 0.0; __imag__(r_oracle) = 0.0;
     oracle->zdotu(&r_oracle, n, x, 1, y, 1);
-    r_cand.real = 0.0; r_cand.imag = 0.0;
+    __real__(r_cand) = 0.0; __imag__(r_cand) = 0.0;
     cand->zdotu(&r_cand, n, x, 1, y, 1);
     double scale = fb_norm_frob_cf64((const double *)&r_oracle, 1);
     double relerr = fb_judge_relerr(&r_cand, &r_oracle, 1, FB_DTYPE_CF64, scale);
@@ -1623,13 +1625,13 @@ static fb_judge_status_t run_zdotc(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zdotc || !cand->zdotc) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     fb_complex_double_t r_oracle, r_cand;
-    r_oracle.real = 0.0; r_oracle.imag = 0.0;
+    __real__(r_oracle) = 0.0; __imag__(r_oracle) = 0.0;
     oracle->zdotc(&r_oracle, n, x, 1, y, 1);
-    r_cand.real = 0.0; r_cand.imag = 0.0;
+    __real__(r_cand) = 0.0; __imag__(r_cand) = 0.0;
     cand->zdotc(&r_cand, n, x, 1, y, 1);
     double scale = fb_norm_frob_cf64((const double *)&r_oracle, 1);
     double relerr = fb_judge_relerr(&r_cand, &r_oracle, 1, FB_DTYPE_CF64, scale);
@@ -1653,7 +1655,7 @@ static fb_judge_status_t run_sdsdot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->sdsdot || !cand->sdsdot) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float sb = (float)tc->alpha;
     const float *x = (const float *)tc->A;
     const float *y = (const float *)tc->B;
@@ -1678,7 +1680,7 @@ static fb_judge_status_t run_dsdot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsdot || !cand->dsdot) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const float *x = (const float *)tc->A;
     const float *y = (const float *)tc->B;
     double r_oracle = oracle->dsdot(n, x, 1, y, 1);
@@ -1702,7 +1704,7 @@ static fb_judge_status_t run_scasum(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->scasum || !cand->scasum) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     float r_oracle = oracle->scasum(n, x, 1);
     float r_cand   = cand->scasum(n, x, 1);
@@ -1724,7 +1726,7 @@ static fb_judge_status_t run_dzasum(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dzasum || !cand->dzasum) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     double r_oracle = oracle->dzasum(n, x, 1);
     double r_cand   = cand->dzasum(n, x, 1);
@@ -1747,7 +1749,7 @@ static fb_judge_status_t run_scnrm2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->scnrm2 || !cand->scnrm2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     float r_oracle = oracle->scnrm2(n, x, 1);
     float r_cand   = cand->scnrm2(n, x, 1);
@@ -1769,7 +1771,7 @@ static fb_judge_status_t run_dznrm2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dznrm2 || !cand->dznrm2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     double r_oracle = oracle->dznrm2(n, x, 1);
     double r_cand   = cand->dznrm2(n, x, 1);
@@ -1792,10 +1794,10 @@ static fb_judge_status_t run_icamax(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->icamax || !cand->icamax) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
-    int64_t oracle_idx = oracle->icamax(n, x, 1);
-    int64_t cand_idx   = cand->icamax(n, x, 1);
+    int oracle_idx = oracle->icamax(n, x, 1);
+    int cand_idx   = cand->icamax(n, x, 1);
     if (cand_idx == oracle_idx) {
         res->digits = 16.0; res->relative_error = 0.0;
         res->is_fatal = false; res->is_oracle_fatal = false;
@@ -1819,10 +1821,10 @@ static fb_judge_status_t run_izamax(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->izamax || !cand->izamax) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
-    int64_t oracle_idx = oracle->izamax(n, x, 1);
-    int64_t cand_idx   = cand->izamax(n, x, 1);
+    int oracle_idx = oracle->izamax(n, x, 1);
+    int cand_idx   = cand->izamax(n, x, 1);
     if (cand_idx == oracle_idx) {
         res->digits = 16.0; res->relative_error = 0.0;
         res->is_fatal = false; res->is_oracle_fatal = false;
@@ -1851,7 +1853,7 @@ static fb_judge_status_t run_srot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->srot || !cand->srot) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float c = (float)tc->alpha, s = (float)tc->beta;
     const float *x_in = (const float *)tc->A;
     const float *y_in = (const float *)tc->B;
@@ -1897,7 +1899,7 @@ static fb_judge_status_t run_drot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->drot || !cand->drot) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double c = tc->alpha, s = tc->beta;
     const double *x_in = (const double *)tc->A;
     const double *y_in = (const double *)tc->B;
@@ -1946,11 +1948,11 @@ static fb_judge_status_t run_crot(const fb_backend_vtable_t *oracle,
                                   uint64_t *ns_out) {
   if (!oracle->crot || !cand->crot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int64_t n = (int64_t)tc->n;
+  int n = (int)tc->n;
   float c = (float)tc->alpha;
   fb_complex_float_t s;
-  s.real = (float)tc->beta;
-  s.imag = 0.0f;
+  __real__(s) = (float)tc->beta;
+  __imag__(s) = 0.0f;
   const fb_complex_float_t *x_in = (const fb_complex_float_t *)tc->A;
   const fb_complex_float_t *y_in = (const fb_complex_float_t *)tc->B;
 
@@ -2030,11 +2032,11 @@ static fb_judge_status_t run_zrot(const fb_backend_vtable_t *oracle,
                                   uint64_t *ns_out) {
   if (!oracle->zrot || !cand->zrot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int64_t n = (int64_t)tc->n;
+  int n = (int)tc->n;
   double c = tc->alpha;
   fb_complex_double_t s;
-  s.real = tc->beta;
-  s.imag = 0.0;
+  __real__(s) = tc->beta;
+  __imag__(s) = 0.0;
   const fb_complex_double_t *x_in = (const fb_complex_double_t *)tc->A;
   const fb_complex_double_t *y_in = (const fb_complex_double_t *)tc->B;
 
@@ -2114,7 +2116,7 @@ static fb_judge_status_t run_zdrot(const fb_backend_vtable_t *oracle,
                                    uint64_t *ns_out) {
   if (!oracle->zdrot || !cand->zdrot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int64_t n = (int64_t)tc->n;
+  int n = (int)tc->n;
   double c = tc->alpha, s = tc->beta;
   const fb_complex_double_t *x_in = (const fb_complex_double_t *)tc->A;
   const fb_complex_double_t *y_in = (const fb_complex_double_t *)tc->B;
@@ -2254,7 +2256,7 @@ static fb_judge_status_t run_srotm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->srotm || !cand->srotm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const float *x_in = (const float *)tc->A;
     const float *y_in = (const float *)tc->B;
     /* Use identity modified rotation: param[0]=-2 (use identity, no-op) for safety */
@@ -2300,7 +2302,7 @@ static fb_judge_status_t run_drotm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->drotm || !cand->drotm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const double *x_in = (const double *)tc->A;
     const double *y_in = (const double *)tc->B;
     double param[5] = {-2.0, 1.0, 0.0, 0.0, 1.0};
@@ -2384,9 +2386,9 @@ static fb_judge_status_t run_cgemv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cgemv || !cand->cgemv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->B;
 
@@ -2427,9 +2429,9 @@ static fb_judge_status_t run_zgemv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zgemv || !cand->zgemv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->B;
 
@@ -2477,7 +2479,7 @@ static fb_judge_status_t run_ssymv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssymv || !cand->ssymv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *A = (const float *)tc->A, *x = (const float *)tc->B;
 
@@ -2513,7 +2515,7 @@ static fb_judge_status_t run_dsymv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsymv || !cand->dsymv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     double alpha = tc->alpha, beta = tc->beta;
     const double *A = (const double *)tc->A, *x = (const double *)tc->B;
 
@@ -2549,9 +2551,9 @@ static fb_judge_status_t run_chemv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chemv || !cand->chemv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->B;
 
@@ -2587,9 +2589,9 @@ static fb_judge_status_t run_zhemv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhemv || !cand->zhemv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->B;
 
@@ -2632,7 +2634,7 @@ static fb_judge_status_t run_strmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->strmv || !cand->strmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const float *A = (const float *)tc->A;
 
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
@@ -2667,7 +2669,7 @@ static fb_judge_status_t run_dtrmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtrmv || !cand->dtrmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const double *A = (const double *)tc->A;
 
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
@@ -2702,7 +2704,7 @@ static fb_judge_status_t run_ctrmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctrmv || !cand->ctrmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
 
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -2737,7 +2739,7 @@ static fb_judge_status_t run_ztrmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztrmv || !cand->ztrmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
 
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -2774,7 +2776,7 @@ static fb_judge_status_t run_strsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->strsv || !cand->strsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const float *A = (const float *)tc->A;
 
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
@@ -2809,7 +2811,7 @@ static fb_judge_status_t run_dtrsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtrsv || !cand->dtrsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const double *A = (const double *)tc->A;
 
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
@@ -2844,7 +2846,7 @@ static fb_judge_status_t run_ctrsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctrsv || !cand->ctrsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
 
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -2879,7 +2881,7 @@ static fb_judge_status_t run_ztrsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztrsv || !cand->ztrsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
 
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -2921,7 +2923,7 @@ static fb_judge_status_t run_sger(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->sger || !cand->sger) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     float alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A;
     const float *y = (const float *)tc->B;
@@ -2961,7 +2963,7 @@ static fb_judge_status_t run_dger(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dger || !cand->dger) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     double alpha = tc->alpha;
     const double *x = (const double *)tc->A;
     const double *y = (const double *)tc->B;
@@ -3001,8 +3003,8 @@ static fb_judge_status_t run_cgeru(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cgeru || !cand->cgeru) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     size_t A_sz = (size_t)(m * lda);
@@ -3041,8 +3043,8 @@ static fb_judge_status_t run_cgerc(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cgerc || !cand->cgerc) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     size_t A_sz = (size_t)(m * lda);
@@ -3081,8 +3083,8 @@ static fb_judge_status_t run_zgeru(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zgeru || !cand->zgeru) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     size_t A_sz = (size_t)(m * lda);
@@ -3121,8 +3123,8 @@ static fb_judge_status_t run_zgerc(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zgerc || !cand->zgerc) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     size_t A_sz = (size_t)(m * lda);
@@ -3165,10 +3167,10 @@ static fb_judge_status_t run_cgemm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cgemm || !cand->cgemm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *B = (const fb_complex_float_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3207,10 +3209,10 @@ static fb_judge_status_t run_zgemm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zgemm || !cand->zgemm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *B = (const fb_complex_double_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3253,8 +3255,8 @@ static fb_judge_status_t run_ssymm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssymm || !cand->ssymm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *A = (const float *)tc->A, *B = (const float *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3293,8 +3295,8 @@ static fb_judge_status_t run_dsymm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsymm || !cand->dsymm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
     double alpha = tc->alpha, beta = tc->beta;
     const double *A = (const double *)tc->A, *B = (const double *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3333,8 +3335,8 @@ static fb_judge_status_t run_ssyrk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssyrk || !cand->ssyrk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *A = (const float *)tc->A;
     size_t C_sz = (size_t)(n * ldc);
@@ -3373,8 +3375,8 @@ static fb_judge_status_t run_dsyrk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsyrk || !cand->dsyrk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
     double alpha = tc->alpha, beta = tc->beta;
     const double *A = (const double *)tc->A;
     size_t C_sz = (size_t)(n * ldc);
@@ -3451,10 +3453,10 @@ static fb_judge_status_t run_csymm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->csymm || !cand->csymm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *B = (const fb_complex_float_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3480,10 +3482,10 @@ static fb_judge_status_t run_zsymm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zsymm || !cand->zsymm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *B = (const fb_complex_double_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3509,10 +3511,10 @@ static fb_judge_status_t run_chemm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chemm || !cand->chemm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *B = (const fb_complex_float_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3538,10 +3540,10 @@ static fb_judge_status_t run_zhemm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhemm || !cand->zhemm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *B = (const fb_complex_double_t *)tc->B;
     size_t C_sz = (size_t)(m * ldc);
@@ -3569,10 +3571,10 @@ static fb_judge_status_t run_csyrk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->csyrk || !cand->csyrk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     size_t C_sz = (size_t)(n * ldc);
     fb_complex_float_t *Co = (fb_complex_float_t *)clone_buf(tc->C_init, C_sz, sizeof(fb_complex_float_t));
@@ -3597,10 +3599,10 @@ static fb_judge_status_t run_zsyrk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zsyrk || !cand->zsyrk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     size_t C_sz = (size_t)(n * ldc);
     fb_complex_double_t *Co = (fb_complex_double_t *)clone_buf(tc->C_init, C_sz, sizeof(fb_complex_double_t));
@@ -3627,8 +3629,8 @@ static fb_judge_status_t run_cherk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cherk || !cand->cherk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
     float alpha = (float)tc->alpha;  /* REAL float — not complex! */
     float beta  = (float)tc->beta;   /* REAL float — not complex! */
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
@@ -3655,8 +3657,8 @@ static fb_judge_status_t run_zherk(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zherk || !cand->zherk) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldc = (int)tc->ldc;
     double alpha = tc->alpha;  /* REAL double — not complex! */
     double beta  = tc->beta;   /* REAL double — not complex! */
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
@@ -3685,8 +3687,8 @@ static fb_judge_status_t run_ssyr2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssyr2k || !cand->ssyr2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *A = (const float *)tc->A, *B = (const float *)tc->B;
     size_t C_sz = (size_t)(n * ldc);
@@ -3723,8 +3725,8 @@ static fb_judge_status_t run_dsyr2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsyr2k || !cand->dsyr2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
     double alpha = tc->alpha, beta = tc->beta;
     const double *A = (const double *)tc->A, *B = (const double *)tc->B;
     size_t C_sz = (size_t)(n * ldc);
@@ -3761,10 +3763,10 @@ static fb_judge_status_t run_csyr2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->csyr2k || !cand->csyr2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *B = (const fb_complex_float_t *)tc->B;
     size_t C_sz = (size_t)(n * ldc);
@@ -3790,10 +3792,10 @@ static fb_judge_status_t run_zsyr2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zsyr2k || !cand->zsyr2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *B = (const fb_complex_double_t *)tc->B;
     size_t C_sz = (size_t)(n * ldc);
@@ -3821,9 +3823,9 @@ static fb_judge_status_t run_cher2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cher2k || !cand->cher2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     float beta = (float)tc->beta;  /* REAL float — not complex! */
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *B = (const fb_complex_float_t *)tc->B;
@@ -3852,9 +3854,9 @@ static fb_judge_status_t run_zher2k(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zher2k || !cand->zher2k) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb, ldc = (int64_t)tc->ldc;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     double beta = tc->beta;  /* REAL double — not complex! */
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *B = (const fb_complex_double_t *)tc->B;
@@ -3883,9 +3885,9 @@ static fb_judge_status_t run_ctrmm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctrmm || !cand->ctrmm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
     fb_complex_float_t *Bo = (fb_complex_float_t *)clone_buf(tc->B, B_sz, sizeof(fb_complex_float_t));
@@ -3921,9 +3923,9 @@ static fb_judge_status_t run_ztrmm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztrmm || !cand->ztrmm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
     fb_complex_double_t *Bo = (fb_complex_double_t *)clone_buf(tc->B, B_sz, sizeof(fb_complex_double_t));
@@ -3961,9 +3963,9 @@ static fb_judge_status_t run_ctrsm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctrsm || !cand->ctrsm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
     fb_complex_float_t *Bo = (fb_complex_float_t *)clone_buf(tc->B, B_sz, sizeof(fb_complex_float_t));
@@ -3999,9 +4001,9 @@ static fb_judge_status_t run_ztrsm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztrsm || !cand->ztrsm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
     fb_complex_double_t *Bo = (fb_complex_double_t *)clone_buf(tc->B, B_sz, sizeof(fb_complex_double_t));
@@ -4038,8 +4040,8 @@ static fb_judge_status_t run_strmm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->strmm || !cand->strmm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
     float alpha = (float)tc->alpha;
     const float *A = (const float *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
@@ -4078,8 +4080,8 @@ static fb_judge_status_t run_dtrmm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtrmm || !cand->dtrmm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
     double alpha = tc->alpha;
     const double *A = (const double *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
@@ -4119,8 +4121,8 @@ static fb_judge_status_t run_strsm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->strsm || !cand->strsm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
     float alpha = (float)tc->alpha;
     const float *A = (const float *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
@@ -4159,8 +4161,8 @@ static fb_judge_status_t run_dtrsm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtrsm || !cand->dtrsm) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda, ldb = (int64_t)tc->ldb;
+    int m = (int)tc->m, n = (int)tc->n;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
     double alpha = tc->alpha;
     const double *A = (const double *)tc->A;
     size_t B_sz = (size_t)(m * ldb);
@@ -4214,7 +4216,7 @@ static fb_judge_status_t run_sspmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->sspmv || !cand->sspmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *AP = (const float *)tc->A, *x = (const float *)tc->B;
     float *yo = (float *)clone_buf(tc->C_init, (size_t)n, sizeof(float));
@@ -4243,7 +4245,7 @@ static fb_judge_status_t run_dspmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dspmv || !cand->dspmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double alpha = tc->alpha, beta = tc->beta;
     const double *AP = (const double *)tc->A, *x = (const double *)tc->B;
     double *yo = (double *)clone_buf(tc->C_init, (size_t)n, sizeof(double));
@@ -4272,9 +4274,9 @@ static fb_judge_status_t run_chpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chpmv || !cand->chpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int n = (int)tc->n;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *AP = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *x  = (const fb_complex_float_t *)tc->B;
     fb_complex_float_t *yo = (fb_complex_float_t *)clone_buf(tc->C_init, (size_t)n, sizeof(fb_complex_float_t));
@@ -4303,9 +4305,9 @@ static fb_judge_status_t run_zhpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhpmv || !cand->zhpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int n = (int)tc->n;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *AP = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *x  = (const fb_complex_double_t *)tc->B;
     fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(tc->C_init, (size_t)n, sizeof(fb_complex_double_t));
@@ -4337,7 +4339,7 @@ static fb_judge_status_t run_ssbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssbmv || !cand->ssbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     float alpha = (float)tc->alpha, beta = (float)tc->beta;
     const float *A = (const float *)tc->A, *x = (const float *)tc->B;
     float *yo = (float *)clone_buf(tc->C_init, (size_t)n, sizeof(float));
@@ -4366,7 +4368,7 @@ static fb_judge_status_t run_dsbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsbmv || !cand->dsbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     double alpha = tc->alpha, beta = tc->beta;
     const double *A = (const double *)tc->A, *x = (const double *)tc->B;
     double *yo = (double *)clone_buf(tc->C_init, (size_t)n, sizeof(double));
@@ -4395,9 +4397,9 @@ static fb_judge_status_t run_chbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chbmv || !cand->chbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
-    fb_complex_float_t beta;  beta.real  = (float)tc->beta;  beta.imag  = 0.0f;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->B;
     fb_complex_float_t *yo = (fb_complex_float_t *)clone_buf(tc->C_init, (size_t)n, sizeof(fb_complex_float_t));
@@ -4426,9 +4428,9 @@ static fb_judge_status_t run_zhbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhbmv || !cand->zhbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
-    fb_complex_double_t beta;  beta.real  = tc->beta;  beta.imag  = 0.0;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->B;
     fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(tc->C_init, (size_t)n, sizeof(fb_complex_double_t));
@@ -4460,7 +4462,7 @@ static fb_judge_status_t run_stbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->stbmv || !cand->stbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const float *A = (const float *)tc->A;
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4488,7 +4490,7 @@ static fb_judge_status_t run_dtbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtbmv || !cand->dtbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const double *A = (const double *)tc->A;
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4516,7 +4518,7 @@ static fb_judge_status_t run_ctbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctbmv || !cand->ctbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4544,7 +4546,7 @@ static fb_judge_status_t run_ztbmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztbmv || !cand->ztbmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4575,7 +4577,7 @@ static fb_judge_status_t run_stbsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->stbsv || !cand->stbsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const float *A = (const float *)tc->A;
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4603,7 +4605,7 @@ static fb_judge_status_t run_dtbsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtbsv || !cand->dtbsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const double *A = (const double *)tc->A;
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4631,7 +4633,7 @@ static fb_judge_status_t run_ctbsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctbsv || !cand->ctbsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const fb_complex_float_t *A = (const fb_complex_float_t *)tc->A;
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4659,7 +4661,7 @@ static fb_judge_status_t run_ztbsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztbsv || !cand->ztbsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, k = (int64_t)tc->k, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda;
     const fb_complex_double_t *A = (const fb_complex_double_t *)tc->A;
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4690,7 +4692,7 @@ static fb_judge_status_t run_stpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->stpmv || !cand->stpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const float *AP = (const float *)tc->A;
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4718,7 +4720,7 @@ static fb_judge_status_t run_dtpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtpmv || !cand->dtpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const double *AP = (const double *)tc->A;
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4746,7 +4748,7 @@ static fb_judge_status_t run_ctpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctpmv || !cand->ctpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *AP = (const fb_complex_float_t *)tc->A;
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4774,7 +4776,7 @@ static fb_judge_status_t run_ztpmv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztpmv || !cand->ztpmv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *AP = (const fb_complex_double_t *)tc->A;
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4805,7 +4807,7 @@ static fb_judge_status_t run_stpsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->stpsv || !cand->stpsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const float *AP = (const float *)tc->A;
     float *xo = (float *)clone_buf(tc->B, (size_t)n, sizeof(float));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4833,7 +4835,7 @@ static fb_judge_status_t run_dtpsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dtpsv || !cand->dtpsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const double *AP = (const double *)tc->A;
     double *xo = (double *)clone_buf(tc->B, (size_t)n, sizeof(double));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4861,7 +4863,7 @@ static fb_judge_status_t run_ctpsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ctpsv || !cand->ctpsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_float_t *AP = (const fb_complex_float_t *)tc->A;
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4889,7 +4891,7 @@ static fb_judge_status_t run_ztpsv(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ztpsv || !cand->ztpsv) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     const fb_complex_double_t *AP = (const fb_complex_double_t *)tc->A;
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!xo) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
@@ -4921,7 +4923,7 @@ static fb_judge_status_t run_sspr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->sspr || !cand->sspr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -4951,7 +4953,7 @@ static fb_judge_status_t run_dspr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dspr || !cand->dspr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double alpha = tc->alpha;
     const double *x = (const double *)tc->A;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -4981,7 +4983,7 @@ static fb_judge_status_t run_chpr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chpr || !cand->chpr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float alpha = (float)tc->alpha;  /* REAL float — intentional */
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5011,7 +5013,7 @@ static fb_judge_status_t run_zhpr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhpr || !cand->zhpr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double alpha = tc->alpha;  /* REAL double — intentional */
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5045,7 +5047,7 @@ static fb_judge_status_t run_sspr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->sspr2 || !cand->sspr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     float alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A, *y = (const float *)tc->B;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5075,7 +5077,7 @@ static fb_judge_status_t run_dspr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dspr2 || !cand->dspr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
+    int n = (int)tc->n;
     double alpha = tc->alpha;
     const double *x = (const double *)tc->A, *y = (const double *)tc->B;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5105,8 +5107,8 @@ static fb_judge_status_t run_chpr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->chpr2 || !cand->chpr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int n = (int)tc->n;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5136,8 +5138,8 @@ static fb_judge_status_t run_zhpr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zhpr2 || !cand->zhpr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int n = (int)tc->n;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     size_t AP_sz = (size_t)(n * (n + 1) / 2);
@@ -5173,7 +5175,7 @@ static fb_judge_status_t run_ssyr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssyr || !cand->ssyr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     float alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A;
     size_t A_sz = (size_t)(n * lda);
@@ -5211,7 +5213,7 @@ static fb_judge_status_t run_dsyr(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsyr || !cand->dsyr) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     double alpha = tc->alpha;
     const double *x = (const double *)tc->A;
     size_t A_sz = (size_t)(n * lda);
@@ -5250,7 +5252,7 @@ static fb_judge_status_t run_cher(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cher || !cand->cher) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     float alpha = (float)tc->alpha;   /* REAL float — intentional */
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     size_t A_sz = (size_t)(n * lda);
@@ -5289,7 +5291,7 @@ static fb_judge_status_t run_zher(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zher || !cand->zher) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     double alpha = tc->alpha;   /* REAL double — intentional */
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     size_t A_sz = (size_t)(n * lda);
@@ -5327,7 +5329,7 @@ static fb_judge_status_t run_ssyr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ssyr2 || !cand->ssyr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     float alpha = (float)tc->alpha;
     const float *x = (const float *)tc->A, *y = (const float *)tc->B;
     size_t A_sz = (size_t)(n * lda);
@@ -5365,7 +5367,7 @@ static fb_judge_status_t run_dsyr2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->dsyr2 || !cand->dsyr2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     double alpha = tc->alpha;
     const double *x = (const double *)tc->A, *y = (const double *)tc->B;
     size_t A_sz = (size_t)(n * lda);
@@ -5404,8 +5406,8 @@ static fb_judge_status_t run_cher2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cher2 || !cand->cher2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_float_t alpha; alpha.real = (float)tc->alpha; alpha.imag = 0.0f;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     const fb_complex_float_t *y = (const fb_complex_float_t *)tc->B;
     size_t A_sz = (size_t)(n * lda);
@@ -5445,8 +5447,8 @@ static fb_judge_status_t run_zher2(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zher2 || !cand->zher2) return FB_JUDGE_ERR_NOT_IMPL;
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
-    fb_complex_double_t alpha; alpha.real = tc->alpha; alpha.imag = 0.0;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     const fb_complex_double_t *y = (const fb_complex_double_t *)tc->B;
     size_t A_sz = (size_t)(n * lda);

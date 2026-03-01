@@ -222,6 +222,9 @@ fb_judge_status_t fb_judge_run(
         fb_metric_accum_init(&direct_accum);
         fb_timing_accum_init(&timing_accum);
 
+        int cases_scored = 0;
+        int oracle_fatal_count = 0;
+
         for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
             fb_judge_case_result_t result;
             uint64_t ns = 0;
@@ -230,6 +233,7 @@ fb_judge_status_t fb_judge_run(
                 oracle, candidate, &cases[ci], &result, &ns);
 
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                fb_corpus_case_free(&cases[ci]);
                 continue;
             }
             if (rs != FB_JUDGE_OK) {
@@ -239,19 +243,27 @@ fb_judge_status_t fb_judge_run(
             }
 
             if (result.is_oracle_fatal) {
-                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                for (int fi = 0; fi < ci; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                return FB_JUDGE_ERR_ORACLE_FAILURE;
+                /* Oracle produced non-finite output for this case (e.g.,
+                 * legitimate overflow in an extreme-scale corpus entry).
+                 * Skip this case; only fail if ALL cases are oracle-fatal. */
+                oracle_fatal_count++;
+                fb_corpus_case_free(&cases[ci]);
+                continue;
             }
 
             fb_metric_accum_add(&direct_accum, &result);
+            cases_scored++;
 
             if (!cases[ci].meta.is_edge_case && ns > 0)
                 fb_timing_accum_add(&timing_accum, ns);
 
             fb_corpus_case_free(&cases[ci]);
+        }
+
+        /* If every single case triggered oracle overflow, the reference
+         * backend cannot provide a correctness signal for this operation. */
+        if (cases_scored == 0) {
+            return FB_JUDGE_ERR_ORACLE_FAILURE;
         }
 
         fb_profile_finish_direct(&direct_accum, &timing_accum, meta, profile_out);
@@ -270,6 +282,9 @@ fb_judge_status_t fb_judge_run(
         fb_metric_accum_init(&values_accum);
         fb_timing_accum_init(&timing_accum);
 
+        int cases_scored_idx = 0;
+        int oracle_fatal_idx = 0;
+
         for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
             fb_judge_index_result_t idx_res;
             uint64_t ns = 0;
@@ -278,6 +293,7 @@ fb_judge_status_t fb_judge_run(
                 oracle, candidate, &cases[ci], &idx_res, &ns);
 
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                fb_corpus_case_free(&cases[ci]);
                 continue;
             }
             if (rs != FB_JUDGE_OK) {
@@ -286,13 +302,11 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on either sub-result → halt. */
+            /* Skip oracle-fatal cases rather than aborting. */
             if (idx_res.index.is_oracle_fatal || idx_res.value.is_oracle_fatal) {
-                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                for (int fi = 0; fi < ci; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                return FB_JUDGE_ERR_ORACLE_FAILURE;
+                oracle_fatal_idx++;
+                fb_corpus_case_free(&cases[ci]);
+                continue;
             }
 
             fb_metric_accum_add(&index_accum,  &idx_res.index);

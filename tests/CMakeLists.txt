@@ -249,6 +249,42 @@ add_test(NAME judge_module COMMAND test_judge)
 message(STATUS "Judge module tests enabled")
 
 # ============================================================================
+# Judge Runner — end-to-end precision + timing CI test
+#
+# Wires fb_judge_init() + oracle (reference) + candidate backends +
+# fb_judge_run() into a single executable.  Phase 1 covers all 20 currently
+# implemented DIRECT/INDEX operations against the built-in reference backend.
+# Returns non-zero if any mandatory operation falls below its digit threshold.
+# ============================================================================
+add_executable(test_judge_runner
+    test_judge_runner.c
+)
+
+target_include_directories(test_judge_runner PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_judge_runner faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_judge_runner POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_judge_runner>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME judge_end_to_end COMMAND test_judge_runner)
+# KMP_DUPLICATE_LIB_OK avoids abort() when both libiomp5md and libomp are loaded
+# (can happen if AOCL or MKL backends are later added to k_backends[]).
+set_tests_properties(judge_end_to_end PROPERTIES
+    ENVIRONMENT "KMP_DUPLICATE_LIB_OK=TRUE")
+
+message(STATUS "Judge end-to-end runner test enabled")
+
+# ============================================================================
 # Backend Loader Integration Test
 # ============================================================================
 if(TRUE)

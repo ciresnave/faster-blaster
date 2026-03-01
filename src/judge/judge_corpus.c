@@ -155,11 +155,17 @@ static bool init_case_buffers(fb_corpus_case_t *c,
     size_t elt = fb_dtype_element_size[dtype];
     int vec_len = (m > 0) ? m : n;
 
-    int a_elts = (k > 0) ? m * k : vec_len;
+    /* Level-3 (k>0):  A is m×k matrix → a_elts = m*k
+     * Level-2 (k=0, n>0): A is m×n matrix → a_elts = m*n
+     * Level-1 (k=0, n=0): A is a vector of length m → a_elts = vec_len */
+    int a_elts = (k > 0) ? m * k : ((n > 0) ? m * n : vec_len);
     int b_elts = (k > 0 && n > 0) ? k * n : n;
     int c_elts = (m > 0 && n > 0) ? m * n : 1;
     if (a_elts < 1) a_elts = 1;
     if (c_elts < 1) c_elts = 1;
+    /* Level-1 vector ops: n=0, k=0 → b_elts=0, but SDOT/SAXPY/SSWAP all
+     * need a valid y vector.  Allocate B with the same length as A (= vec_len). */
+    if (b_elts < 1) b_elts = a_elts;
 
     c->A          = malloc((size_t)a_elts * elt);
     c->B          = (b_elts > 0) ? malloc((size_t)b_elts * elt) : NULL;
@@ -171,7 +177,10 @@ static bool init_case_buffers(fb_corpus_case_t *c,
     c->m   = m;
     c->n   = n;
     c->k   = k;
-    c->lda = (k > 0) ? k : vec_len;
+    /* lda: for L3 (k>0) leading dim of A = k (columns);
+     *      for L2 (k=0, n>0) row-major A has n columns → lda = n;
+     *      for L1 (k=0, n=0) just the vector stride = vec_len. */
+    c->lda = (k > 0) ? k : ((n > 0) ? n : vec_len);
     c->ldb = (b_elts > 0 && n > 0) ? n : 0;
     c->ldc = (n > 0) ? n : 1;
 
@@ -450,38 +459,42 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
         c->beta  = 1e12;
     }
 
-    /* --- Degenerate spectral (repeated eigenvalues) --- */
-    /* Identify if this is a spectral operation (SYEV/HEEV/GESVD/GEEV variants) */
+    /* --- Degenerate spectral (repeated eigenvalues / singular values) ----
+     * Slot 13 (index 12) is always allocated so FB_CORPUS_TOTAL_CASES is
+     * accurate for every dtype.  Special degenerate-matrix generation only
+     * applies to F64/CF64; F32/CF32 get a normal-fill placeholder.         */
     {
-        bool is_spectral = false;
-        /* Rough heuristic: between op_ids for LAPACK eigenvalue/SVD operations */
-        /* This can be refined once JUDGE_MOD_IDS are properly mapped */
+        uint32_t seed = (op_id * 2654435761u) ^ ((uint32_t)dtype * 40503u)
+                        ^ ((uint32_t)size_class * 29u) ^ 0xDECAFu;
+        fb_lcg_t rng; lcg_seed(&rng, seed);
+        fb_corpus_case_t *c = &cases_out[out_idx++];
+
+        if (!init_case_buffers(c, dtype, m, n, k)) return FB_JUDGE_ERR_ALLOC;
+
+        c->category             = FB_CORPUS_CAT_DEGENERATE_SPEC;
+        c->meta.op_id           = op_id;
+        c->meta.dtype           = (uint8_t)dtype;
+        c->meta.size_class      = (uint8_t)size_class;
+        c->meta.seed            = seed;
+        c->meta.is_edge_case    = true;
+        c->meta.is_degenerate_spectrum = true;
+
         if (dtype == FB_DTYPE_F64 || dtype == FB_DTYPE_CF64) {
-            /* Generate degenerate-spectrum case for potential spectral ops */
-            uint32_t seed = (op_id * 2654435761u) ^ ((uint32_t)dtype * 40503u)
-                            ^ ((uint32_t)size_class * 29u) ^ 0xDECAFu;
-            fb_lcg_t rng; lcg_seed(&rng, seed);
-            fb_corpus_case_t *c = &cases_out[out_idx++];
-
-            if (!init_case_buffers(c, dtype, m, n, k)) return FB_JUDGE_ERR_ALLOC;
-
-            c->category             = FB_CORPUS_CAT_DEGENERATE_SPEC;
-            c->meta.op_id           = op_id;
-            c->meta.dtype           = (uint8_t)dtype;
-            c->meta.size_class      = (uint8_t)size_class;
-            c->meta.seed            = seed;
-            c->meta.is_edge_case    = true;
-            c->meta.is_degenerate_spectrum = true;
-
             /* Generate degenerate matrices based on operation type */
-            /* For now, assume square matrices for symmetric eigenvalue ops */
             if (n > 0 && m == n && c->A) {
                 /* Symmetric case: SYEV/HEEV */
                 gen_degenerate_symmetric_f64((double *)c->A, n, c->lda, seed);
             } else if (n > 0 && m > 0 && c->A) {
                 /* Rectangular case: GESVD/GESDD */
                 gen_degenerate_svd_f64((double *)c->A, m, n, c->lda, seed);
+            } else {
+                fill_case(c, dtype, 1.0, &rng);
             }
+        } else {
+            /* F32/CF32: normal-fill placeholder — degenerate spectral tests
+             * are less meaningful at single precision, but the slot must be
+             * populated so the case count is consistent across all dtypes. */
+            fill_case(c, dtype, 1.0, &rng);
         }
     }
 

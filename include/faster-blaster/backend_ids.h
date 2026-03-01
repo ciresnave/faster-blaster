@@ -86,6 +86,12 @@
  */
 #define FB_BACKEND_ID_BLR           12u
 
+/**
+ * OxiBLAS: pure-Rust BLAS backend bridged via C FFI.
+ * Implements BLAS Level 1/2/3 with no Fortran or C dependency.
+ */
+#define FB_BACKEND_ID_OXIBLAS       13u
+
 /* =========================================================================
  * Sentinel
  * ========================================================================= */

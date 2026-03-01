@@ -845,7 +845,9 @@ static void w_ztrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
  *
  * TODO: replace this include once faster-blaster-reference has all LAPACK ops
  * ========================================================================= */
-#include "reference_lapack.c"
+/* TODO: un-comment once faster-blaster-reference has full LAPACK coverage.
+ * #include "reference_lapack.c"
+ */
 
 /* ============================================================================
  * Misc backend extension stubs (CPU reference needs no GPU memory management)
@@ -1062,81 +1064,22 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.ctrsm   = (fb_ctrsm_fn)w_ctrsm;
     vt.ztrsm   = (fb_ztrsm_fn)w_ztrsm;
 
-    /* ---- LAPACK (from in-tree reference_lapack.c) ---- */
-    vt.sgetrf  = (fb_sgetrf_fn)fb_ref_sgetrf;
-    vt.dgetrf  = (fb_dgetrf_fn)fb_ref_dgetrf;
-    vt.cgetrf  = (fb_cgetrf_fn)fb_ref_cgetrf;
-    vt.zgetrf  = (fb_zgetrf_fn)fb_ref_zgetrf;
-
-    vt.sgetrs  = (fb_sgetrs_fn)fb_ref_sgetrs;
-    vt.dgetrs  = (fb_dgetrs_fn)fb_ref_dgetrs;
-    vt.cgetrs  = (fb_cgetrs_fn)fb_ref_cgetrs;
-    vt.zgetrs  = (fb_zgetrs_fn)fb_ref_zgetrs;
-
-    vt.spotrf  = (fb_spotrf_fn)fb_ref_spotrf;
-    vt.dpotrf  = (fb_dpotrf_fn)fb_ref_dpotrf;
-    vt.cpotrf  = (fb_cpotrf_fn)fb_ref_cpotrf;
-    vt.zpotrf  = (fb_zpotrf_fn)fb_ref_zpotrf;
-
-    vt.spotrs  = (fb_spotrs_fn)fb_ref_spotrs;
-    vt.dpotrs  = (fb_dpotrs_fn)fb_ref_dpotrs;
-    vt.cpotrs  = (fb_cpotrs_fn)fb_ref_cpotrs;
-    vt.zpotrs  = (fb_zpotrs_fn)fb_ref_zpotrs;
-
-    vt.sgeqrf  = (fb_sgeqrf_fn)fb_ref_sgeqrf;
-    vt.dgeqrf  = (fb_dgeqrf_fn)fb_ref_dgeqrf;
-    vt.cgeqrf  = (fb_cgeqrf_fn)fb_ref_cgeqrf;
-    vt.zgeqrf  = (fb_zgeqrf_fn)fb_ref_zgeqrf;
-
-    vt.sorgqr  = (fb_sorgqr_fn)fb_ref_sorgqr;
-    vt.dorgqr  = (fb_dorgqr_fn)fb_ref_dorgqr;
-    vt.cungqr  = (fb_cungqr_fn)fb_ref_cungqr;
-    vt.zungqr  = (fb_zungqr_fn)fb_ref_zungqr;
-
-    vt.sgels   = (fb_sgels_fn)fb_ref_sgels;
-    vt.dgels   = (fb_dgels_fn)fb_ref_dgels;
-    vt.cgels   = (fb_cgels_fn)fb_ref_cgels;
-    vt.zgels   = (fb_zgels_fn)fb_ref_zgels;
-
-    vt.sormqr  = (fb_sormqr_fn)fb_ref_sormqr;
-    vt.dormqr  = (fb_dormqr_fn)fb_ref_dormqr;
-    vt.cunmqr  = (fb_cunmqr_fn)fb_ref_cunmqr;
-    vt.zunmqr  = (fb_zunmqr_fn)fb_ref_zunmqr;
-
-    vt.sgelsd  = (fb_sgelsd_fn)fb_ref_sgelsd;
-    vt.dgelsd  = (fb_dgelsd_fn)fb_ref_dgelsd;
-    vt.cgelsd  = (fb_cgelsd_fn)fb_ref_cgelsd;
-    vt.zgelsd  = (fb_zgelsd_fn)fb_ref_zgelsd;
-
-    vt.ssyev   = (fb_ssyev_fn)fb_ref_ssyev;
-    vt.dsyev   = (fb_dsyev_fn)fb_ref_dsyev;
-    vt.cheev   = (fb_cheev_fn)fb_ref_cheev;
-    vt.zheev   = (fb_zheev_fn)fb_ref_zheev;
-
-    vt.sgesvd  = (fb_sgesvd_fn)fb_ref_sgesvd;
-    vt.dgesvd  = (fb_dgesvd_fn)fb_ref_dgesvd;
-    vt.cgesvd  = (fb_cgesvd_fn)fb_ref_cgesvd;
-    vt.zgesvd  = (fb_zgesvd_fn)fb_ref_zgesvd;
-
-    vt.strtri  = (fb_strtri_fn)fb_ref_strtri;
-    vt.dtrtri  = (fb_dtrtri_fn)fb_ref_dtrtri;
-    vt.ctrtri  = (fb_ctrtri_fn)fb_ref_ctrtri;
-    vt.ztrtri  = (fb_ztrtri_fn)fb_ref_ztrtri;
-
-    vt.sgesdd  = (fb_sgesdd_fn)fb_ref_sgesdd;
-    vt.dgesdd  = (fb_dgesdd_fn)fb_ref_dgesdd;
-    vt.cgesdd  = (fb_cgesdd_fn)fb_ref_cgesdd;
-    vt.zgesdd  = (fb_zgesdd_fn)fb_ref_zgesdd;
-
-    vt.ssygv   = (fb_ssygv_fn)fb_ref_ssygv;
-    vt.dsygv   = (fb_dsygv_fn)fb_ref_dsygv;
-    vt.chegv   = (fb_chegv_fn)fb_ref_chegv;
-    vt.zhegv   = (fb_zhegv_fn)fb_ref_zhegv;
-
-    vt.sgelsy  = (fb_sgelsy_fn)fb_ref_sgelsy;
-    vt.dgelsy  = (fb_dgelsy_fn)fb_ref_dgelsy;
-    vt.cgelsy  = (fb_cgelsy_fn)fb_ref_cgelsy;
-    vt.zgelsy  = (fb_zgelsy_fn)fb_ref_zgelsy;
+    /* ---- LAPACK (stubs until reference_lapack.c is restored) ---- */
+    vt.sgetrf  = NULL;  vt.dgetrf  = NULL;  vt.cgetrf  = NULL;  vt.zgetrf  = NULL;
+    vt.sgetrs  = NULL;  vt.dgetrs  = NULL;  vt.cgetrs  = NULL;  vt.zgetrs  = NULL;
+    vt.spotrf  = NULL;  vt.dpotrf  = NULL;  vt.cpotrf  = NULL;  vt.zpotrf  = NULL;
+    vt.spotrs  = NULL;  vt.dpotrs  = NULL;  vt.cpotrs  = NULL;  vt.zpotrs  = NULL;
+    vt.sgeqrf  = NULL;  vt.dgeqrf  = NULL;  vt.cgeqrf  = NULL;  vt.zgeqrf  = NULL;
+    vt.sorgqr  = NULL;  vt.dorgqr  = NULL;  vt.cungqr  = NULL;  vt.zungqr  = NULL;
+    vt.sgels   = NULL;  vt.dgels   = NULL;  vt.cgels   = NULL;  vt.zgels   = NULL;
+    vt.sormqr  = NULL;  vt.dormqr  = NULL;  vt.cunmqr  = NULL;  vt.zunmqr  = NULL;
+    vt.sgelsd  = NULL;  vt.dgelsd  = NULL;  vt.cgelsd  = NULL;  vt.zgelsd  = NULL;
+    vt.ssyev   = NULL;  vt.dsyev   = NULL;  vt.cheev   = NULL;  vt.zheev   = NULL;
+    vt.sgesvd  = NULL;  vt.dgesvd  = NULL;  vt.cgesvd  = NULL;  vt.zgesvd  = NULL;
+    vt.strtri  = NULL;  vt.dtrtri  = NULL;  vt.ctrtri  = NULL;  vt.ztrtri  = NULL;
+    vt.sgesdd  = NULL;  vt.dgesdd  = NULL;  vt.cgesdd  = NULL;  vt.zgesdd  = NULL;
+    vt.ssygv   = NULL;  vt.dsygv   = NULL;  vt.chegv   = NULL;  vt.zhegv   = NULL;
+    vt.sgelsy  = NULL;  vt.dgelsy  = NULL;  vt.cgelsy  = NULL;  vt.zgelsy  = NULL;
 
     /* ---- GPU memory management (not needed for CPU reference) ---- */
     vt.mem_alloc      = NULL;

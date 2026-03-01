@@ -80,15 +80,14 @@ static const fb_plugin_metadata_t g_oxiblas_metadata = {
     .version     = "0.1.0",
     .vendor      = "cool-japan",
     .description = "Pure-Rust BLAS/LAPACK with SIMD (oxiblas-ffi C ABI)",
-    .backend_id  = FB_BACKEND_ID_OXIBLAS,
 
     /* OxiBLAS covers all BLAS levels + a LAPACK subset.
      * Convention: Fortran (*_) — CBLAS slots filled by conv_thunks at load. */
     .capabilities = (
           FB_PLUGIN_CAP_CPU
-        | FB_PLUGIN_CAP_BLAS_L1
-        | FB_PLUGIN_CAP_BLAS_L2
-        | FB_PLUGIN_CAP_BLAS_L3
+        | FB_PLUGIN_CAP_LEVEL1
+        | FB_PLUGIN_CAP_LEVEL2
+        | FB_PLUGIN_CAP_LEVEL3
         | FB_PLUGIN_CAP_LAPACK
         | FB_PLUGIN_CAP_SINGLE_PREC
         | FB_PLUGIN_CAP_DOUBLE_PREC
@@ -126,7 +125,7 @@ static fb_lib_handle_t oxiblas_try_load(const char **search_paths)
  * Plugin lifecycle: probe
  * ======================================================================== */
 static fb_plugin_probe_result_t oxiblas_probe(
-        [[maybe_unused]] const fb_plugin_context_t *ctx,
+        [[maybe_unused]] fb_lib_handle_t unused_lib_handle,
         const char **search_paths)
 {
     fb_plugin_probe_result_t result = { .score = 0, .reason = NULL };
@@ -160,12 +159,13 @@ static fb_plugin_probe_result_t oxiblas_probe(
  * Plugin lifecycle: init
  * ======================================================================== */
 static int oxiblas_init(
-        fb_plugin_context_t **ctx_out,
-        const char **search_paths)
+        fb_lib_handle_t lib_handle,
+        fb_plugin_context_t **ctx_out)
 {
     if (!ctx_out) return -1;
 
-    fb_lib_handle_t h = oxiblas_try_load(search_paths);
+    /* Use the library handle provided by probe(); re-load if NULL (fallback). */
+    fb_lib_handle_t h = lib_handle ? lib_handle : oxiblas_try_load(NULL);
     if (!h) {
         fprintf(stderr, "[OxiBLAS] init: liboxiblas_ffi not found\n");
         return -2;
@@ -241,9 +241,9 @@ static const fb_backend_vtable_t *oxiblas_get_vtable(
     return &g_oxiblas_vtable;
 }
 
-static fb_plugin_context_t *oxiblas_get_context(void)
+static void *oxiblas_get_context([[maybe_unused]] fb_plugin_context_t *ctx)
 {
-    return (fb_plugin_context_t *)g_oxiblas_context;
+    return (void *)g_oxiblas_context;
 }
 
 /* =========================================================================
