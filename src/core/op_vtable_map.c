@@ -2324,10 +2324,9 @@ void fb_vtable_sync_ext_ops(fb_backend_vtable_t *v) {
 
 fb_generic_fn fb_vtable_get_op(const fb_backend_vtable_t *v, uint32_t op_id) {
     if (!v || op_id >= (uint32_t)FB_JUDGE_MAX_OPERATIONS) return NULL;
-    /* Prefer CBLAS convention; fall back to Fortran or REF. */
+    /* Prefer CBLAS convention; fall back to Fortran. */
     if (v->ext_ops[op_id][FB_CONV_CBLAS]   != NULL) return v->ext_ops[op_id][FB_CONV_CBLAS];
-    if (v->ext_ops[op_id][FB_CONV_FORTRAN] != NULL) return v->ext_ops[op_id][FB_CONV_FORTRAN];
-    return v->ext_ops[op_id][FB_CONV_REF];
+    return v->ext_ops[op_id][FB_CONV_FORTRAN];
 }
 
 /* ============================================================================

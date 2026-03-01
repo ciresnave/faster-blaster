@@ -54,9 +54,12 @@ extern uint32_t fb_stem_to_op_id(const char *stem);
  * Recognised patterns:
  *   "cblas_<stem>"  → FB_CONV_CBLAS
  *   "<stem>_"       → FB_CONV_FORTRAN  (exact trailing underscore)
- *   "<stem>_ref"    → FB_CONV_REF
  *
- * Returns FB_CONV_COUNT (== 3) if the symbol cannot be matched.
+ * Returns FB_CONV_COUNT (== 2) if the symbol cannot be matched.
+ *
+ * Note: "<stem>_ref" symbols are intentionally not recognised.  Reference
+ * backends export standard cblas_* names; _ref is an internal naming
+ * convention, not a public ABI exposed to the auto-detection path.
  */
 fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
 {
@@ -75,24 +78,10 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
         return FB_CONV_COUNT;
     }
 
-    /* ---- REF: "<stem>_ref" ---------------------------------------------- */
-    if (len > 4 && memcmp(name + len - 4, "_ref", 4) == 0) {
-        /* Copy stem (without trailing "_ref") to a stack buffer.
-           BLAS/LAPACK stem names are at most ~20 chars.                     */
-        if (len - 4 < 64) {
-            char stem[64];
-            memcpy(stem, name, len - 4);
-            stem[len - 4] = '\0';
-            uint32_t id = fb_stem_to_op_id(stem);
-            if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
-                *out_op_id = id;
-                return FB_CONV_REF;
-            }
-        }
-        return FB_CONV_COUNT;
-    }
-
-    /* ---- FORTRAN: "<stem>_" (single trailing underscore, not "_ref") ---- */
+    /* ---- FORTRAN: "<stem>_" (single trailing underscore) ---------------- */
+    /* Note: "<stem>_ref" is not recognised — _ref is an internal naming
+       convention, not a backend export convention.  Such symbols fall
+       through to the FB_CONV_COUNT return below.                           */
     if (len > 1 && name[len - 1] == '_') {
         if (len - 1 < 64) {
             char stem[64];

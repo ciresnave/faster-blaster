@@ -91,7 +91,6 @@ void fb_enumerate_and_populate(fb_backend_vtable_t *vtable,
  * Patterns recognised:
  *   "cblas_<stem>"  → FB_CONV_CBLAS,   *out_op_id = stem lookup
  *   "<stem>_"       → FB_CONV_FORTRAN, *out_op_id = stem lookup
- *   "<stem>_ref"    → FB_CONV_REF,     *out_op_id = stem lookup
  *
  * @param name       Null-terminated exported symbol name.
  * @param out_op_id  Receives the FB_OP_* constant on success.

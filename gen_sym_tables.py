@@ -37,8 +37,6 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # ── Convention classifier (mirrors fb_classify_symbol in backend_auto_detect.c) ─
 def _classify_sym_conv(sym):
     """Return the FB_CONV_* string for a given exported symbol name."""
-    if sym.endswith("_ref"):
-        return "FB_CONV_REF"
     if sym.endswith("_"):
         return "FB_CONV_FORTRAN"
     return "FB_CONV_CBLAS"
