@@ -667,7 +667,7 @@ faster-blaster-reference fills the gap: **a readable, trustworthy, pure-C refere
 
 **REQUIREMENT**: Before marking ANY operation (BLAS, LAPACK, statistics, DNN, parallel primitives, tensor ops — the full superset) as "complete," the internal implementation and its CBLAS-convention export MUST both exist, compile, and pass all tests.
 
-> **Architecture note**: faster-blaster-reference exports **one calling convention**: CBLAS (`cblas_*`). `_ref` functions are internal implementations called by those wrappers — they are not a second exported convention. Fortran ABI compatibility (`*_` trailing-underscore symbols) is provided automatically by consolidated per-level wrapper files (`blas_l1_fortran_wrappers.c`, etc.) that delegate to `cblas_*`. Do NOT add per-operation Fortran wrapper bodies to individual source files. faster-blaster's `conv_thunks.c` provides Fortran↔CBLAS conversion at dispatch time.
+> **Architecture note**: faster-blaster-reference exports **one calling convention**: CBLAS (`cblas_*`). `_ref` functions are internal implementations called by those wrappers — they are not a second exported convention. faster-blaster's `conv_thunks.c` / `fb_enumerate_and_populate()` automatically generates Fortran↔CBLAS thunks at runtime when a backend is loaded, so **faster-blaster-reference does NOT need to export any Fortran (`*_`) symbols**. Do NOT add Fortran wrapper bodies anywhere in faster-blaster-reference.
 
 ### One Exported Convention Per Operation
 
@@ -685,14 +685,11 @@ For each operation (e.g., `saxpy`, `sgemv`, `csymv`, `fb_batch_norm`, `fb_reduce
    - **Purpose**: The **one** exported public API for this operation
    - **Header Declaration**: Must be in appropriate `*_reference.h` header file
 
-### Fortran ABI (Consolidated — Do NOT add per-operation wrappers)
+### Fortran ABI — Not faster-blaster-reference's responsibility
 
-Fortran `*_` wrappers are maintained in consolidated files, **not** in individual operation source files:
-- `src/blas/level1/blas_l1_fortran_wrappers.c` — all L1 Fortran wrappers, calling `cblas_*`
-- `src/blas/level2/blas_l2_fortran_wrappers.c` — all L2 Fortran wrappers, calling `cblas_*`
-- `src/blas/level3/blas_l3_fortran_wrappers.c` — all L3 Fortran wrappers, calling `cblas_*`
+faster-blaster-reference does **not** export Fortran `*_` symbols. When faster-blaster loads faster-blaster-reference as a backend, `fb_enumerate_and_populate()` scans the exported `cblas_*` symbols and `fb_finalize_plugin_vtable()` Strategy 5 installs Fortran thunks automatically via `conv_thunks.c`. No `saxpy_` or similar trailing-underscore symbols should exist in faster-blaster-reference.
 
-When adding a new operation, add its `foo_` Fortran wrapper to the appropriate consolidated file. Do not declare `foo_` in headers.
+Do NOT add Fortran wrapper `.c` files to this project.
 
 ### Verification Checklist
 
@@ -735,20 +732,15 @@ void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int inc
     saxpy_ref(n, alpha, x, incx, y, incy);
 }
 
-// src/blas/level1/blas_l1_fortran_wrappers.c  (consolidated — NOT in saxpy.c)
-void saxpy_(int *n, float *alpha, float *x, int *incx, float *y, int *incy) {
-    cblas_saxpy(*n, *alpha, x, *incx, y, *incy);  // delegate to cblas_, not _ref
-}
-
 // include/blas_l1_reference.h
 BLAS_L1_KERNEL void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy);
 void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy);
-// Note: saxpy_  is NOT declared in this header (lives only in fortran_wrappers.c)
+// Note: saxpy_ is NOT in faster-blaster-reference — faster-blaster generates it via conv_thunks.c
 ```
 
 ### Project-Specific Notes
 
-- **faster-blaster-reference**: CBLAS is the primary API; Fortran ABI is a compatibility layer in consolidated wrapper files
+- **faster-blaster-reference**: CBLAS is the only exported API; Fortran symbols are NOT exported — faster-blaster's runtime thunk system handles that
 - **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle; provides Fortran↔CBLAS thunks automatically via `conv_thunks.c`
 - **Build verification**: `cd build-extended && ninja 2>&1 | Where-Object { $_ -match 'error:' } | Where-Object { $_ -notmatch 'test_cgesv|test_zgesv|test_chesv|test_zhesv' }` must produce no output
 - **C23 standard**: All code must compile with `-std=c23` flag
