@@ -52,8 +52,11 @@ extern uint32_t fb_stem_to_op_id(const char *stem);
  * Classify a single exported symbol name into a (op_id, conv) pair.
  *
  * Recognised patterns:
- *   "cblas_<stem>"  → FB_CONV_CBLAS
- *   "<stem>_"       → FB_CONV_FORTRAN  (exact trailing underscore)
+ *   "cblas_<stem>"  → FB_CONV_CBLAS     (CBLAS prefix — pass-by-value scalars)
+ *   "fb_<stem>"     → FB_CONV_CBLAS     (faster-blaster-reference extended ops;
+ *                                        same C calling convention as CBLAS,
+ *                                        no thunk required)
+ *   "<stem>_"       → FB_CONV_FORTRAN   (Fortran trailing underscore)
  *
  * Returns FB_CONV_COUNT (== 2) if the symbol cannot be matched.
  *
@@ -70,6 +73,19 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
     /* ---- CBLAS: "cblas_<stem>" ----------------------------------------- */
     if (len > 6 && memcmp(name, "cblas_", 6) == 0) {
         const char *stem = name + 6;
+        uint32_t id = fb_stem_to_op_id(stem);
+        if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+            *out_op_id = id;
+            return FB_CONV_CBLAS;
+        }
+        return FB_CONV_COUNT;
+    }
+
+    /* ---- faster-blaster-reference extended ops: "fb_<stem>" ------------ */
+    /* These use standard C calling convention (scalars by value), identical
+       to CBLAS ABI — no thunk needed, slot directly into FB_CONV_CBLAS.    */
+    if (len > 3 && memcmp(name, "fb_", 3) == 0) {
+        const char *stem = name + 3;
         uint32_t id = fb_stem_to_op_id(stem);
         if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
             *out_op_id = id;
