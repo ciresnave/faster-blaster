@@ -726,6 +726,8 @@ add_library(faster_blaster_reference STATIC IMPORTED GLOBAL)
 set_target_properties(faster_blaster_reference PROPERTIES
     IMPORTED_LOCATION "${_FBR_STATIC}")
 target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
+# Static archive consumers must not see dllimport on cblas_* declarations.
+target_compile_definitions(faster-blaster PRIVATE FBR_STATIC_LIB)
 # _clang_rt_builtins (__mulsc3/__divsc3 etc.) are now compiled INTO the DLL;
 # no longer needed as a direct link dependency of faster-blaster.
 # ---------------------------------------------------------------------------
