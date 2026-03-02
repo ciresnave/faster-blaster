@@ -37,7 +37,8 @@
 #include "../src/judge/judge_types.h"    /* FB_DTYPE_F32, FB_DTYPE_F64, … */
 
 /* ---- Reference backend vtable ---- */
-#include "../src/backends/reference.h"   /* fb_reference_backend() */
+#include "../src/backends/reference.h"   /* fb_reference_backend(), fb_reference_init() */
+#include "../include/faster-blaster/backend_plugin.h" /* fb_lib_handle_t, fb_plugin_load_library */
 
 /* fb_judge_register_oracle() and fb_judge_register_backend() are internal
  * hooks defined in judge.c.  They're intentionally absent from the public
@@ -401,6 +402,25 @@ int main(void)
         return 1;
     }
 
+    /* ---- Load reference DLL and populate vtable via DLL export scan ---- *
+     * fb_reference_init() is a no-op when the DLL cannot be found; the 192   *
+     * statically-wired named fields are still available in that case.        */
+    {
+        const char *ref_names[] = { "faster_blaster_reference.dll", NULL };
+        const char *ref_paths[] = {
+            "../faster-blaster-reference/build-extended",
+            /* same dir as the test exe: DLL copied there by POST_BUILD */
+            ".",
+            NULL
+        };
+        fb_lib_handle_t ref_h = fb_plugin_load_library(ref_names, ref_paths);
+        if (!ref_h) {
+            fprintf(stderr, "[WARN] faster_blaster_reference.dll not found; "
+                            "using statically-wired vtable only (192 ops).\n");
+        }
+        fb_reference_init(ref_h);   /* safe with ref_h == NULL */
+    }
+
     /* ---- Register oracle (reference backend) ---- */
     const fb_backend_vtable_t *oracle_vtable = fb_reference_backend();
     if (!oracle_vtable) {
@@ -453,8 +473,10 @@ int main(void)
             const jr_op_entry_t *op = &k_ops[oi];
 
             const char *dtype_str =
-                (op->dtype == FB_DTYPE_F32) ? "f32" :
-                (op->dtype == FB_DTYPE_F64) ? "f64" : "???";
+                (op->dtype == FB_DTYPE_F32)  ? "f32"  :
+                (op->dtype == FB_DTYPE_F64)  ? "f64"  :
+                (op->dtype == FB_DTYPE_CF32) ? "cf32" :
+                (op->dtype == FB_DTYPE_CF64) ? "cf64" : "???";
 
             fb_precision_profile_t prof;
             memset(&prof, 0, sizeof(prof));

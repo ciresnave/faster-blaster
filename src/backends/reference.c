@@ -26,6 +26,8 @@
 
 #include "backend_interface.h"
 #include "faster-blaster/backend_plugin.h"
+#include "faster-blaster/vtable_autofill.h"   /* fb_vtable_sync_ext_ops          */
+#include "backend_auto_detect.h"               /* fb_enumerate_and_populate       */
 
 /* ---- faster-blaster-reference: canonical BLAS implementations ---------- */
 /* Include path is added by CMakeLists.txt:
@@ -902,6 +904,9 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
 
     vt.sdot    = (fb_sdot_fn)sdot_ref;
     vt.ddot    = (fb_ddot_fn)ddot_ref;
+    /* extended dot variants: sdsdot_ref/dsdot_ref are static inline; use exported CBLAS wrappers */
+    vt.sdsdot  = (fb_sdsdot_fn)cblas_sdsdot;
+    vt.dsdot   = (fb_dsdot_fn)cblas_dsdot;
     /* complex dot: result-pointer wrappers needed */
     vt.cdotu   = (fb_cdotu_fn)w_cdotu;
     vt.zdotu   = (fb_zdotu_fn)w_zdotu;
@@ -932,6 +937,7 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.drot    = (fb_drot_fn)drot_ref;
     vt.crot    = (fb_crot_fn)cblas_crot;  /* crot_ref is static inline; use exported CBLAS wrapper */
     vt.zrot    = (fb_zrot_fn)cblas_zrot;  /* zrot_ref is static inline; use exported CBLAS wrapper */
+    vt.zdrot   = (fb_zdrot_fn)cblas_zdrot; /* zdrot_ref is static inline; use exported CBLAS wrapper */
 
     vt.srotmg  = (fb_srotmg_fn)srotmg_ref;
     vt.drotmg  = (fb_drotmg_fn)drotmg_ref;
@@ -1106,6 +1112,10 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.get_num_threads   = reference_get_num_threads;
     vt.set_num_threads   = reference_set_num_threads;
 
+    /* Mirror all named fields → ext_ops[op][CBLAS] so fb_vtable_get_op()     *
+     * and the judge can reach every wired operation uniformly.               */
+    fb_vtable_sync_ext_ops(&vt);
+
     ready = 1;
     return &vt;
 }
@@ -1113,6 +1123,27 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
 /* Convenience function for backend_instance.c */
 const fb_backend_vtable_t *fb_reference_get_vtable(void) {
     return fb_reference_backend();
+}
+
+/**
+ * fb_reference_init — call once after loading faster_blaster_reference as a
+ * DLL/SO.  Scans the DLL export table for cblas_* symbols and populates any
+ * ext_ops slots that are not yet filled by the static named-field assignment
+ * block above (e.g. precision variants not in the initial 192 entries).
+ *
+ * Safe to call with lib_handle == NULL (no-op in that case).
+ */
+void fb_reference_init(fb_lib_handle_t lib_handle) {
+    /* Ensure the static named-field block has already run. */
+    (void)fb_reference_backend();
+
+    /* Scan DLL exports to fill additional cblas_* slots. */
+    if (lib_handle) {
+        static fb_backend_vtable_t *vt_ptr = NULL;
+        if (!vt_ptr) vt_ptr = (fb_backend_vtable_t *)fb_reference_backend();
+        fb_enumerate_and_populate(vt_ptr, lib_handle);
+        fb_vtable_sync_ext_ops(vt_ptr);
+    }
 }
 
 

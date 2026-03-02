@@ -1,16 +1,18 @@
 /**
  * @file plugin_reference.c
- * @brief Built-in reference backend plugin.
+ * @brief Reference backend plugin — loads faster_blaster_reference.dll/so.
  *
- * Wraps the always-available reference implementation (compiled directly into
- * the faster-blaster library) as a proper plugin.  Because the implementation
- * is statically linked, no DLL search is required.
+ * Probes for the companion faster-blaster-reference shared library, loads it,
+ * calls fb_reference_init() to scan its cblas_* exports via
+ * fb_enumerate_and_populate(), and exposes the wired vtable to the registry.
  *
- * Design intent:
- *   - Score 5: always available but chosen last (safety net / correctness oracle).
- *   - Exposes FB_BACKEND_ID_REFERENCE (11) to the plugin registry so the judge
- *     module and ranked dispatch tables can profile and select it.
- *   - No dynamic library loading; probe() always succeeds.
+ * Score 5: always lowest priority — chosen only when no optimised backend is
+ * available.  Primary role: correctness oracle.
+ *
+ * Search order for the DLL:
+ *   1. Directory containing faster-blaster.dll itself (deployment layout)
+ *   2. ../faster-blaster-reference/build-extended/  (development layout)
+ *   3. search_paths[] passed by the caller
  *
  * @copyright Copyright (c) 2025
  * @license MIT OR Apache-2.0
@@ -18,11 +20,28 @@
 
 #include "faster-blaster/backend_plugin.h"
 #include "../backends/backend_interface.h"
-#include "../backends/reference.h"   /* fb_reference_backend() */
+#include "../backends/backend_auto_detect.h"   /* fb_enumerate_and_populate  */
+#include "../backends/reference.h"             /* fb_reference_backend, fb_reference_init */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#  define FB_REF_LIB_NAME  "faster_blaster_reference.dll"
+#elif defined(__APPLE__)
+#  define FB_REF_LIB_NAME  "libfaster_blaster_reference.dylib"
+#else
+#  define FB_REF_LIB_NAME  "libfaster_blaster_reference.so"
+#endif
+
+/* Plugin context — just holds the library handle. */
+typedef struct {
+    fb_lib_handle_t lib_handle;
+} reference_plugin_context_t;
+
+static reference_plugin_context_t *g_reference_ctx = NULL;
 
 /* =========================================================================
  * Plugin metadata
@@ -32,8 +51,8 @@ static const fb_plugin_metadata_t g_reference_metadata = {
     .name        = "reference",
     .version     = "1.0.0",
     .vendor      = "faster-blaster",
-    .description = "Built-in reference BLAS implementation (correct, slow). "
-                   "Used as correctness oracle and last-resort fallback.",
+    .description = "Reference BLAS/LAPACK implementation (correct, slow). "
+                   "Correctness oracle and last-resort fallback.",
     .api_version = 1,
     .capabilities = (uint32_t)(
         FB_PLUGIN_CAP_CPU         |
@@ -48,45 +67,108 @@ static const fb_plugin_metadata_t g_reference_metadata = {
 };
 
 /* =========================================================================
- * Probe — always available; lowest priority score
+ * Default search paths
+ * ========================================================================= */
+
+static const char *k_default_search_paths[] = {
+#ifdef _WIN32
+    /* Development layout: sibling build directory */
+    "..\\faster-blaster-reference\\build-extended",
+    /* Possible install locations */
+    "C:\\libraries\\faster-blaster-reference\\bin",
+#else
+    "../faster-blaster-reference/build-extended",
+    "/usr/local/lib",
+    "/usr/lib",
+#endif
+    NULL
+};
+
+static const char *k_lib_names[] = { FB_REF_LIB_NAME, NULL };
+
+/* =========================================================================
+ * Probe
  * ========================================================================= */
 
 static fb_plugin_probe_result_t reference_probe(
     fb_lib_handle_t  unused_lib_handle,
-    const char     **unused_search_paths)
+    const char     **search_paths)
 {
     (void)unused_lib_handle;
-    (void)unused_search_paths;
 
+    fb_lib_handle_t h = fb_plugin_load_library(
+        k_lib_names,
+        search_paths ? search_paths : k_default_search_paths);
+
+    if (h) {
+        fb_plugin_unload_library(h);
+        return (fb_plugin_probe_result_t){
+            .score        = 5,
+            .library_path = NULL,
+            .reason       = "Found reference DLL — correctness oracle available",
+        };
+    }
+
+    /* Fall back: the static named-field vtable in reference.c is always
+     * available even without the DLL (192 manually wired ops). */
     return (fb_plugin_probe_result_t){
-        .score        = 5,          /* Lowest priority — last resort */
-        .library_path = NULL,       /* Statically linked, no external library */
-        .reason       = "Built-in reference implementation always available",
+        .score        = 3,
+        .library_path = NULL,
+        .reason       = "Reference DLL not found; using statically wired vtable only",
     };
 }
 
 /* =========================================================================
- * Init / shutdown — nothing to do for a statically linked backend
+ * Init
  * ========================================================================= */
 
 static int reference_init(
-    fb_lib_handle_t       unused_lib_handle,
+    fb_lib_handle_t       provided_handle,
     fb_plugin_context_t **ctx_out)
 {
-    (void)unused_lib_handle;
-    /* No dynamic context needed; pass a non-NULL sentinel so the caller can
-     * distinguish "initialised" from "not initialised". */
-    *ctx_out = (fb_plugin_context_t *)(uintptr_t)1u;
+    if (!ctx_out) return -1;
+
+    fb_lib_handle_t h = provided_handle;
+    if (!h) {
+        h = fb_plugin_load_library(k_lib_names, k_default_search_paths);
+        /* h == NULL is acceptable: fb_reference_init(NULL) is a no-op and the
+         * 192 statically wired named fields are still usable. */
+    }
+
+    /* Populate vtable: static named fields first (lazy init inside
+     * fb_reference_backend), then DLL scan for any additional cblas_* syms. */
+    fb_reference_init(h);
+
+    reference_plugin_context_t *ctx =
+        (reference_plugin_context_t *)calloc(1, sizeof(*ctx));
+    if (!ctx) {
+        if (h) fb_plugin_unload_library(h);
+        return -2;
+    }
+    ctx->lib_handle = h;   /* keep DLL loaded for the lifetime of the plugin */
+    g_reference_ctx = ctx;
+
+    *ctx_out = (fb_plugin_context_t *)ctx;
     return 0;
 }
 
+/* =========================================================================
+ * Shutdown
+ * ========================================================================= */
+
 static void reference_plugin_shutdown(fb_plugin_context_t *ctx)
 {
-    (void)ctx;  /* Nothing to free — statically linked */
+    reference_plugin_context_t *rctx = (reference_plugin_context_t *)ctx;
+    if (rctx) {
+        /* Do NOT dlclose: the vtable function pointers inside reference.c
+         * still point into the DLL's text segment.  Keep it loaded. */
+        free(rctx);
+    }
+    g_reference_ctx = NULL;
 }
 
 /* =========================================================================
- * Vtable
+ * Vtable / context accessors
  * ========================================================================= */
 
 static const fb_backend_vtable_t *reference_get_vtable(fb_plugin_context_t *ctx)
@@ -111,7 +193,7 @@ static const fb_backend_plugin_t g_reference_plugin = {
     .get_vtable      = reference_get_vtable,
     .get_context     = reference_get_context,
     .shutdown        = reference_plugin_shutdown,
-    .set_num_threads = NULL,  /* Single-threaded — no threading knob */
+    .set_num_threads = NULL,
     .get_num_threads = NULL,
 };
 
@@ -119,10 +201,6 @@ static const fb_backend_plugin_t g_reference_plugin = {
  * Registration
  * ========================================================================= */
 
-/**
- * Register the built-in reference plugin.
- * Called from fb_init_plugins() in plugin_registry.c.
- */
 void fb_register_reference_plugin(void)
 {
     fb_register_plugin(&g_reference_plugin);

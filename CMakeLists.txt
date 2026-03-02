@@ -689,42 +689,50 @@ target_include_directories(faster-blaster
 )
 
 # ---- faster-blaster-reference: canonical BLAS/LAPACK correctness oracle ----
-# Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE variable
-# conflicts in faster-blaster-reference's CMakeLists.txt pre-project() block.
+# Loaded as a SHARED DLL so fb_enumerate_and_populate() can scan its cblas_*
+# exports at runtime.  Link faster-blaster against the import library so that
+# the _ref symbols used in reference.c resolve to the static archive at link time.
+# The DLL is loaded separately at runtime via LoadLibraryEx (in plugin_reference.c /
+# test_judge_runner.c) so fb_enumerate_and_populate can scan its export table.
+# Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE conflicts.
 set(_FBR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../faster-blaster-reference")
-set(_FBR_LIB "${_FBR_DIR}/build-extended/libfaster_blaster_reference.a")
-if(NOT EXISTS "${_FBR_LIB}")
+
+# ── Static archive for link-time _ref symbol resolution ──────────────────────
+set(_FBR_STATIC "${_FBR_DIR}/build-extended/libfaster_blaster_reference.a")
+if(NOT EXISTS "${_FBR_STATIC}")
     message(FATAL_ERROR
-        "faster-blaster-reference library not found at:\n  ${_FBR_LIB}\n"
+        "faster-blaster-reference static archive not found at:\n  ${_FBR_STATIC}\n"
         "Build it first:\n"
         "  cd ../faster-blaster-reference\n"
         "  cmake -B build-extended -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
         "  cmake --build build-extended")
 endif()
+message(STATUS "Reference static lib: ${_FBR_STATIC}")
+
+# ── DLL (runtime-loaded only; not linked at build time) ──────────────────────
+# MinGW/clang produces lib-prefixed DLL names (libfoo.dll), MSVC does not.
+file(GLOB _FBR_DLL_CANDIDATES
+    "${_FBR_DIR}/build-extended/libfaster_blaster_reference.dll"
+    "${_FBR_DIR}/build-extended/faster_blaster_reference.dll")
+if(_FBR_DLL_CANDIDATES)
+    list(GET _FBR_DLL_CANDIDATES 0 _FBR_DLL)
+    message(STATUS "Reference DLL (runtime): ${_FBR_DLL}")
+else()
+    message(WARNING "faster-blaster-reference DLL not found; fb_enumerate_and_populate will have no symbols to scan.")
+    set(_FBR_DLL "")
+endif()
+
 add_library(faster_blaster_reference STATIC IMPORTED GLOBAL)
 set_target_properties(faster_blaster_reference PROPERTIES
-    IMPORTED_LOCATION "${_FBR_LIB}")
+    IMPORTED_LOCATION "${_FBR_STATIC}")
 target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
-
-# libfaster_blaster_reference.a uses C23 _Complex arithmetic which requires
-# Clang compiler-rt builtins (__mulsc3, __muldc3, __divsc3, __divdc3 etc.)
-# clang-cl does not support --print-runtime-dir; use file(GLOB) to find lib.
-if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    file(GLOB _clang_rt_candidates
-        "C:/Program Files/LLVM/lib/clang/*/lib/windows/clang_rt.builtins-x86_64.lib")
-    if(_clang_rt_candidates)
-        list(GET _clang_rt_candidates 0 _clang_rt_builtins)
-        message(STATUS "Clang builtins: ${_clang_rt_builtins}")
-    else()
-        message(WARNING "clang_rt.builtins-x86_64.lib not found; _Complex ops may fail to link")
-    endif()
-endif()
+# _clang_rt_builtins (__mulsc3/__divsc3 etc.) are now compiled INTO the DLL;
+# no longer needed as a direct link dependency of faster-blaster.
 # ---------------------------------------------------------------------------
 
 target_link_libraries(faster-blaster
     PRIVATE
         faster_blaster_reference
-        $<$<BOOL:${_clang_rt_builtins}>:${_clang_rt_builtins}>
         cpuinfo_internals
         OpenCL::OpenCL
 )
@@ -941,6 +949,13 @@ if(BUILD_TESTS)
             $<TARGET_FILE:faster-blaster>
             ${CMAKE_CURRENT_BINARY_DIR}/tests/$<TARGET_FILE_NAME:faster-blaster>
         COMMENT "Copying faster-blaster DLL to tests directory"
+    )
+    # Also copy the reference DLL so test_judge_runner can load it at runtime
+    add_custom_command(TARGET faster-blaster POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${_FBR_DLL}"
+            ${CMAKE_CURRENT_BINARY_DIR}/tests/faster_blaster_reference.dll
+        COMMENT "Copying faster_blaster_reference.dll to tests directory"
     )
     add_subdirectory(tests)
 endif()
