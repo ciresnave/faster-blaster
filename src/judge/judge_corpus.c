@@ -415,7 +415,7 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
         c->meta.is_edge_case    = true;
 
         double scale = (dtype == FB_DTYPE_F32 || dtype == FB_DTYPE_CF32)
-                       ? 1e+30 : 1e+240;
+                       ? 1e+14 : 1e+100;  /* Safe: oracle stays finite (128*(1e14)^2 < FLT_MAX) */
         fill_case(c, dtype, scale, &rng);
     }
 

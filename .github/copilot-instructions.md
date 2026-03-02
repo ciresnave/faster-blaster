@@ -742,7 +742,7 @@ void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int inc
 
 - **faster-blaster-reference**: CBLAS is the only exported API; Fortran symbols are NOT exported — faster-blaster's runtime thunk system handles that
 - **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle; provides Fortran↔CBLAS thunks automatically via `conv_thunks.c`
-- **Build verification**: `cd build-extended && ninja 2>&1 | Where-Object { $_ -match 'error:' } | Where-Object { $_ -notmatch 'test_cgesv|test_zgesv|test_chesv|test_zhesv' }` must produce no output
+- **Build verification**: `cd build-extended && ninja 2>&1 | Where-Object { $_ -match 'error:' }` must produce no output
 - **C23 standard**: All code must compile with `-std=c23` flag
 
 ---
