@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /** Clone an m × n matrix (row-major, leading dimension lda). */
-static float *clone_matrix_f32(const float *A, int64_t m, int64_t n, int64_t lda)
+static float *clone_matrix_f32(const float *A, int m, int n, int lda)
 {
     size_t sz = (size_t)m * (size_t)lda * sizeof(float);
     float *cpy = (float *)malloc(sz);
@@ -50,7 +50,7 @@ static float *clone_matrix_f32(const float *A, int64_t m, int64_t n, int64_t lda
 }
 
 /** Clone an m × n matrix (double precision). */
-static double *clone_matrix_f64(const double *A, int64_t m, int64_t n, int64_t lda)
+static double *clone_matrix_f64(const double *A, int m, int n, int lda)
 {
     size_t sz = (size_t)m * (size_t)lda * sizeof(double);
     double *cpy = (double *)malloc(sz);
@@ -121,19 +121,19 @@ typedef fb_judge_status_t (*fb_factorization_runner_fn)(
  * Applies row permutation to A_orig then computes ||L·U - P·A||_F.
  */
 static double fb_lu_reconstruction_f32(const float *A_orig, const float *A_factored,
-                                       const int64_t *ipiv,
-                                       int64_t m, int64_t n, int64_t lda)
+                                       const int *ipiv,
+                                       int m, int n, int lda)
 {
-    int64_t minmn = m < n ? m : n;
+    int minmn = m < n ? m : n;
     size_t Asz = (size_t)m * (size_t)lda * sizeof(float);
     float *PA = (float*)malloc(Asz);
     if (!PA) return 1.0;
     memcpy(PA, A_orig, Asz);
     /* Apply row permutation from GETRF. */
-    for (int64_t i = 0; i < minmn; i++) {
-        int64_t piv = ipiv[i] - 1;  /* LAPACKE 1-based → 0-based */
+    for (int i = 0; i < minmn; i++) {
+        int piv = ipiv[i] - 1;  /* LAPACKE 1-based → 0-based */
         if (piv != i) {
-            for (int64_t j = 0; j < n; j++) {
+            for (int j = 0; j < n; j++) {
                 float tmp = PA[i*lda + j];
                 PA[i*lda + j] = PA[piv*lda + j];
                 PA[piv*lda + j] = tmp;
@@ -142,12 +142,12 @@ static double fb_lu_reconstruction_f32(const float *A_orig, const float *A_facto
     }
     /* Compute ||L·U - PA||_F / ||PA||_F. */
     double norm_diff = 0.0, norm_PA = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             /* LU[i][j] = sum_{k=0}^{min(i,j)} L[i][k] · U[k][j] */
-            int64_t kmax = i < j ? i : j;
+            int kmax = i < j ? i : j;
             double lij = 0.0;
-            for (int64_t k = 0; k <= kmax; k++) {
+            for (int k = 0; k <= kmax; k++) {
                 double Lik = (k < i) ? (double)A_factored[i*lda + k] : 1.0;
                 double Ukj = (double)A_factored[k*lda + j];
                 lij += Lik * Ukj;
@@ -165,18 +165,18 @@ static double fb_lu_reconstruction_f32(const float *A_orig, const float *A_facto
 }
 
 static double fb_lu_reconstruction_f64(const double *A_orig, const double *A_factored,
-                                       const int64_t *ipiv,
-                                       int64_t m, int64_t n, int64_t lda)
+                                       const int *ipiv,
+                                       int m, int n, int lda)
 {
-    int64_t minmn = m < n ? m : n;
+    int minmn = m < n ? m : n;
     size_t Asz = (size_t)m * (size_t)lda * sizeof(double);
     double *PA = (double*)malloc(Asz);
     if (!PA) return 1.0;
     memcpy(PA, A_orig, Asz);
-    for (int64_t i = 0; i < minmn; i++) {
-        int64_t piv = ipiv[i] - 1;
+    for (int i = 0; i < minmn; i++) {
+        int piv = ipiv[i] - 1;
         if (piv != i) {
-            for (int64_t j = 0; j < n; j++) {
+            for (int j = 0; j < n; j++) {
                 double tmp = PA[i*lda + j];
                 PA[i*lda + j] = PA[piv*lda + j];
                 PA[piv*lda + j] = tmp;
@@ -184,11 +184,11 @@ static double fb_lu_reconstruction_f64(const double *A_orig, const double *A_fac
         }
     }
     double norm_diff = 0.0, norm_PA = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
-            int64_t kmax = i < j ? i : j;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = i < j ? i : j;
             double lij = 0.0;
-            for (int64_t k = 0; k <= kmax; k++) {
+            for (int k = 0; k <= kmax; k++) {
                 double Lik = (k < i) ? A_factored[i*lda + k] : 1.0;
                 double Ukj = A_factored[k*lda + j];
                 lij += Lik * Ukj;
@@ -210,9 +210,9 @@ static fb_judge_status_t run_sgetrf(
 {
     if (!oracle->sgetrf || !cand->sgetrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m;
-    int64_t n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda;
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
     const float *A_orig = (const float *)tc->A;
 
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -221,11 +221,11 @@ static fb_judge_status_t run_sgetrf(
     float *A_oracle = clone_matrix_f32(A_orig, m, n, lda);
     if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
 
-    int64_t *ipiv_oracle = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_oracle = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_oracle) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
 
     /* Run oracle. */
-    int64_t info_oracle = oracle->sgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle);
+    int info_oracle = oracle->sgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle);
     if (info_oracle != 0) {
         mark_oracle_fatal(res);
         free(A_oracle); free(ipiv_oracle);
@@ -236,11 +236,11 @@ static fb_judge_status_t run_sgetrf(
     float *A_cand = clone_matrix_f32(A_orig, m, n, lda);
     if (!A_cand) { free(A_oracle); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
 
-    int64_t *ipiv_cand = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_cand = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_cand) { free(A_oracle); free(A_cand); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
 
     /* Run candidate. */
-    int64_t info_cand = cand->sgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand);
+    int info_cand = cand->sgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand);
 
     if (info_cand != 0) {
         mark_cand_fatal(res);
@@ -289,21 +289,21 @@ static fb_judge_status_t run_sgetrf(
  */
 static double fb_cholesky_reconstruction_f32(const float *A_orig,
                                              const float *A_factored,
-                                             int64_t n, int64_t lda,
+                                             int n, int lda,
                                              fb_uplo_t uplo)
 {
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < n; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
             /* (L·L^T)[i][j] = sum_{k=0}^{min(i,j)} L[i][k] · L[j][k] */
-            int64_t kmax = i < j ? i : j;
+            int kmax = i < j ? i : j;
             double llt = 0.0;
             if (uplo == FB_LOWER) {
-                for (int64_t k = 0; k <= kmax; k++)
+                for (int k = 0; k <= kmax; k++)
                     llt += (double)A_factored[i*lda+k] * (double)A_factored[j*lda+k];
             } else {
                 /* Upper: L = U^T, L[i][k] = U[k][i] = A_factored[k*lda+i]. */
-                for (int64_t k = 0; k <= kmax; k++)
+                for (int k = 0; k <= kmax; k++)
                     llt += (double)A_factored[k*lda+i] * (double)A_factored[k*lda+j];
             }
             double diff = llt - (double)A_orig[i*lda + j];
@@ -318,19 +318,19 @@ static double fb_cholesky_reconstruction_f32(const float *A_orig,
 
 static double fb_cholesky_reconstruction_f64(const double *A_orig,
                                              const double *A_factored,
-                                             int64_t n, int64_t lda,
+                                             int n, int lda,
                                              fb_uplo_t uplo)
 {
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < n; i++) {
-        for (int64_t j = 0; j < n; j++) {
-            int64_t kmax = i < j ? i : j;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = i < j ? i : j;
             double llt = 0.0;
             if (uplo == FB_LOWER) {
-                for (int64_t k = 0; k <= kmax; k++)
+                for (int k = 0; k <= kmax; k++)
                     llt += A_factored[i*lda+k] * A_factored[j*lda+k];
             } else {
-                for (int64_t k = 0; k <= kmax; k++)
+                for (int k = 0; k <= kmax; k++)
                     llt += A_factored[k*lda+i] * A_factored[k*lda+j];
             }
             double diff = llt - A_orig[i*lda + j];
@@ -349,8 +349,8 @@ static fb_judge_status_t run_spotrf(
 {
     if (!oracle->spotrf || !cand->spotrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n;
-    int64_t lda = (int64_t)tc->lda;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
     const float *A_orig = (const float *)tc->A;
     fb_uplo_t uplo = FB_UPPER;  /* Upper triangle; row-major Cholesky convention */
 
@@ -360,14 +360,14 @@ static fb_judge_status_t run_spotrf(
     float *A_oracle = clone_matrix_f32(A_orig, n, n, lda);
     if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
 
-    int64_t info_oracle = oracle->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_oracle, lda);
+    int info_oracle = oracle->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_oracle, lda);
     if (info_oracle != 0) { mark_oracle_fatal(res); free(A_oracle); return FB_JUDGE_OK; }
 
     /* Clone for candidate. */
     float *A_cand = clone_matrix_f32(A_orig, n, n, lda);
     if (!A_cand) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
 
-    int64_t info_cand = cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_cand, lda);
+    int info_cand = cand->spotrf(FB_LAYOUT_ROW_MAJOR, uplo, n, A_cand, lda);
     if (info_cand != 0) {
         mark_cand_fatal(res);
         free(A_oracle); free(A_cand);
@@ -421,20 +421,20 @@ static fb_judge_status_t run_dgetrf(
 {
     if (!oracle->dgetrf || !cand->dgetrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const double *A_orig = (const double*)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
 
     double *A_oracle = clone_matrix_f64(A_orig, m, n, lda);
     if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
-    int64_t *ipiv_oracle = (int64_t*)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_oracle = (int*)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_oracle) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (oracle->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle) != 0) {
         mark_oracle_fatal(res); free(A_oracle); free(ipiv_oracle); return FB_JUDGE_OK;
     }
     double *A_cand = clone_matrix_f64(A_orig, m, n, lda);
     if (!A_cand) { free(A_oracle); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
-    int64_t *ipiv_cand = (int64_t*)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_cand = (int*)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_cand) { free(A_oracle); free(A_cand); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (cand->dgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand) != 0) {
         mark_cand_fatal(res);
@@ -471,7 +471,7 @@ static fb_judge_status_t run_dpotrf(
 {
     if (!oracle->dpotrf || !cand->dpotrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const double *A_orig = (const double*)tc->A;
     fb_uplo_t uplo = FB_UPPER;
     if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -524,10 +524,10 @@ static fb_judge_status_t run_sgeqrf(
 {
     if (!oracle->sgeqrf || !cand->sgeqrf || !cand->sorgqr) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const float *A_orig = (const float*)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
-    int64_t k = m < n ? m : n;  /* min(m,n) */
+    int k = m < n ? m : n;  /* min(m,n) */
 
     /* Verify oracle runs without error. */
     float *A_oc = clone_matrix_f32(A_orig, m, n, lda);
@@ -566,8 +566,8 @@ static fb_judge_status_t run_sgeqrf(
     /* Extract R from the upper triangle of A_qr (before ORGQR overwrites it). */
     float *R = (float*)calloc((size_t)k * (size_t)n, sizeof(float));
     if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
-    for (int64_t i = 0; i < k; i++)
-        for (int64_t j = i; j < n; j++)
+    for (int i = 0; i < k; i++)
+        for (int j = i; j < n; j++)
             R[i*n + j] = A_qr[i*lda + j];
 
     /* Call ORGQR to extract Q (m×k) in-place into A_qr. */
@@ -578,10 +578,10 @@ static fb_judge_status_t run_sgeqrf(
 
     /* Reconstruction: ‖A_orig - Q·R‖_F / ‖A_orig‖_F */
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             double qr = 0.0;
-            for (int64_t l = 0; l < k; l++)
+            for (int l = 0; l < k; l++)
                 qr += (double)A_qr[i*lda + l] * (double)R[l*n + j];
             double diff = (double)A_orig[i*lda + j] - qr;
             norm_diff += diff * diff;
@@ -594,10 +594,10 @@ static fb_judge_status_t run_sgeqrf(
 
     /* Orthogonality: ‖Q^T·Q - I‖_F / √k */
     double ortho_err = 0.0;
-    for (int64_t i = 0; i < k; i++) {
-        for (int64_t j = 0; j < k; j++) {
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
             double qtq = 0.0;
-            for (int64_t l = 0; l < m; l++)
+            for (int l = 0; l < m; l++)
                 qtq += (double)A_qr[l*lda + i] * (double)A_qr[l*lda + j];
             double delta = qtq - (i == j ? 1.0 : 0.0);
             ortho_err += delta * delta;
@@ -619,10 +619,10 @@ static fb_judge_status_t run_dgeqrf(
 {
     if (!oracle->dgeqrf || !cand->dgeqrf || !cand->dorgqr) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const double *A_orig = (const double*)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
-    int64_t k = m < n ? m : n;
+    int k = m < n ? m : n;
 
     double *A_oc = clone_matrix_f64(A_orig, m, n, lda);
     double *tau_oc = (double*)malloc((size_t)k * sizeof(double));
@@ -658,8 +658,8 @@ static fb_judge_status_t run_dgeqrf(
 
     double *R = (double*)calloc((size_t)k * (size_t)n, sizeof(double));
     if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
-    for (int64_t i = 0; i < k; i++)
-        for (int64_t j = i; j < n; j++)
+    for (int i = 0; i < k; i++)
+        for (int j = i; j < n; j++)
             R[i*n + j] = A_qr[i*lda + j];
 
     if (cand->dorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_qr, lda, tau) != 0) {
@@ -667,10 +667,10 @@ static fb_judge_status_t run_dgeqrf(
     }
 
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             double qr = 0.0;
-            for (int64_t l = 0; l < k; l++)
+            for (int l = 0; l < k; l++)
                 qr += A_qr[i*lda + l] * R[l*n + j];
             double diff = A_orig[i*lda + j] - qr;
             norm_diff += diff * diff;
@@ -681,10 +681,10 @@ static fb_judge_status_t run_dgeqrf(
         (norm_A < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_A));
 
     double ortho_err = 0.0;
-    for (int64_t i = 0; i < k; i++) {
-        for (int64_t j = 0; j < k; j++) {
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
             double qtq = 0.0;
-            for (int64_t l = 0; l < m; l++)
+            for (int l = 0; l < m; l++)
                 qtq += A_qr[l*lda + i] * A_qr[l*lda + j];
             double delta = qtq - (i == j ? 1.0 : 0.0);
             ortho_err += delta * delta;
@@ -701,7 +701,7 @@ static fb_judge_status_t run_dgeqrf(
  * ========================================================================= */
 
 static fb_complex_float_t *clone_matrix_cf32(const fb_complex_float_t *A,
-                                              int64_t m, int64_t n, int64_t lda)
+                                              int m, int n, int lda)
 {
     (void)n;
     size_t sz = (size_t)m * (size_t)lda * sizeof(fb_complex_float_t);
@@ -712,7 +712,7 @@ static fb_complex_float_t *clone_matrix_cf32(const fb_complex_float_t *A,
 }
 
 static fb_complex_double_t *clone_matrix_cf64(const fb_complex_double_t *A,
-                                               int64_t m, int64_t n, int64_t lda)
+                                               int m, int n, int lda)
 {
     (void)n;
     size_t sz = (size_t)m * (size_t)lda * sizeof(fb_complex_double_t);
@@ -729,19 +729,19 @@ static fb_complex_double_t *clone_matrix_cf64(const fb_complex_double_t *A,
  */
 static double fb_lu_reconstruction_cf32(const fb_complex_float_t *A_orig,
                                         const fb_complex_float_t *A_factored,
-                                        const int64_t *ipiv,
-                                        int64_t m, int64_t n, int64_t lda)
+                                        const int *ipiv,
+                                        int m, int n, int lda)
 {
-    int64_t minmn = m < n ? m : n;
+    int minmn = m < n ? m : n;
     size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_float_t);
     fb_complex_float_t *PA = (fb_complex_float_t *)malloc(Asz);
     if (!PA) return 1.0;
     memcpy(PA, A_orig, Asz);
     /* Row permutation. */
-    for (int64_t i = 0; i < minmn; i++) {
-        int64_t piv = ipiv[i] - 1;
+    for (int i = 0; i < minmn; i++) {
+        int piv = ipiv[i] - 1;
         if (piv != i) {
-            for (int64_t j = 0; j < n; j++) {
+            for (int j = 0; j < n; j++) {
                 fb_complex_float_t tmp = PA[i*lda + j];
                 PA[i*lda + j] = PA[piv*lda + j];
                 PA[piv*lda + j] = tmp;
@@ -749,22 +749,22 @@ static double fb_lu_reconstruction_cf32(const fb_complex_float_t *A_orig,
         }
     }
     double norm_diff = 0.0, norm_PA = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
-            int64_t kmax = i < j ? i : j;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = i < j ? i : j;
             double re = 0.0, im = 0.0;
-            for (int64_t k = 0; k <= kmax; k++) {
-                double Lr = (k < i) ? (double)A_factored[i*lda + k].real : 1.0;
-                double Li = (k < i) ? (double)A_factored[i*lda + k].imag : 0.0;
-                double Ur = (double)A_factored[k*lda + j].real;
-                double Ui = (double)A_factored[k*lda + j].imag;
+            for (int k = 0; k <= kmax; k++) {
+                double Lr = (k < i) ? (double)__real__(A_factored[i*lda + k]) : 1.0;
+                double Li = (k < i) ? (double)__imag__(A_factored[i*lda + k]) : 0.0;
+                double Ur = (double)__real__(A_factored[k*lda + j]);
+                double Ui = (double)__imag__(A_factored[k*lda + j]);
                 re += Lr*Ur - Li*Ui;
                 im += Lr*Ui + Li*Ur;
             }
-            double dr = re - (double)PA[i*lda + j].real;
-            double di = im - (double)PA[i*lda + j].imag;
+            double dr = re - (double)__real__(PA[i*lda + j]);
+            double di = im - (double)__imag__(PA[i*lda + j]);
             norm_diff += dr*dr + di*di;
-            double pr = (double)PA[i*lda + j].real, pi2 = (double)PA[i*lda + j].imag;
+            double pr = (double)__real__(PA[i*lda + j]), pi2 = (double)__imag__(PA[i*lda + j]);
             norm_PA += pr*pr + pi2*pi2;
         }
     }
@@ -776,18 +776,18 @@ static double fb_lu_reconstruction_cf32(const fb_complex_float_t *A_orig,
 
 static double fb_lu_reconstruction_cf64(const fb_complex_double_t *A_orig,
                                         const fb_complex_double_t *A_factored,
-                                        const int64_t *ipiv,
-                                        int64_t m, int64_t n, int64_t lda)
+                                        const int *ipiv,
+                                        int m, int n, int lda)
 {
-    int64_t minmn = m < n ? m : n;
+    int minmn = m < n ? m : n;
     size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_double_t);
     fb_complex_double_t *PA = (fb_complex_double_t *)malloc(Asz);
     if (!PA) return 1.0;
     memcpy(PA, A_orig, Asz);
-    for (int64_t i = 0; i < minmn; i++) {
-        int64_t piv = ipiv[i] - 1;
+    for (int i = 0; i < minmn; i++) {
+        int piv = ipiv[i] - 1;
         if (piv != i) {
-            for (int64_t j = 0; j < n; j++) {
+            for (int j = 0; j < n; j++) {
                 fb_complex_double_t tmp = PA[i*lda + j];
                 PA[i*lda + j] = PA[piv*lda + j];
                 PA[piv*lda + j] = tmp;
@@ -795,23 +795,23 @@ static double fb_lu_reconstruction_cf64(const fb_complex_double_t *A_orig,
         }
     }
     double norm_diff = 0.0, norm_PA = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
-            int64_t kmax = i < j ? i : j;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = i < j ? i : j;
             double re = 0.0, im = 0.0;
-            for (int64_t k = 0; k <= kmax; k++) {
-                double Lr = (k < i) ? A_factored[i*lda + k].real : 1.0;
-                double Li = (k < i) ? A_factored[i*lda + k].imag : 0.0;
-                double Ur = A_factored[k*lda + j].real;
-                double Ui = A_factored[k*lda + j].imag;
+            for (int k = 0; k <= kmax; k++) {
+                double Lr = (k < i) ? __real__(A_factored[i*lda + k]) : 1.0;
+                double Li = (k < i) ? __imag__(A_factored[i*lda + k]) : 0.0;
+                double Ur = __real__(A_factored[k*lda + j]);
+                double Ui = __imag__(A_factored[k*lda + j]);
                 re += Lr*Ur - Li*Ui;
                 im += Lr*Ui + Li*Ur;
             }
-            double dr = re - PA[i*lda + j].real;
-            double di = im - PA[i*lda + j].imag;
+            double dr = re - __real__(PA[i*lda + j]);
+            double di = im - __imag__(PA[i*lda + j]);
             norm_diff += dr*dr + di*di;
-            norm_PA += PA[i*lda + j].real * PA[i*lda + j].real
-                     + PA[i*lda + j].imag * PA[i*lda + j].imag;
+            norm_PA += __real__(PA[i*lda + j]) * __real__(PA[i*lda + j])
+                     + __imag__(PA[i*lda + j]) * __imag__(PA[i*lda + j]);
         }
     }
     free(PA);
@@ -826,39 +826,39 @@ static double fb_lu_reconstruction_cf64(const fb_complex_double_t *A_orig,
  */
 static double fb_cholesky_reconstruction_cf32(const fb_complex_float_t *A_orig,
                                               const fb_complex_float_t *A_factored,
-                                              int64_t n, int64_t lda, fb_uplo_t uplo)
+                                              int n, int lda, fb_uplo_t uplo)
 {
     /* uplo==UPPER: U stored → reconstruct A_ij = sum_k conj(U_ki) * U_kj (since A = U^H * U). */
     /* uplo==LOWER: L stored → reconstruct A_ij = sum_k L_ik * conj(L_jk) (since A = L * L^H). */
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < n; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
             double re = 0.0, im = 0.0;
-            for (int64_t k = 0; k < n; k++) {
+            for (int k = 0; k < n; k++) {
                 double Ar, Ai, Br, Bi;
                 if (uplo == FB_UPPER) {
                     /* A = U^H * U: rows k of U^H = cols k of U, but upper tri */
                     if (k > i || k > j) continue;  /* U_ki or U_kj is zero if k > i or k > j */
                     /* conj(U[k][i]) * U[k][j] */
-                    Ar = (double)A_factored[k*lda + i].real;
-                    Ai = -(double)A_factored[k*lda + i].imag;  /* conjugate */
-                    Br = (double)A_factored[k*lda + j].real;
-                    Bi = (double)A_factored[k*lda + j].imag;
+                    Ar = (double)__real__(A_factored[k*lda + i]);
+                    Ai = -(double)__imag__(A_factored[k*lda + i]);  /* conjugate */
+                    Br = (double)__real__(A_factored[k*lda + j]);
+                    Bi = (double)__imag__(A_factored[k*lda + j]);
                 } else {
                     /* A = L * L^H: L_ik * conj(L_jk) */
                     if (k > i || k > j) continue;
-                    Ar = (double)A_factored[i*lda + k].real;
-                    Ai = (double)A_factored[i*lda + k].imag;
-                    Br = (double)A_factored[j*lda + k].real;
-                    Bi = -(double)A_factored[j*lda + k].imag;  /* conjugate */
+                    Ar = (double)__real__(A_factored[i*lda + k]);
+                    Ai = (double)__imag__(A_factored[i*lda + k]);
+                    Br = (double)__real__(A_factored[j*lda + k]);
+                    Bi = -(double)__imag__(A_factored[j*lda + k]);  /* conjugate */
                 }
                 re += Ar*Br - Ai*Bi;
                 im += Ar*Bi + Ai*Br;
             }
-            double dr = re - (double)A_orig[i*lda + j].real;
-            double di = im - (double)A_orig[i*lda + j].imag;
+            double dr = re - (double)__real__(A_orig[i*lda + j]);
+            double di = im - (double)__imag__(A_orig[i*lda + j]);
             norm_diff += dr*dr + di*di;
-            double oar = (double)A_orig[i*lda + j].real, oai = (double)A_orig[i*lda + j].imag;
+            double oar = (double)__real__(A_orig[i*lda + j]), oai = (double)__imag__(A_orig[i*lda + j]);
             norm_A += oar*oar + oai*oai;
         }
     }
@@ -869,35 +869,35 @@ static double fb_cholesky_reconstruction_cf32(const fb_complex_float_t *A_orig,
 
 static double fb_cholesky_reconstruction_cf64(const fb_complex_double_t *A_orig,
                                               const fb_complex_double_t *A_factored,
-                                              int64_t n, int64_t lda, fb_uplo_t uplo)
+                                              int n, int lda, fb_uplo_t uplo)
 {
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < n; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
             double re = 0.0, im = 0.0;
-            for (int64_t k = 0; k < n; k++) {
+            for (int k = 0; k < n; k++) {
                 double Ar, Ai, Br, Bi;
                 if (uplo == FB_UPPER) {
                     if (k > i || k > j) continue;
-                    Ar =  A_factored[k*lda + i].real;
-                    Ai = -A_factored[k*lda + i].imag;
-                    Br =  A_factored[k*lda + j].real;
-                    Bi =  A_factored[k*lda + j].imag;
+                    Ar =  __real__(A_factored[k*lda + i]);
+                    Ai = -__imag__(A_factored[k*lda + i]);
+                    Br =  __real__(A_factored[k*lda + j]);
+                    Bi =  __imag__(A_factored[k*lda + j]);
                 } else {
                     if (k > i || k > j) continue;
-                    Ar =  A_factored[i*lda + k].real;
-                    Ai =  A_factored[i*lda + k].imag;
-                    Br =  A_factored[j*lda + k].real;
-                    Bi = -A_factored[j*lda + k].imag;
+                    Ar =  __real__(A_factored[i*lda + k]);
+                    Ai =  __imag__(A_factored[i*lda + k]);
+                    Br =  __real__(A_factored[j*lda + k]);
+                    Bi = -__imag__(A_factored[j*lda + k]);
                 }
                 re += Ar*Br - Ai*Bi;
                 im += Ar*Bi + Ai*Br;
             }
-            double dr = re - A_orig[i*lda + j].real;
-            double di = im - A_orig[i*lda + j].imag;
+            double dr = re - __real__(A_orig[i*lda + j]);
+            double di = im - __imag__(A_orig[i*lda + j]);
             norm_diff += dr*dr + di*di;
-            norm_A += A_orig[i*lda + j].real * A_orig[i*lda + j].real
-                    + A_orig[i*lda + j].imag * A_orig[i*lda + j].imag;
+            norm_A += __real__(A_orig[i*lda + j]) * __real__(A_orig[i*lda + j])
+                    + __imag__(A_orig[i*lda + j]) * __imag__(A_orig[i*lda + j]);
         }
     }
     if (norm_A < DBL_EPSILON) return (norm_diff < DBL_EPSILON) ? 0.0 : 1.0;
@@ -915,20 +915,20 @@ static fb_judge_status_t run_cgetrf(
 {
     if (!oracle->cgetrf || !cand->cgetrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
 
     fb_complex_float_t *A_oracle = clone_matrix_cf32(A_orig, m, n, lda);
     if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
-    int64_t *ipiv_oracle = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_oracle = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_oracle) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (oracle->cgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle) != 0) {
         mark_oracle_fatal(res); free(A_oracle); free(ipiv_oracle); return FB_JUDGE_OK;
     }
     fb_complex_float_t *A_cand = clone_matrix_cf32(A_orig, m, n, lda);
     if (!A_cand) { free(A_oracle); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
-    int64_t *ipiv_cand = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_cand = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_cand) { free(A_oracle); free(A_cand); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (cand->cgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand) != 0) {
         mark_cand_fatal(res);
@@ -962,20 +962,20 @@ static fb_judge_status_t run_zgetrf(
 {
     if (!oracle->zgetrf || !cand->zgetrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A_orig = (const fb_complex_double_t *)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
 
     fb_complex_double_t *A_oracle = clone_matrix_cf64(A_orig, m, n, lda);
     if (!A_oracle) return FB_JUDGE_ERR_ALLOC;
-    int64_t *ipiv_oracle = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_oracle = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_oracle) { free(A_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (oracle->zgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oracle, lda, ipiv_oracle) != 0) {
         mark_oracle_fatal(res); free(A_oracle); free(ipiv_oracle); return FB_JUDGE_OK;
     }
     fb_complex_double_t *A_cand = clone_matrix_cf64(A_orig, m, n, lda);
     if (!A_cand) { free(A_oracle); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
-    int64_t *ipiv_cand = (int64_t *)malloc((size_t)(m < n ? m : n) * sizeof(int64_t));
+    int *ipiv_cand = (int *)malloc((size_t)(m < n ? m : n) * sizeof(int));
     if (!ipiv_cand) { free(A_oracle); free(A_cand); free(ipiv_oracle); return FB_JUDGE_ERR_ALLOC; }
     if (cand->zgetrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cand, lda, ipiv_cand) != 0) {
         mark_cand_fatal(res);
@@ -1013,7 +1013,7 @@ static fb_judge_status_t run_cpotrf(
 {
     if (!oracle->cpotrf || !cand->cpotrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
     fb_uplo_t uplo = FB_UPPER;
     if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -1060,7 +1060,7 @@ static fb_judge_status_t run_zpotrf(
 {
     if (!oracle->zpotrf || !cand->zpotrf) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A_orig = (const fb_complex_double_t *)tc->A;
     fb_uplo_t uplo = FB_UPPER;
     if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -1113,10 +1113,10 @@ static fb_judge_status_t run_cgeqrf(
 {
     if (!oracle->cgeqrf || !cand->cgeqrf || !cand->cungqr) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
-    int64_t k = m < n ? m : n;
+    int k = m < n ? m : n;
 
     /* Oracle sanity check. */
     fb_complex_float_t *A_oc  = clone_matrix_cf32(A_orig, m, n, lda);
@@ -1155,8 +1155,8 @@ static fb_judge_status_t run_cgeqrf(
     /* Extract R from upper triangle. */
     fb_complex_float_t *R = (fb_complex_float_t *)calloc((size_t)k * (size_t)n, sizeof(fb_complex_float_t));
     if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
-    for (int64_t i = 0; i < k; i++)
-        for (int64_t j = i; j < n; j++)
+    for (int i = 0; i < k; i++)
+        for (int j = i; j < n; j++)
             R[i*n + j] = A_qr[i*lda + j];
 
     /* Extract Q via CUNGQR. */
@@ -1166,20 +1166,20 @@ static fb_judge_status_t run_cgeqrf(
 
     /* Reconstruction metric: ||A - Q·R||_F / ||A||_F. */
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             /* QR[i][j] = sum_l Q[i][l] * R[l][j] (complex multiply). */
             double qr_re = 0.0, qr_im = 0.0;
-            for (int64_t l = 0; l < k; l++) {
-                double qr2 = (double)A_qr[i*lda + l].real, qi2 = (double)A_qr[i*lda + l].imag;
-                double rr  = (double)R[l*n + j].real,      ri  = (double)R[l*n + j].imag;
+            for (int l = 0; l < k; l++) {
+                double qr2 = (double)__real__(A_qr[i*lda + l]), qi2 = (double)__imag__(A_qr[i*lda + l]);
+                double rr  = (double)__real__(R[l*n + j]),      ri  = (double)__imag__(R[l*n + j]);
                 qr_re += qr2*rr - qi2*ri;
                 qr_im += qr2*ri + qi2*rr;
             }
-            double dr = (double)A_orig[i*lda + j].real - qr_re;
-            double di = (double)A_orig[i*lda + j].imag - qr_im;
+            double dr = (double)__real__(A_orig[i*lda + j]) - qr_re;
+            double di = (double)__imag__(A_orig[i*lda + j]) - qr_im;
             norm_diff += dr*dr + di*di;
-            double ar = (double)A_orig[i*lda + j].real, ai = (double)A_orig[i*lda + j].imag;
+            double ar = (double)__real__(A_orig[i*lda + j]), ai = (double)__imag__(A_orig[i*lda + j]);
             norm_A += ar*ar + ai*ai;
         }
     }
@@ -1188,15 +1188,15 @@ static fb_judge_status_t run_cgeqrf(
 
     /* Orthogonality: ||Q^H·Q - I||_F / sqrt(k). */
     double ortho_err = 0.0;
-    for (int64_t i = 0; i < k; i++) {
-        for (int64_t j = 0; j < k; j++) {
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
             double re = 0.0, im = 0.0;
-            for (int64_t l = 0; l < m; l++) {
+            for (int l = 0; l < m; l++) {
                 /* conj(Q[l][i]) * Q[l][j]. */
-                double qir =  (double)A_qr[l*lda + i].real;
-                double qii = -(double)A_qr[l*lda + i].imag;
-                double qjr =  (double)A_qr[l*lda + j].real;
-                double qji =  (double)A_qr[l*lda + j].imag;
+                double qir =  (double)__real__(A_qr[l*lda + i]);
+                double qii = -(double)__imag__(A_qr[l*lda + i]);
+                double qjr =  (double)__real__(A_qr[l*lda + j]);
+                double qji =  (double)__imag__(A_qr[l*lda + j]);
                 re += qir*qjr - qii*qji;
                 im += qir*qji + qii*qjr;
             }
@@ -1218,10 +1218,10 @@ static fb_judge_status_t run_zgeqrf(
 {
     if (!oracle->zgeqrf || !cand->zgeqrf || !cand->zungqr) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int64_t m = (int64_t)tc->m, n = (int64_t)tc->n, lda = (int64_t)tc->lda;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A_orig = (const fb_complex_double_t *)tc->A;
     if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
-    int64_t k = m < n ? m : n;
+    int k = m < n ? m : n;
 
     fb_complex_double_t *A_oc  = clone_matrix_cf64(A_orig, m, n, lda);
     fb_complex_double_t *tau_oc = (fb_complex_double_t *)malloc((size_t)k * sizeof(fb_complex_double_t));
@@ -1257,8 +1257,8 @@ static fb_judge_status_t run_zgeqrf(
 
     fb_complex_double_t *R = (fb_complex_double_t *)calloc((size_t)k * (size_t)n, sizeof(fb_complex_double_t));
     if (!R) { free(A_qr); free(tau); return FB_JUDGE_ERR_ALLOC; }
-    for (int64_t i = 0; i < k; i++)
-        for (int64_t j = i; j < n; j++)
+    for (int i = 0; i < k; i++)
+        for (int j = i; j < n; j++)
             R[i*n + j] = A_qr[i*lda + j];
 
     if (cand->zungqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_qr, lda, tau) != 0) {
@@ -1266,32 +1266,32 @@ static fb_judge_status_t run_zgeqrf(
     }
 
     double norm_diff = 0.0, norm_A = 0.0;
-    for (int64_t i = 0; i < m; i++) {
-        for (int64_t j = 0; j < n; j++) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             double qr_re = 0.0, qr_im = 0.0;
-            for (int64_t l = 0; l < k; l++) {
-                double qrr = A_qr[i*lda + l].real, qri = A_qr[i*lda + l].imag;
-                double rr  = R[l*n + j].real,       ri  = R[l*n + j].imag;
+            for (int l = 0; l < k; l++) {
+                double qrr = __real__(A_qr[i*lda + l]), qri = __imag__(A_qr[i*lda + l]);
+                double rr  = __real__(R[l*n + j]),       ri  = __imag__(R[l*n + j]);
                 qr_re += qrr*rr - qri*ri;
                 qr_im += qrr*ri + qri*rr;
             }
-            double dr = A_orig[i*lda + j].real - qr_re;
-            double di = A_orig[i*lda + j].imag - qr_im;
+            double dr = __real__(A_orig[i*lda + j]) - qr_re;
+            double di = __imag__(A_orig[i*lda + j]) - qr_im;
             norm_diff += dr*dr + di*di;
-            norm_A += A_orig[i*lda + j].real * A_orig[i*lda + j].real
-                    + A_orig[i*lda + j].imag * A_orig[i*lda + j].imag;
+            norm_A += __real__(A_orig[i*lda + j]) * __real__(A_orig[i*lda + j])
+                    + __imag__(A_orig[i*lda + j]) * __imag__(A_orig[i*lda + j]);
         }
     }
     result_from_relerr(&res->reconstruction,
         (norm_A < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_A));
 
     double ortho_err = 0.0;
-    for (int64_t i = 0; i < k; i++) {
-        for (int64_t j = 0; j < k; j++) {
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
             double re = 0.0, im = 0.0;
-            for (int64_t l = 0; l < m; l++) {
-                double qir =  A_qr[l*lda + i].real, qii = -A_qr[l*lda + i].imag;
-                double qjr =  A_qr[l*lda + j].real, qji =  A_qr[l*lda + j].imag;
+            for (int l = 0; l < m; l++) {
+                double qir =  __real__(A_qr[l*lda + i]), qii = -__imag__(A_qr[l*lda + i]);
+                double qjr =  __real__(A_qr[l*lda + j]), qji =  __imag__(A_qr[l*lda + j]);
                 re += qir*qjr - qii*qji;
                 im += qir*qji + qii*qjr;
             }

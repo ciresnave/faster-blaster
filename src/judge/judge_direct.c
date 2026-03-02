@@ -1124,7 +1124,7 @@ static fb_judge_status_t run_caxpy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->caxpy || !cand->caxpy) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m (tc->n is unused for L1) */
     fb_complex_float_t alpha;
     __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
@@ -1165,7 +1165,7 @@ static fb_judge_status_t run_zaxpy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zaxpy || !cand->zaxpy) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     fb_complex_double_t alpha;
     __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
@@ -1206,7 +1206,7 @@ static fb_judge_status_t run_cscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cscal || !cand->cscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     fb_complex_float_t alpha;
     __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
 
@@ -1246,7 +1246,7 @@ static fb_judge_status_t run_zscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zscal || !cand->zscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     fb_complex_double_t alpha;
     __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
 
@@ -1286,7 +1286,7 @@ static fb_judge_status_t run_csscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->csscal || !cand->csscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     float alpha = (float)tc->alpha;
 
     fb_complex_float_t *x_oracle = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
@@ -1325,7 +1325,7 @@ static fb_judge_status_t run_zdscal(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zdscal || !cand->zdscal) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     double alpha = tc->alpha;
 
     fb_complex_double_t *x_oracle = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
@@ -1364,7 +1364,7 @@ static fb_judge_status_t run_ccopy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->ccopy || !cand->ccopy) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
 
     fb_complex_float_t *y_oracle = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -1403,7 +1403,7 @@ static fb_judge_status_t run_zcopy(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zcopy || !cand->zcopy) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
 
     fb_complex_double_t *y_oracle = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -1442,7 +1442,7 @@ static fb_judge_status_t run_cswap(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->cswap || !cand->cswap) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
 
     fb_complex_float_t *xo = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
     fb_complex_float_t *yo = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
@@ -1488,7 +1488,7 @@ static fb_judge_status_t run_zswap(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->zswap || !cand->zswap) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
 
     fb_complex_double_t *xo = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
     fb_complex_double_t *yo = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
@@ -1794,7 +1794,7 @@ static fb_judge_status_t run_icamax(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->icamax || !cand->icamax) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const fb_complex_float_t *x = (const fb_complex_float_t *)tc->A;
     int oracle_idx = oracle->icamax(n, x, 1);
     int cand_idx   = cand->icamax(n, x, 1);
@@ -1821,7 +1821,7 @@ static fb_judge_status_t run_izamax(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->izamax || !cand->izamax) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
     int oracle_idx = oracle->izamax(n, x, 1);
     int cand_idx   = cand->izamax(n, x, 1);
@@ -1853,7 +1853,7 @@ static fb_judge_status_t run_srot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->srot || !cand->srot) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     float c = (float)tc->alpha, s = (float)tc->beta;
     const float *x_in = (const float *)tc->A;
     const float *y_in = (const float *)tc->B;
@@ -1899,7 +1899,7 @@ static fb_judge_status_t run_drot(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->drot || !cand->drot) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     double c = tc->alpha, s = tc->beta;
     const double *x_in = (const double *)tc->A;
     const double *y_in = (const double *)tc->B;
@@ -1948,7 +1948,7 @@ static fb_judge_status_t run_crot(const fb_backend_vtable_t *oracle,
                                   uint64_t *ns_out) {
   if (!oracle->crot || !cand->crot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int n = (int)tc->n;
+  int n = (int)tc->m;  /* L1: vector length lives in tc->m */
   float c = (float)tc->alpha;
   fb_complex_float_t s;
   __real__(s) = (float)tc->beta;
@@ -2032,7 +2032,7 @@ static fb_judge_status_t run_zrot(const fb_backend_vtable_t *oracle,
                                   uint64_t *ns_out) {
   if (!oracle->zrot || !cand->zrot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int n = (int)tc->n;
+  int n = (int)tc->m;  /* L1: vector length lives in tc->m */
   double c = tc->alpha;
   fb_complex_double_t s;
   __real__(s) = tc->beta;
@@ -2116,7 +2116,7 @@ static fb_judge_status_t run_zdrot(const fb_backend_vtable_t *oracle,
                                    uint64_t *ns_out) {
   if (!oracle->zdrot || !cand->zdrot)
     return FB_JUDGE_ERR_NOT_IMPL;
-  int n = (int)tc->n;
+  int n = (int)tc->m;  /* L1: vector length lives in tc->m */
   double c = tc->alpha, s = tc->beta;
   const fb_complex_double_t *x_in = (const fb_complex_double_t *)tc->A;
   const fb_complex_double_t *y_in = (const fb_complex_double_t *)tc->B;
@@ -2256,7 +2256,7 @@ static fb_judge_status_t run_srotm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->srotm || !cand->srotm) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const float *x_in = (const float *)tc->A;
     const float *y_in = (const float *)tc->B;
     /* Use identity modified rotation: param[0]=-2 (use identity, no-op) for safety */
@@ -2302,7 +2302,7 @@ static fb_judge_status_t run_drotm(
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
 {
     if (!oracle->drotm || !cand->drotm) return FB_JUDGE_ERR_NOT_IMPL;
-    int n = (int)tc->n;
+    int n = (int)tc->m;  /* L1: vector length lives in tc->m */
     const double *x_in = (const double *)tc->A;
     const double *y_in = (const double *)tc->B;
     double param[5] = {-2.0, 1.0, 0.0, 0.0, 1.0};

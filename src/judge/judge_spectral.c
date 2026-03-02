@@ -22,7 +22,12 @@
  * MSVC defines fb_complex_float_t as struct {float real, imag}.
  * GCC/Clang uses native float complex / double complex.
  * ========================================================================= */
-#ifdef _MSC_VER
+#if defined(__clang__)
+#  define FB_CF_REAL(z)  ((float)__real__(z))
+#  define FB_CF_IMAG(z)  ((float)__imag__(z))
+#  define FB_CD_REAL(z)  ((double)__real__(z))
+#  define FB_CD_IMAG(z)  ((double)__imag__(z))
+#elif defined(_MSC_VER)
 #  define FB_CF_REAL(z)  ((z).real)
 #  define FB_CF_IMAG(z)  ((z).imag)
 #  define FB_CD_REAL(z)  ((z).real)
@@ -326,7 +331,7 @@ static fb_judge_status_t run_ssyev(
     memcpy(A_cand, A_in, (size_t)(lda * n) * sizeof(float));
 
     /* Call oracle. */
-    int64_t oracle_info = oracle->ssyev(layout, jobz, uplo, (int64_t)n, A_oracle, (int64_t)lda, w_oracle);
+    int oracle_info = oracle->ssyev(layout, jobz, uplo, (int)n, A_oracle, (int)lda, w_oracle);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
@@ -334,7 +339,7 @@ static fb_judge_status_t run_ssyev(
     }
 
     /* Call candidate. */
-    int64_t cand_info = cand->ssyev(layout, jobz, uplo, (int64_t)n, A_cand, (int64_t)lda, w_cand);
+    int cand_info = cand->ssyev(layout, jobz, uplo, (int)n, A_cand, (int)lda, w_cand);
 
     if (cand_info != 0) {
         mark_cand_fatal(res);
@@ -459,7 +464,7 @@ static fb_judge_status_t run_ssyev(
         for (int w = 0; w < 2; w++) {
             float *At = (float *)malloc((size_t)(lda * n) * sizeof(float));
             float *wt = (float *)malloc((size_t)n * sizeof(float));
-            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(float)); (void)cand->ssyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(float)); (void)cand->ssyev(layout, jobz, uplo, (int)n, At, (int)lda, wt); }
             free(At); free(wt);
         }
         for (int t = 0; t < 5; t++) {
@@ -468,7 +473,7 @@ static fb_judge_status_t run_ssyev(
             if (!At || !wt) { free(At); free(wt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->ssyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            (void)cand->ssyev(layout, jobz, uplo, (int)n, At, (int)lda, wt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(wt);
             if (dt < best) best = dt;
@@ -521,7 +526,7 @@ static fb_judge_status_t run_dsyev(
     memcpy(A_cand, A_in, (size_t)(lda * n) * sizeof(double));
 
     /* Call oracle. */
-    int64_t oracle_info = oracle->dsyev(layout, jobz, uplo, (int64_t)n, A_oracle, (int64_t)lda, w_oracle);
+    int oracle_info = oracle->dsyev(layout, jobz, uplo, (int)n, A_oracle, (int)lda, w_oracle);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
@@ -529,7 +534,7 @@ static fb_judge_status_t run_dsyev(
     }
 
     /* Call candidate. */
-    int64_t cand_info = cand->dsyev(layout, jobz, uplo, (int64_t)n, A_cand, (int64_t)lda, w_cand);
+    int cand_info = cand->dsyev(layout, jobz, uplo, (int)n, A_cand, (int)lda, w_cand);
 
     if (cand_info != 0) {
         mark_cand_fatal(res);
@@ -654,7 +659,7 @@ static fb_judge_status_t run_dsyev(
         for (int w = 0; w < 2; w++) {
             double *At = (double *)malloc((size_t)(lda * n) * sizeof(double));
             double *wt = (double *)malloc((size_t)n * sizeof(double));
-            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(double)); (void)cand->dsyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(double)); (void)cand->dsyev(layout, jobz, uplo, (int)n, At, (int)lda, wt); }
             free(At); free(wt);
         }
         for (int t = 0; t < 5; t++) {
@@ -663,7 +668,7 @@ static fb_judge_status_t run_dsyev(
             if (!At || !wt) { free(At); free(wt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->dsyev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            (void)cand->dsyev(layout, jobz, uplo, (int)n, At, (int)lda, wt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(wt);
             if (dt < best) best = dt;
@@ -714,16 +719,16 @@ static fb_judge_status_t run_cheev(
     memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
     memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
 
-    int64_t oracle_info = oracle->cheev(layout, jobz, uplo, (int64_t)n,
-                                         A_oracle, (int64_t)lda, w_oracle);
+    int oracle_info = oracle->cheev(layout, jobz, uplo, (int)n,
+                                         A_oracle, (int)lda, w_oracle);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
         return FB_JUDGE_OK;
     }
 
-    int64_t cand_info = cand->cheev(layout, jobz, uplo, (int64_t)n,
-                                     A_cand, (int64_t)lda, w_cand);
+    int cand_info = cand->cheev(layout, jobz, uplo, (int)n,
+                                     A_cand, (int)lda, w_cand);
     if (cand_info != 0) {
         mark_cand_fatal(res);
         goto cleanup_cheev;
@@ -799,7 +804,7 @@ static fb_judge_status_t run_cheev(
         for (int w = 0; w < 2; w++) {
             fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
             float *wt = (float *)malloc((size_t)n * sizeof(float));
-            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t)); (void)cand->cheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t)); (void)cand->cheev(layout, jobz, uplo, (int)n, At, (int)lda, wt); }
             free(At); free(wt);
         }
         for (int t = 0; t < 5; t++) {
@@ -808,7 +813,7 @@ static fb_judge_status_t run_cheev(
             if (!At || !wt) { free(At); free(wt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->cheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            (void)cand->cheev(layout, jobz, uplo, (int)n, At, (int)lda, wt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(wt);
             if (dt < best) best = dt;
@@ -859,16 +864,16 @@ static fb_judge_status_t run_zheev(
     memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
     memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
 
-    int64_t oracle_info = oracle->zheev(layout, jobz, uplo, (int64_t)n,
-                                         A_oracle, (int64_t)lda, w_oracle);
+    int oracle_info = oracle->zheev(layout, jobz, uplo, (int)n,
+                                         A_oracle, (int)lda, w_oracle);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         free(A_oracle); free(A_cand); free(w_oracle); free(w_cand);
         return FB_JUDGE_OK;
     }
 
-    int64_t cand_info = cand->zheev(layout, jobz, uplo, (int64_t)n,
-                                     A_cand, (int64_t)lda, w_cand);
+    int cand_info = cand->zheev(layout, jobz, uplo, (int)n,
+                                     A_cand, (int)lda, w_cand);
     if (cand_info != 0) {
         mark_cand_fatal(res);
         goto cleanup_zheev;
@@ -940,7 +945,7 @@ static fb_judge_status_t run_zheev(
         for (int w = 0; w < 2; w++) {
             fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
             double *wt = (double *)malloc((size_t)n * sizeof(double));
-            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t)); (void)cand->zheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt); }
+            if (At && wt) { memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t)); (void)cand->zheev(layout, jobz, uplo, (int)n, At, (int)lda, wt); }
             free(At); free(wt);
         }
         for (int t = 0; t < 5; t++) {
@@ -949,7 +954,7 @@ static fb_judge_status_t run_zheev(
             if (!At || !wt) { free(At); free(wt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->zheev(layout, jobz, uplo, (int64_t)n, At, (int64_t)lda, wt);
+            (void)cand->zheev(layout, jobz, uplo, (int)n, At, (int)lda, wt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(wt);
             if (dt < best) best = dt;
@@ -1007,18 +1012,18 @@ static fb_judge_status_t run_sgesvd(
     memcpy(A_cand, A_in, (size_t)(lda * n) * sizeof(float));
 
     /* Call oracle. */
-    int64_t oracle_info = oracle->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                          A_oracle, (int64_t)lda, s_oracle, U, (int64_t)m,
-                                          VT, (int64_t)minmn, superb);
+    int oracle_info = oracle->sgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                          A_oracle, (int)lda, s_oracle, U, (int)m,
+                                          VT, (int)minmn, superb);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         goto cleanup_svd;
     }
 
     /* Call candidate. */
-    int64_t cand_info = cand->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                      A_cand, (int64_t)lda, s_cand, U, (int64_t)m,
-                                      VT, (int64_t)minmn, superb);
+    int cand_info = cand->sgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                      A_cand, (int)lda, s_cand, U, (int)m,
+                                      VT, (int)minmn, superb);
 
     if (cand_info != 0) {
         mark_cand_fatal(res);
@@ -1169,7 +1174,7 @@ static fb_judge_status_t run_sgesvd(
             float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
             if (At && st && Ut && VTt && superbt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
-                (void)cand->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+                (void)cand->sgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             }
             free(At); free(st); free(Ut); free(VTt); free(superbt);
         }
@@ -1182,7 +1187,7 @@ static fb_judge_status_t run_sgesvd(
             if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->sgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            (void)cand->sgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(st); free(Ut); free(VTt); free(superbt);
             if (dt < best) best = dt;
@@ -1241,18 +1246,18 @@ static fb_judge_status_t run_dgesvd(
     memcpy(A_cand, A_in, (size_t)(lda * n) * sizeof(double));
 
     /* Call oracle. */
-    int64_t oracle_info = oracle->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                          A_oracle, (int64_t)lda, s_oracle, U, (int64_t)m,
-                                          VT, (int64_t)minmn, superb);
+    int oracle_info = oracle->dgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                          A_oracle, (int)lda, s_oracle, U, (int)m,
+                                          VT, (int)minmn, superb);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         goto cleanup_svd;
     }
 
     /* Call candidate. */
-    int64_t cand_info = cand->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                      A_cand, (int64_t)lda, s_cand, U, (int64_t)m,
-                                      VT, (int64_t)minmn, superb);
+    int cand_info = cand->dgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                      A_cand, (int)lda, s_cand, U, (int)m,
+                                      VT, (int)minmn, superb);
 
     if (cand_info != 0) {
         mark_cand_fatal(res);
@@ -1403,7 +1408,7 @@ static fb_judge_status_t run_dgesvd(
             double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
             if (At && st && Ut && VTt && superbt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
-                (void)cand->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+                (void)cand->dgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             }
             free(At); free(st); free(Ut); free(VTt); free(superbt);
         }
@@ -1416,7 +1421,7 @@ static fb_judge_status_t run_dgesvd(
             if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->dgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            (void)cand->dgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(st); free(Ut); free(VTt); free(superbt);
             if (dt < best) best = dt;
@@ -1476,16 +1481,16 @@ static fb_judge_status_t run_cgesvd(
     memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
 
     {
-        int64_t info = oracle->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                       A_oracle, (int64_t)lda, s_oracle,
-                                       U, (int64_t)m, VT, (int64_t)minmn, superb);
+        int info = oracle->cgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                       A_oracle, (int)lda, s_oracle,
+                                       U, (int)m, VT, (int)minmn, superb);
         if (info != 0) { mark_oracle_fatal(res); goto cleanup_cgesvd; }
     }
 
     {
-        int64_t info = cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                     A_cand, (int64_t)lda, s_cand,
-                                     U, (int64_t)m, VT, (int64_t)minmn, superb);
+        int info = cand->cgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                     A_cand, (int)lda, s_cand,
+                                     U, (int)m, VT, (int)minmn, superb);
         if (info != 0) { mark_cand_fatal(res); goto cleanup_cgesvd; }
     }
 
@@ -1563,7 +1568,7 @@ static fb_judge_status_t run_cgesvd(
             float *superbt = (float *)malloc((size_t)minmn * sizeof(float));
             if (At && st && Ut && VTt && superbt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
-                (void)cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+                (void)cand->cgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             }
             free(At); free(st); free(Ut); free(VTt); free(superbt);
         }
@@ -1576,7 +1581,7 @@ static fb_judge_status_t run_cgesvd(
             if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->cgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            (void)cand->cgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(st); free(Ut); free(VTt); free(superbt);
             if (dt < best) best = dt;
@@ -1632,16 +1637,16 @@ static fb_judge_status_t run_zgesvd(
     memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
 
     {
-        int64_t info = oracle->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                       A_oracle, (int64_t)lda, s_oracle,
-                                       U, (int64_t)m, VT, (int64_t)minmn, superb);
+        int info = oracle->zgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                       A_oracle, (int)lda, s_oracle,
+                                       U, (int)m, VT, (int)minmn, superb);
         if (info != 0) { mark_oracle_fatal(res); goto cleanup_zgesvd; }
     }
 
     {
-        int64_t info = cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n,
-                                     A_cand, (int64_t)lda, s_cand,
-                                     U, (int64_t)m, VT, (int64_t)minmn, superb);
+        int info = cand->zgesvd(layout, jobu, jobvt, (int)m, (int)n,
+                                     A_cand, (int)lda, s_cand,
+                                     U, (int)m, VT, (int)minmn, superb);
         if (info != 0) { mark_cand_fatal(res); goto cleanup_zgesvd; }
     }
 
@@ -1717,7 +1722,7 @@ static fb_judge_status_t run_zgesvd(
             double *superbt = (double *)malloc((size_t)minmn * sizeof(double));
             if (At && st && Ut && VTt && superbt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
-                (void)cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+                (void)cand->zgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             }
             free(At); free(st); free(Ut); free(VTt); free(superbt);
         }
@@ -1730,7 +1735,7 @@ static fb_judge_status_t run_zgesvd(
             if (!At || !st || !Ut || !VTt || !superbt) { free(At); free(st); free(Ut); free(VTt); free(superbt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->zgesvd(layout, jobu, jobvt, (int64_t)m, (int64_t)n, At, (int64_t)lda, st, Ut, (int64_t)m, VTt, (int64_t)minmn, superbt);
+            (void)cand->zgesvd(layout, jobu, jobvt, (int)m, (int)n, At, (int)lda, st, Ut, (int)m, VTt, (int)minmn, superbt);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(st); free(Ut); free(VTt); free(superbt);
             if (dt < best) best = dt;
@@ -1789,20 +1794,20 @@ static fb_judge_status_t run_sgeev(
 
     /* Oracle call (A_oracle overwritten). VR receives oracle eigenvectors first
      * (overwritten by candidate call). Only eigenvalues from oracle are used. */
-    int64_t oracle_info = oracle->sgeev(layout, jobvl, jobvr, (int64_t)n,
-                                         A_oracle, (int64_t)lda,
+    int oracle_info = oracle->sgeev(layout, jobvl, jobvr, (int)n,
+                                         A_oracle, (int)lda,
                                          WR_oracle, WI_oracle,
-                                         NULL, 1L, VR, (int64_t)n);
+                                         NULL, 1L, VR, (int)n);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         goto cleanup_sgeev;
     }
 
     /* Candidate call (A_cand overwritten, VR now has candidate eigenvectors). */
-    int64_t cand_info = cand->sgeev(layout, jobvl, jobvr, (int64_t)n,
-                                     A_cand, (int64_t)lda,
+    int cand_info = cand->sgeev(layout, jobvl, jobvr, (int)n,
+                                     A_cand, (int)lda,
                                      WR_cand, WI_cand,
-                                     NULL, 1L, VR, (int64_t)n);
+                                     NULL, 1L, VR, (int)n);
     if (cand_info != 0) {
         mark_cand_fatal(res);
         goto cleanup_sgeev;
@@ -1914,7 +1919,7 @@ static fb_judge_status_t run_sgeev(
             float *VRt = (float *)malloc((size_t)(n * n) * sizeof(float));
             if (At && WRt && WIt && VRt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
-                (void)cand->sgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+                (void)cand->sgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, WRt, WIt, NULL, 1L, VRt, (int)n);
             }
             free(At); free(WRt); free(WIt); free(VRt);
         }
@@ -1926,7 +1931,7 @@ static fb_judge_status_t run_sgeev(
             if (!At || !WRt || !WIt || !VRt) { free(At); free(WRt); free(WIt); free(VRt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->sgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            (void)cand->sgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, WRt, WIt, NULL, 1L, VRt, (int)n);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(WRt); free(WIt); free(VRt);
             if (dt < best) best = dt;
@@ -1982,19 +1987,19 @@ static fb_judge_status_t run_dgeev(
     memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(double));
     memcpy(A_copy,   A_in, (size_t)(lda * n) * sizeof(double));
 
-    int64_t oracle_info = oracle->dgeev(layout, jobvl, jobvr, (int64_t)n,
-                                         A_oracle, (int64_t)lda,
+    int oracle_info = oracle->dgeev(layout, jobvl, jobvr, (int)n,
+                                         A_oracle, (int)lda,
                                          WR_oracle, WI_oracle,
-                                         NULL, 1L, VR, (int64_t)n);
+                                         NULL, 1L, VR, (int)n);
     if (oracle_info != 0) {
         mark_oracle_fatal(res);
         goto cleanup_dgeev;
     }
 
-    int64_t cand_info = cand->dgeev(layout, jobvl, jobvr, (int64_t)n,
-                                     A_cand, (int64_t)lda,
+    int cand_info = cand->dgeev(layout, jobvl, jobvr, (int)n,
+                                     A_cand, (int)lda,
                                      WR_cand, WI_cand,
-                                     NULL, 1L, VR, (int64_t)n);
+                                     NULL, 1L, VR, (int)n);
     if (cand_info != 0) {
         mark_cand_fatal(res);
         goto cleanup_dgeev;
@@ -2094,7 +2099,7 @@ static fb_judge_status_t run_dgeev(
             double *VRt = (double *)malloc((size_t)(n * n) * sizeof(double));
             if (At && WRt && WIt && VRt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
-                (void)cand->dgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+                (void)cand->dgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, WRt, WIt, NULL, 1L, VRt, (int)n);
             }
             free(At); free(WRt); free(WIt); free(VRt);
         }
@@ -2106,7 +2111,7 @@ static fb_judge_status_t run_dgeev(
             if (!At || !WRt || !WIt || !VRt) { free(At); free(WRt); free(WIt); free(VRt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(double));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->dgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, WRt, WIt, NULL, 1L, VRt, (int64_t)n);
+            (void)cand->dgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, WRt, WIt, NULL, 1L, VRt, (int)n);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(WRt); free(WIt); free(VRt);
             if (dt < best) best = dt;
@@ -2165,11 +2170,11 @@ static fb_judge_status_t run_cgeev(
     memcpy(A_copy,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
 
     {
-        int64_t info = oracle->cgeev(layout, jobvl, jobvr, (int64_t)n,
-                                     A_oracle, (int64_t)lda,
+        int info = oracle->cgeev(layout, jobvl, jobvr, (int)n,
+                                     A_oracle, (int)lda,
                                      W_oracle,
                                      NULL, 1L,
-                                     VR, (int64_t)n);
+                                     VR, (int)n);
         if (info != 0) {
             mark_oracle_fatal(res);
             goto cleanup_cgeev;
@@ -2177,11 +2182,11 @@ static fb_judge_status_t run_cgeev(
     }
 
     {
-        int64_t info = cand->cgeev(layout, jobvl, jobvr, (int64_t)n,
-                                   A_cand, (int64_t)lda,
+        int info = cand->cgeev(layout, jobvl, jobvr, (int)n,
+                                   A_cand, (int)lda,
                                    W_cand,
                                    NULL, 1L,
-                                   VR, (int64_t)n);
+                                   VR, (int)n);
         if (info != 0) {
             mark_cand_fatal(res);
             goto cleanup_cgeev;
@@ -2295,7 +2300,7 @@ static fb_judge_status_t run_cgeev(
             fb_complex_float_t *VRt = (fb_complex_float_t *)malloc((size_t)(n * n) * sizeof(fb_complex_float_t));
             if (At && Wt && VRt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
-                (void)cand->cgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+                (void)cand->cgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, Wt, NULL, 1L, VRt, (int)n);
             }
             free(At); free(Wt); free(VRt);
         }
@@ -2306,7 +2311,7 @@ static fb_judge_status_t run_cgeev(
             if (!At || !Wt || !VRt) { free(At); free(Wt); free(VRt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->cgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            (void)cand->cgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, Wt, NULL, 1L, VRt, (int)n);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(Wt); free(VRt);
             if (dt < best) best = dt;
@@ -2368,11 +2373,11 @@ static fb_judge_status_t run_zgeev(
     memcpy(A_copy,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
 
     {
-        int64_t info = oracle->zgeev(layout, jobvl, jobvr, (int64_t)n,
-                                     A_oracle, (int64_t)lda,
+        int info = oracle->zgeev(layout, jobvl, jobvr, (int)n,
+                                     A_oracle, (int)lda,
                                      W_oracle,
                                      NULL, 1L,
-                                     VR, (int64_t)n);
+                                     VR, (int)n);
         if (info != 0) {
             mark_oracle_fatal(res);
             goto cleanup_zgeev;
@@ -2380,11 +2385,11 @@ static fb_judge_status_t run_zgeev(
     }
 
     {
-        int64_t info = cand->zgeev(layout, jobvl, jobvr, (int64_t)n,
-                                   A_cand, (int64_t)lda,
+        int info = cand->zgeev(layout, jobvl, jobvr, (int)n,
+                                   A_cand, (int)lda,
                                    W_cand,
                                    NULL, 1L,
-                                   VR, (int64_t)n);
+                                   VR, (int)n);
         if (info != 0) {
             mark_cand_fatal(res);
             goto cleanup_zgeev;
@@ -2498,7 +2503,7 @@ static fb_judge_status_t run_zgeev(
             fb_complex_double_t *VRt = (fb_complex_double_t *)malloc((size_t)(n * n) * sizeof(fb_complex_double_t));
             if (At && Wt && VRt) {
                 memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
-                (void)cand->zgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+                (void)cand->zgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, Wt, NULL, 1L, VRt, (int)n);
             }
             free(At); free(Wt); free(VRt);
         }
@@ -2509,7 +2514,7 @@ static fb_judge_status_t run_zgeev(
             if (!At || !Wt || !VRt) { free(At); free(Wt); free(VRt); break; }
             memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
             uint64_t t0 = fb_judge_time_ns();
-            (void)cand->zgeev(layout, jobvl, jobvr, (int64_t)n, At, (int64_t)lda, Wt, NULL, 1L, VRt, (int64_t)n);
+            (void)cand->zgeev(layout, jobvl, jobvr, (int)n, At, (int)lda, Wt, NULL, 1L, VRt, (int)n);
             uint64_t dt = fb_judge_time_ns() - t0;
             free(At); free(Wt); free(VRt);
             if (dt < best) best = dt;

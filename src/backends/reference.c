@@ -845,9 +845,7 @@ static void w_ztrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
  *
  * TODO: replace this include once faster-blaster-reference has all LAPACK ops
  * ========================================================================= */
-/* TODO: un-comment once faster-blaster-reference has full LAPACK coverage.
- * #include "reference_lapack.c"
- */
+#include "reference_lapack.c"
 
 /* ============================================================================
  * Misc backend extension stubs (CPU reference needs no GPU memory management)
@@ -1064,18 +1062,31 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.ctrsm   = (fb_ctrsm_fn)w_ctrsm;
     vt.ztrsm   = (fb_ztrsm_fn)w_ztrsm;
 
-    /* ---- LAPACK (stubs until reference_lapack.c is restored) ---- */
-    vt.sgetrf  = NULL;  vt.dgetrf  = NULL;  vt.cgetrf  = NULL;  vt.zgetrf  = NULL;
-    vt.sgetrs  = NULL;  vt.dgetrs  = NULL;  vt.cgetrs  = NULL;  vt.zgetrs  = NULL;
-    vt.spotrf  = NULL;  vt.dpotrf  = NULL;  vt.cpotrf  = NULL;  vt.zpotrf  = NULL;
-    vt.spotrs  = NULL;  vt.dpotrs  = NULL;  vt.cpotrs  = NULL;  vt.zpotrs  = NULL;
-    vt.sgeqrf  = NULL;  vt.dgeqrf  = NULL;  vt.cgeqrf  = NULL;  vt.zgeqrf  = NULL;
-    vt.sorgqr  = NULL;  vt.dorgqr  = NULL;  vt.cungqr  = NULL;  vt.zungqr  = NULL;
+    /* ---- LAPACK — wired via reference_lapack.c ---- */
+    /* Factorization */
+    vt.sgetrf = (fb_sgetrf_fn)ref_sgetrf;  vt.dgetrf = (fb_dgetrf_fn)ref_dgetrf;
+    vt.cgetrf = (fb_cgetrf_fn)ref_cgetrf;  vt.zgetrf = (fb_zgetrf_fn)ref_zgetrf;
+    vt.spotrf = (fb_spotrf_fn)ref_spotrf;  vt.dpotrf = (fb_dpotrf_fn)ref_dpotrf;
+    vt.cpotrf = (fb_cpotrf_fn)ref_cpotrf;  vt.zpotrf = (fb_zpotrf_fn)ref_zpotrf;
+    vt.sgeqrf = (fb_sgeqrf_fn)ref_sgeqrf;  vt.dgeqrf = (fb_dgeqrf_fn)ref_dgeqrf;
+    vt.cgeqrf = (fb_cgeqrf_fn)ref_cgeqrf;  vt.zgeqrf = (fb_zgeqrf_fn)ref_zgeqrf;
+    /* Triangular solve / back-substitution */
+    vt.sgetrs = (fb_sgetrs_fn)ref_sgetrs;  vt.dgetrs = (fb_dgetrs_fn)ref_dgetrs;
+    vt.cgetrs = (fb_cgetrs_fn)ref_cgetrs;  vt.zgetrs = (fb_zgetrs_fn)ref_zgetrs;
+    vt.spotrs = (fb_spotrs_fn)ref_spotrs;  vt.dpotrs = (fb_dpotrs_fn)ref_dpotrs;
+    vt.cpotrs = (fb_cpotrs_fn)ref_cpotrs;  vt.zpotrs = (fb_zpotrs_fn)ref_zpotrs;
+    /* Q-factor recovery */
+    vt.sorgqr = (fb_sorgqr_fn)ref_sorgqr;  vt.dorgqr = (fb_dorgqr_fn)ref_dorgqr;
+    vt.cungqr = (fb_cungqr_fn)ref_cungqr;  vt.zungqr = (fb_zungqr_fn)ref_zungqr;
+    /* Spectral (SYEV/HEEV/GESVD/GEEV): auxiliary routines not yet in
+     * faster-blaster-reference (gehrd/hseqr/trevc/bdsqr/…); wire when they land */
+    vt.ssyev  = NULL;  vt.dsyev  = NULL;  vt.cheev  = NULL;  vt.zheev  = NULL;
+    vt.sgesvd = NULL;  vt.dgesvd = NULL;  vt.cgesvd = NULL;  vt.zgesvd = NULL;
+    vt.sgeev  = NULL;  vt.dgeev  = NULL;  vt.cgeev  = NULL;  vt.zgeev  = NULL;
+    /* Not yet implemented in faster-blaster-reference */
     vt.sgels   = NULL;  vt.dgels   = NULL;  vt.cgels   = NULL;  vt.zgels   = NULL;
     vt.sormqr  = NULL;  vt.dormqr  = NULL;  vt.cunmqr  = NULL;  vt.zunmqr  = NULL;
     vt.sgelsd  = NULL;  vt.dgelsd  = NULL;  vt.cgelsd  = NULL;  vt.zgelsd  = NULL;
-    vt.ssyev   = NULL;  vt.dsyev   = NULL;  vt.cheev   = NULL;  vt.zheev   = NULL;
-    vt.sgesvd  = NULL;  vt.dgesvd  = NULL;  vt.cgesvd  = NULL;  vt.zgesvd  = NULL;
     vt.strtri  = NULL;  vt.dtrtri  = NULL;  vt.ctrtri  = NULL;  vt.ztrtri  = NULL;
     vt.sgesdd  = NULL;  vt.dgesdd  = NULL;  vt.cgesdd  = NULL;  vt.zgesdd  = NULL;
     vt.ssygv   = NULL;  vt.dsygv   = NULL;  vt.chegv   = NULL;  vt.zhegv   = NULL;

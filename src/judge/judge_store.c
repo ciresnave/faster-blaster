@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 /* Platform-specific headers for directory creation and scanning. */
 #ifdef _WIN32
@@ -326,15 +327,63 @@ bool fb_judge_store_profiles_are_current(
  * fb_judge_store_list_profiled_ops
  * ========================================================================= */
 
-/** Reverse-lookup op_id from op_name by scanning the metadata table. */
+/** Reverse-lookup op_id from op_name by scanning the metadata table.
+ *
+ * The table stores names as stringified enum tokens ("FB_OP_SAXPY") while
+ * profile files record the lower-case short name ("saxpy").  This function
+ * handles both forms:
+ *  1. Direct match: name == op_name  (future-proof if table ever stores short names)
+ *  2. Prefix-stripped, case-insensitive match: strip "FB_OP_" from the table
+ *     name, then compare case-insensitively with op_name.
+ */
 static uint32_t meta_id_from_name(const char *op_name)
 {
+    if (!op_name) return UINT32_MAX;
+
     for (uint32_t id = 0; id < FB_JUDGE_MAX_OPERATIONS; id++) {
         const fb_op_judge_meta_t *m = &fb_op_judge_table[id];
-        if (m->name && strcmp(m->name, op_name) == 0)
+        if (!m->name) continue;
+
+        /* 1. Direct match (e.g. table already stores "saxpy"). */
+        if (strcmp(m->name, op_name) == 0)
             return id;
+
+        /* 2. Strip "FB_OP_" prefix (6 chars) and compare case-insensitively.
+         *    Table stores "FB_OP_SAXPY"; file stores "saxpy". */
+        if (strncmp(m->name, "FB_OP_", 6) == 0) {
+            const char *short_name = m->name + 6;  /* e.g. "SAXPY" */
+            size_t sn_len = strlen(short_name);
+            size_t op_len = strlen(op_name);
+            if (sn_len == op_len) {
+                bool match = true;
+                for (size_t i = 0; i < sn_len; i++) {
+                    if (tolower((unsigned char)short_name[i]) !=
+                        tolower((unsigned char)op_name[i])) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) return id;
+            }
+        }
     }
     return UINT32_MAX;  /* not found */
+}
+
+void fb_judge_meta_to_canonical_name(
+    const char *meta_name,
+    char       *buf,
+    size_t      buf_size)
+{
+    if (!buf || buf_size == 0) return;
+    buf[0] = '\0';
+    if (!meta_name) return;
+    const char *src = meta_name;
+    if (strncmp(src, "FB_OP_", 6) == 0) src += 6;
+    size_t i = 0;
+    while (*src && i < buf_size - 1)
+        buf[i++] = (char)tolower((unsigned char)*src++);
+    buf[i] = '\0';
 }
 
 uint32_t fb_judge_store_list_profiled_ops(

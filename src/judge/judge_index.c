@@ -283,7 +283,7 @@ static fb_judge_status_t run_icamax(
 {
     if (!oracle->icamax || !cand->icamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int                    n = (int)tc->n;
+    int                    n = (int)tc->m;  /* L1: vector length in tc->m (tc->n == 0) */
     const fb_complex_float_t  *x = (const fb_complex_float_t *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -291,11 +291,12 @@ static fb_judge_status_t run_icamax(
     int oracle_idx = oracle->icamax(n, x, 1);
     int cand_idx   = cand->icamax(n, x, 1);
 
-    if (oracle_idx < 0 || oracle_idx >= n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
-    if (cand_idx   < 0 || cand_idx   >= n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
+    /* icamax_ref returns 1-based index (1..n); validate then convert to 0-based. */
+    if (oracle_idx < 1 || oracle_idx > n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
+    if (cand_idx   < 1 || cand_idx   > n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
 
-    double abs_oracle = (double)cmag_f32(x[oracle_idx]);
-    double abs_cand   = (double)cmag_f32(x[cand_idx]);
+    double abs_oracle = (double)cmag_f32(x[oracle_idx - 1]);  /* 1→0 based */
+    double abs_cand   = (double)cmag_f32(x[cand_idx   - 1]);  /* 1→0 based */
     double tau        = (double)FLT_EPSILON * abs_oracle;
 
     make_value_result(abs_oracle, abs_cand, tau, &res->value);
@@ -328,7 +329,7 @@ static fb_judge_status_t run_izamax(
 {
     if (!oracle->izamax || !cand->izamax) return FB_JUDGE_ERR_NOT_IMPL;
 
-    int                    n = (int)tc->n;
+    int                    n = (int)tc->m;  /* L1: vector length in tc->m (tc->n == 0) */
     const fb_complex_double_t *x = (const fb_complex_double_t *)tc->A;
 
     if (n <= 0 || !x) { make_oracle_fatal(res); return FB_JUDGE_OK; }
@@ -336,11 +337,12 @@ static fb_judge_status_t run_izamax(
     int oracle_idx = oracle->izamax(n, x, 1);
     int cand_idx   = cand->izamax(n, x, 1);
 
-    if (oracle_idx < 0 || oracle_idx >= n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
-    if (cand_idx   < 0 || cand_idx   >= n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
+    /* izamax_ref returns 1-based index (1..n); validate then convert to 0-based. */
+    if (oracle_idx < 1 || oracle_idx > n) { make_oracle_fatal(res); return FB_JUDGE_OK; }
+    if (cand_idx   < 1 || cand_idx   > n) { make_cand_fatal(res);   return FB_JUDGE_OK; }
 
-    double abs_oracle = cmag_f64(x[oracle_idx]);
-    double abs_cand   = cmag_f64(x[cand_idx]);
+    double abs_oracle = cmag_f64(x[oracle_idx - 1]);  /* 1→0 based */
+    double abs_cand   = cmag_f64(x[cand_idx   - 1]);  /* 1→0 based */
     double tau        = DBL_EPSILON * abs_oracle;
 
     make_value_result(abs_oracle, abs_cand, tau, &res->value);

@@ -234,9 +234,14 @@ fb_select_status_t fb_judge_select_best_backend(
     if (n_backends > FB_SELECT_MAX_BACKENDS)
         n_backends = FB_SELECT_MAX_BACKENDS;   /* silently clamp */
 
-    /* Resolve op name from metadata. */
+    /* Resolve op name from metadata and convert to canonical file form.
+     * meta->name stores the enum token ("FB_OP_SAXPY"); profile files are
+     * named with the lowercase short form ("saxpy"). */
     const fb_op_judge_meta_t *meta = fb_judge_meta_get(op_id);
-    const char *op_name = (meta && meta->name) ? meta->name : "";
+    char canonical_op_name[64] = "";
+    if (meta && meta->name)
+        fb_judge_meta_to_canonical_name(meta->name, canonical_op_name, sizeof(canonical_op_name));
+    const char *op_name = canonical_op_name;
 
     /* Effective pass_rate used when computing digit scores.
      * For MAXIMIZE_PRECISION / MAXIMIZE_SPEED we still need a pass_rate to

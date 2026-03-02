@@ -26,15 +26,20 @@
  *   DEFAULT_ENTRY(op_id)          — conservative fallback
  * ========================================================================= */
 
-#define _COMMON_FIELDS(id_)  \
-    .name  = #id_,                        \
-    .is_in_place = false,                 \
-    .ortho_slack_f32 = 1e-5f,             \
-    .ortho_slack_f64 = 1e-10,             \
+/* _COMMON_FIELDS receives the pre-stringified name so that each outer macro
+ * can apply the # operator to its own 'id_' parameter (where the argument is
+ * still the raw token like FB_OP_SAXPY, not the expanded integer 4).
+ * Passing through a nested macro would expand the integer first, producing
+ * strings like "4" instead of "FB_OP_SAXPY". */
+#define _COMMON_FIELDS(name_str_)        \
+    .name  = (name_str_),                \
+    .is_in_place = false,                \
+    .ortho_slack_f32 = 1e-5f,            \
+    .ortho_slack_f64 = 1e-10,            \
     .cluster_threshold_multiplier = 4.0
 
 #define DIRECT_ENTRY(id_, f32_ceil_, f64_ceil_) [id_] = { \
-    _COMMON_FIELDS(id_),                                    \
+    _COMMON_FIELDS(#id_),                                   \
     .archetype             = FB_JUDGE_DIRECT,               \
     .uniqueness            = FB_OUTPUT_UNIQUE,              \
     .default_score_policy  = FB_SCORE_MIN_PRIMARY,          \
@@ -44,7 +49,7 @@
 }
 
 #define INDEX_ENTRY(id_) [id_] = {                          \
-    _COMMON_FIELDS(id_),                                    \
+    _COMMON_FIELDS(#id_),                                   \
     .archetype             = FB_JUDGE_INDEX,                \
     .uniqueness            = FB_OUTPUT_DISCRETE,            \
     .default_score_policy  = FB_SCORE_MIN_PRIMARY,          \
@@ -54,7 +59,7 @@
 }
 
 #define FACTOR_ENTRY(id_, f32_ceil_, f64_ceil_) [id_] = {  \
-    _COMMON_FIELDS(id_),                                    \
+    _COMMON_FIELDS(#id_),                                   \
     .archetype             = FB_JUDGE_FACTORIZATION,        \
     .uniqueness            = FB_OUTPUT_PIVOT,               \
     .default_score_policy  = FB_SCORE_RECONSTRUCTION_ONLY,  \
@@ -64,7 +69,7 @@
 }
 
 #define SOLVE_ENTRY(id_, f32_ceil_, f64_ceil_) [id_] = {   \
-    _COMMON_FIELDS(id_),                                    \
+    _COMMON_FIELDS(#id_),                                   \
     .archetype             = FB_JUDGE_SOLVE,                \
     .uniqueness            = FB_OUTPUT_UNIQUE,              \
     .default_score_policy  = FB_SCORE_MIN_PRIMARY,          \
@@ -74,7 +79,7 @@
 }
 
 #define SPECTRAL_ENTRY(id_, f32_ceil_, f64_ceil_) [id_] = { \
-    _COMMON_FIELDS(id_),                                     \
+    _COMMON_FIELDS(#id_),                                    \
     .archetype             = FB_JUDGE_SPECTRAL,              \
     .uniqueness            = FB_OUTPUT_SIGN_FLIP,            \
     .default_score_policy  = FB_SCORE_MIN_PRIMARY,           \

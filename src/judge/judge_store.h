@@ -101,6 +101,18 @@ uint32_t fb_judge_store_list_profiled_ops(
     uint32_t    max_ops
 );
 
+/**
+ * Convert a metadata table name (e.g. "FB_OP_SAXPY") to the canonical
+ * lower-case short form used in profile file names (e.g. "saxpy").
+ * Strips the "FB_OP_" prefix (if present) and lower-cases the remainder.
+ * Safe with NULL inputs; always NUL-terminates buf.
+ */
+void fb_judge_meta_to_canonical_name(
+    const char *meta_name,
+    char       *buf,
+    size_t      buf_size
+);
+
 #ifdef __cplusplus
 }
 #endif

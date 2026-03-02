@@ -347,6 +347,7 @@ fb_judge_status_t fb_judge_run(
                 oracle, candidate, &cases[ci], &factor_res, &ns);
 
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                fb_corpus_case_free(&cases[ci]);
                 continue;
             }
             if (rs != FB_JUDGE_OK) {
@@ -355,12 +356,12 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on either sub-result → halt. */
+            /* Oracle fatal on either sub-result → halt.
+             * Cases 0..ci-1 were already freed at the end of their iterations;
+             * only free ci..end here to avoid double-free heap corruption. */
             if (factor_res.reconstruction.is_oracle_fatal ||
                 factor_res.orthogonality.is_oracle_fatal) {
                 for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                for (int fi = 0; fi < ci; fi++)
                     fb_corpus_case_free(&cases[fi]);
                 return FB_JUDGE_ERR_ORACLE_FAILURE;
             }
@@ -400,6 +401,7 @@ fb_judge_status_t fb_judge_run(
                 oracle, candidate, &cases[ci], &solve_res, &ns);
 
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                fb_corpus_case_free(&cases[ci]);
                 continue;
             }
             if (rs != FB_JUDGE_OK) {
@@ -408,11 +410,10 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on residual → halt. */
+            /* Oracle fatal on residual → halt.
+             * Cases 0..ci-1 already freed; only free ci..end. */
             if (solve_res.residual.is_oracle_fatal) {
                 for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                for (int fi = 0; fi < ci; fi++)
                     fb_corpus_case_free(&cases[fi]);
                 return FB_JUDGE_ERR_ORACLE_FAILURE;
             }
@@ -457,6 +458,7 @@ fb_judge_status_t fb_judge_run(
                 oracle, candidate, &cases[ci], &spectral_res, &ns);
 
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
+                fb_corpus_case_free(&cases[ci]);
                 continue;
             }
             if (rs != FB_JUDGE_OK) {
@@ -465,13 +467,12 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on any metric → halt. */
+            /* Oracle fatal on any metric → halt.
+             * Cases 0..ci-1 already freed; only free ci..end. */
             if (spectral_res.values.is_oracle_fatal ||
                 spectral_res.reconstruction.is_oracle_fatal ||
                 spectral_res.orthogonality.is_oracle_fatal) {
                 for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                for (int fi = 0; fi < ci; fi++)
                     fb_corpus_case_free(&cases[fi]);
                 return FB_JUDGE_ERR_ORACLE_FAILURE;
             }
