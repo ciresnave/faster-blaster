@@ -203,11 +203,11 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     DIRECT_ENTRY(FB_OP_CTRMV, 5, 12),
     DIRECT_ENTRY(FB_OP_ZTRMV, 5, 12),
 
-    /* TRSV — triangular solve: residual-based; treat as SOLVE archetype */
-    SOLVE_ENTRY(FB_OP_STRSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_DTRSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_CTRSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_ZTRSV, 4, 10),
+    /* TRSV — implemented in judge_direct.c; use DIRECT archetype */
+    DIRECT_ENTRY(FB_OP_STRSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_DTRSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_CTRSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_ZTRSV, 4, 10),
 
     /* GER / GERU / GERC */
     DIRECT_ENTRY(FB_OP_SGER, 6, 13),
@@ -240,18 +240,18 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     DIRECT_ENTRY(FB_OP_DTBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_CTBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_ZTBMV, 5, 12),
-    SOLVE_ENTRY(FB_OP_STBSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_DTBSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_CTBSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_ZTBSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_STBSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_DTBSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_CTBSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_ZTBSV, 4, 10),
     DIRECT_ENTRY(FB_OP_STPMV, 5, 12),
     DIRECT_ENTRY(FB_OP_DTPMV, 5, 12),
     DIRECT_ENTRY(FB_OP_CTPMV, 5, 12),
     DIRECT_ENTRY(FB_OP_ZTPMV, 5, 12),
-    SOLVE_ENTRY(FB_OP_STPSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_DTPSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_CTPSV, 4, 10),
-    SOLVE_ENTRY(FB_OP_ZTPSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_STPSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_DTPSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_CTPSV, 4, 10),
+    DIRECT_ENTRY(FB_OP_ZTPSV, 4, 10),
     DIRECT_ENTRY(FB_OP_SSPR, 6, 13),
     DIRECT_ENTRY(FB_OP_DSPR, 6, 13),
     DIRECT_ENTRY(FB_OP_CHPR, 6, 13),
@@ -306,11 +306,11 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     DIRECT_ENTRY(FB_OP_CTRMM, 5, 12),
     DIRECT_ENTRY(FB_OP_ZTRMM, 5, 12),
 
-    /* TRSM — triangular solve */
-    SOLVE_ENTRY(FB_OP_STRSM, 4, 10),
-    SOLVE_ENTRY(FB_OP_DTRSM, 4, 10),
-    SOLVE_ENTRY(FB_OP_CTRSM, 4, 10),
-    SOLVE_ENTRY(FB_OP_ZTRSM, 4, 10),
+    /* TRSM — implemented in judge_direct.c; use DIRECT archetype */
+    DIRECT_ENTRY(FB_OP_STRSM, 4, 10),
+    DIRECT_ENTRY(FB_OP_DTRSM, 4, 10),
+    DIRECT_ENTRY(FB_OP_CTRSM, 4, 10),
+    DIRECT_ENTRY(FB_OP_ZTRSM, 4, 10),
 
     /* Batched GEMM */
     DIRECT_ENTRY(FB_OP_SGEMM_BATCH, 5, 13),
@@ -427,6 +427,16 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     SPECTRAL_ENTRY(FB_OP_DGEEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_CGEEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_ZGEEV, 4, 10),
+
+    /* Divide-and-conquer SVD (GESDD) */
+    SPECTRAL_ENTRY(FB_OP_SGESDD, 4, 10),
+
+    /* Generalized symmetric eigenvalue (SYGV) */
+    SPECTRAL_ENTRY(FB_OP_SSYGV, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DSYGV, 4, 10),
+
+    /* Divide-and-conquer SVD — double precision */
+    SPECTRAL_ENTRY(FB_OP_DGESDD, 4, 10),
 
     /*
      * Entries 312–1247 are zero‐initialised.
