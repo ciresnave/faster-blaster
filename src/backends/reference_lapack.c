@@ -82,21 +82,6 @@ int zungqr_ref(int m, int n, int k,
                double _Complex *a, int lda, const double _Complex *tau);
 
 /* =========================================================================
- * SYEV / HEEV / GESVD / GEEV — NOT WIRED
- *
- * faster-blaster-reference implements ssyev_ref, cheev_ref, sgesvd_ref,
- * cgesvd_ref, sgeev_ref, cgeev_ref etc. but they depend on LAPACK
- * auxiliary routines (sgehrd_ref, shseqr_ref, strevc_ref, sgebrd_ref,
- * sbdsqr_ref, chetrd_ref, steqr_ref, …) that are not yet implemented in
- * faster-blaster-reference.  Linking them causes undefined-symbol errors.
- *
- * Remove these forward declarations and wrapper bodies until the auxiliary
- * routines are available.  The vtable entries remain NULL in reference.c.
- * ========================================================================= */
-
-/* (syev_jobz helper removed — SYEV/HEEV/GESVD/GEEV are not wired; see comment above) */
-
-/* =========================================================================
  * GETRF wrappers
  * ========================================================================= */
 static int ref_sgetrf(fb_layout_t l, int m, int n, float *A, int lda, int *ipiv)
@@ -188,9 +173,234 @@ static int ref_zungqr(fb_layout_t l, int m, int n, int k,
                       double _Complex *A, int lda, const double _Complex *tau)
     { (void)l; return zungqr_ref(m, n, k, A, lda, tau); }
 
-/* SSYEV / DSYEV / CHEEV / ZHEEV / SGESVD / DGESVD / CGESVD / ZGESVD /
- * SGEEV / DGEEV / CGEEV / ZGEEV: see comment block above — NOT WIRED
- * because their *_ref implementations call unresolved auxiliary _ref
- * functions (sgehrd_ref, shseqr_ref, sbdsqr_ref, steqr_ref, …).
- * vtable entries remain NULL in reference.c.
- */
+/* =========================================================================
+ * SYEV / HEEV / GESVD / GEEV / GESDD / SYGV wrappers
+ *
+ * All auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref,
+ * sbdsqr_ref, chetrd_ref, steqr_ref, ...) are present in
+ * faster-blaster-reference as of Phase 3.  Wrappers here bridge the
+ * vtable signatures (LAPACKE-style, no work array) to the *_ref signatures.
+ *
+ * ABI notes from file header:
+ *  - ssyev/dsyev/cheev/zheev _ref take extra z/ldz; pass A,lda (in-place)
+ *  - gesvd_ref has no superb param; vtable's superb output is ignored
+ *  - gesdd_ref / ssygv_ref require work arrays; allocated here dynamically
+ * ========================================================================= */
+
+/* --- Forward declarations ------------------------------------------------ */
+
+/* SYEV / HEEV */
+int ssyev_ref(const char *jobz, const char *uplo, int n, float *a, int lda,
+              float *w, float *z, int ldz);
+int dsyev_ref(const char *jobz, const char *uplo, int n, double *a, int lda,
+              double *w, double *z, int ldz);
+int cheev_ref(const char *jobz, const char *uplo, int n, float _Complex *a,
+              int lda, float *w, float _Complex *z, int ldz);
+int zheev_ref(const char *jobz, const char *uplo, int n, double _Complex *a,
+              int lda, double *w, double _Complex *z, int ldz);
+
+/* GESVD (no superb in _ref; vtable's superb is ignored) */
+int sgesvd_ref(const char *jobu, const char *jobvt, int m, int n, float *a,
+               int lda, float *s, float *u, int ldu, float *vt, int ldvt);
+int dgesvd_ref(const char *jobu, const char *jobvt, int m, int n, double *a,
+               int lda, double *s, double *u, int ldu, double *vt, int ldvt);
+int cgesvd_ref(const char *jobu, const char *jobvt, int m, int n,
+               float _Complex *a, int lda, float *s, float _Complex *u, int ldu,
+               float _Complex *vh, int ldvh);
+int zgesvd_ref(const char *jobu, const char *jobvt, int m, int n,
+               double _Complex *a, int lda, double *s, double _Complex *u,
+               int ldu, double _Complex *vh, int ldvh);
+
+/* GEEV real (wr + wi outputs) */
+int sgeev_ref(const char *jobvl, const char *jobvr, int n, float *a, int lda,
+              float *wr, float *wi, float *vl, int ldvl, float *vr, int ldvr);
+int dgeev_ref(const char *jobvl, const char *jobvr, int n, double *a, int lda,
+              double *wr, double *wi, double *vl, int ldvl, double *vr,
+              int ldvr);
+
+/* GEEV complex (single complex w output) */
+int cgeev_ref(const char *jobvl, const char *jobvr, int n, float _Complex *a,
+              int lda, float _Complex *w, float _Complex *vl, int ldvl,
+              float _Complex *vr, int ldvr);
+int zgeev_ref(const char *jobvl, const char *jobvr, int n, double _Complex *a,
+              int lda, double _Complex *w, double _Complex *vl, int ldvl,
+              double _Complex *vr, int ldvr);
+
+/* GESDD (divide-and-conquer SVD; needs work/iwork allocation) */
+int sgesdd_ref(char jobz, int m, int n, float *a, int lda, float *s, float *u,
+               int ldu, float *vt, int ldvt, float *work, int lwork, int *iwork,
+               int *info);
+int dgesdd_ref(char jobz, int m, int n, double *a, int lda, double *s,
+               double *u, int ldu, double *vt, int ldvt, double *work,
+               int lwork, int *iwork, int *info);
+
+/* SYGV / DSYGV (generalized symmetric eigenproblem; needs work allocation) */
+int ssygv_ref(int itype, char jobz, char uplo, int n, float *a, int lda,
+              float *b, int ldb, float *w, float *work, int lwork, int *info);
+int dsygv_ref(int itype, char jobz, char uplo, int n, double *a, int lda,
+              double *b, int ldb, double *w, double *work, int lwork,
+              int *info);
+
+/* --- Wrapper bodies ------------------------------------------------------ */
+
+/* SYEV: pass A/lda as eigenvector output z/ldz (LAPACK in-place convention) */
+static int ref_ssyev(fb_layout_t l, char jobz, fb_uplo_t uplo, int n, float *A,
+                     int lda, float *w) {
+  (void)l;
+  char uo = FU(uplo);
+  return ssyev_ref(&jobz, &uo, n, A, lda, w, A, lda);
+}
+static int ref_dsyev(fb_layout_t l, char jobz, fb_uplo_t uplo, int n, double *A,
+                     int lda, double *w) {
+  (void)l;
+  char uo = FU(uplo);
+  return dsyev_ref(&jobz, &uo, n, A, lda, w, A, lda);
+}
+static int ref_cheev(fb_layout_t l, char jobz, fb_uplo_t uplo, int n,
+                     float _Complex *A, int lda, float *w) {
+  (void)l;
+  char uo = FU(uplo);
+  return cheev_ref(&jobz, &uo, n, A, lda, w, A, lda);
+}
+static int ref_zheev(fb_layout_t l, char jobz, fb_uplo_t uplo, int n,
+                     double _Complex *A, int lda, double *w) {
+  (void)l;
+  char uo = FU(uplo);
+  return zheev_ref(&jobz, &uo, n, A, lda, w, A, lda);
+}
+
+/* GESVD: superb is trailing vtable output -- not computed by _ref, ignored */
+static int ref_sgesvd(fb_layout_t l, char jobu, char jobvt, int m, int n,
+                      float *A, int lda, float *s, float *U, int ldu, float *VT,
+                      int ldvt, float *superb) {
+  (void)l;
+  (void)superb;
+  return sgesvd_ref(&jobu, &jobvt, m, n, A, lda, s, U, ldu, VT, ldvt);
+}
+static int ref_dgesvd(fb_layout_t l, char jobu, char jobvt, int m, int n,
+                      double *A, int lda, double *s, double *U, int ldu,
+                      double *VT, int ldvt, double *superb) {
+  (void)l;
+  (void)superb;
+  return dgesvd_ref(&jobu, &jobvt, m, n, A, lda, s, U, ldu, VT, ldvt);
+}
+static int ref_cgesvd(fb_layout_t l, char jobu, char jobvt, int m, int n,
+                      float _Complex *A, int lda, float *s, float _Complex *U,
+                      int ldu, float _Complex *VT, int ldvt, float *superb) {
+  (void)l;
+  (void)superb;
+  return cgesvd_ref(&jobu, &jobvt, m, n, A, lda, s, U, ldu, VT, ldvt);
+}
+static int ref_zgesvd(fb_layout_t l, char jobu, char jobvt, int m, int n,
+                      double _Complex *A, int lda, double *s,
+                      double _Complex *U, int ldu, double _Complex *VT,
+                      int ldvt, double *superb) {
+  (void)l;
+  (void)superb;
+  return zgesvd_ref(&jobu, &jobvt, m, n, A, lda, s, U, ldu, VT, ldvt);
+}
+
+/* GEEV real */
+static int ref_sgeev(fb_layout_t l, char jobvl, char jobvr, int n, float *A,
+                     int lda, float *wr, float *wi, float *VL, int ldvl,
+                     float *VR, int ldvr) {
+  (void)l;
+  return sgeev_ref(&jobvl, &jobvr, n, A, lda, wr, wi, VL, ldvl, VR, ldvr);
+}
+static int ref_dgeev(fb_layout_t l, char jobvl, char jobvr, int n, double *A,
+                     int lda, double *wr, double *wi, double *VL, int ldvl,
+                     double *VR, int ldvr) {
+  (void)l;
+  return dgeev_ref(&jobvl, &jobvr, n, A, lda, wr, wi, VL, ldvl, VR, ldvr);
+}
+
+/* GEEV complex */
+static int ref_cgeev(fb_layout_t l, char jobvl, char jobvr, int n,
+                     float _Complex *A, int lda, float _Complex *w,
+                     float _Complex *VL, int ldvl, float _Complex *VR,
+                     int ldvr) {
+  (void)l;
+  return cgeev_ref(&jobvl, &jobvr, n, A, lda, w, VL, ldvl, VR, ldvr);
+}
+static int ref_zgeev(fb_layout_t l, char jobvl, char jobvr, int n,
+                     double _Complex *A, int lda, double _Complex *w,
+                     double _Complex *VL, int ldvl, double _Complex *VR,
+                     int ldvr) {
+  (void)l;
+  return zgeev_ref(&jobvl, &jobvr, n, A, lda, w, VL, ldvl, VR, ldvr);
+}
+
+/* GESDD: allocates work + iwork dynamically */
+static int ref_sgesdd(fb_layout_t l, char jobz, int m, int n, float *A, int lda,
+                      float *s, float *U, int ldu, float *VT, int ldvt) {
+  (void)l;
+  int minmn = (m < n) ? m : n;
+  int lwork = 3 * minmn * minmn + ((m > n) ? (7 * minmn) : (5 * minmn + m));
+  if (lwork < 1)
+    lwork = 1;
+  float *work = (float *)malloc((size_t)lwork * sizeof(float));
+  int *iwork =
+      (int *)malloc((size_t)(8 * (minmn > 1 ? minmn : 1)) * sizeof(int));
+  if (!work || !iwork) {
+    free(work);
+    free(iwork);
+    return -12;
+  }
+  int info = 0;
+  sgesdd_ref(jobz, m, n, A, lda, s, U, ldu, VT, ldvt, work, lwork, iwork,
+             &info);
+  free(work);
+  free(iwork);
+  return info;
+}
+static int ref_dgesdd(fb_layout_t l, char jobz, int m, int n, double *A,
+                      int lda, double *s, double *U, int ldu, double *VT,
+                      int ldvt) {
+  (void)l;
+  int minmn = (m < n) ? m : n;
+  int lwork = 3 * minmn * minmn + ((m > n) ? (7 * minmn) : (5 * minmn + m));
+  if (lwork < 1)
+    lwork = 1;
+  double *work = (double *)malloc((size_t)lwork * sizeof(double));
+  int *iwork =
+      (int *)malloc((size_t)(8 * (minmn > 1 ? minmn : 1)) * sizeof(int));
+  if (!work || !iwork) {
+    free(work);
+    free(iwork);
+    return -12;
+  }
+  int info = 0;
+  dgesdd_ref(jobz, m, n, A, lda, s, U, ldu, VT, ldvt, work, lwork, iwork,
+             &info);
+  free(work);
+  free(iwork);
+  return info;
+}
+
+/* SYGV / DSYGV: allocates work dynamically */
+static int ref_ssygv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
+                     float *A, int lda, float *B, int ldb, float *w) {
+  (void)l;
+  char uo = FU(uplo);
+  int lwork = 3 * n + 64;
+  float *work = (float *)malloc((size_t)lwork * sizeof(float));
+  if (!work)
+    return -11;
+  int info = 0;
+  ssygv_ref(itype, jobz, uo, n, A, lda, B, ldb, w, work, lwork, &info);
+  free(work);
+  return info;
+}
+static int ref_dsygv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
+                     double *A, int lda, double *B, int ldb, double *w) {
+  (void)l;
+  char uo = FU(uplo);
+  int lwork = 3 * n + 64;
+  double *work = (double *)malloc((size_t)lwork * sizeof(double));
+  if (!work)
+    return -11;
+  int info = 0;
+  dsygv_ref(itype, jobz, uo, n, A, lda, B, ldb, w, work, lwork, &info);
+  free(work);
+  return info;
+}
