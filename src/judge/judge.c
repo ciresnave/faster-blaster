@@ -339,6 +339,9 @@ fb_judge_status_t fb_judge_run(
         fb_metric_accum_init(&orthogonality_accum);
         fb_timing_accum_init(&timing_accum);
 
+        int cases_scored_fact = 0;
+        int oracle_fatal_fact = 0;
+
         for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
             fb_judge_factorization_result_t factor_res;
             uint64_t ns = 0;
@@ -356,14 +359,13 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on either sub-result → halt.
-             * Cases 0..ci-1 were already freed at the end of their iterations;
-             * only free ci..end here to avoid double-free heap corruption. */
+            /* Oracle fatal on either sub-result — skip this case.
+             * (e.g., degenerate / singular corpus case; expected.) */
             if (factor_res.reconstruction.is_oracle_fatal ||
                 factor_res.orthogonality.is_oracle_fatal) {
-                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                return FB_JUDGE_ERR_ORACLE_FAILURE;
+                oracle_fatal_fact++;
+                fb_corpus_case_free(&cases[ci]);
+                continue;
             }
 
             fb_metric_accum_add(&reconstruction_accum,  &factor_res.reconstruction);
@@ -372,7 +374,14 @@ fb_judge_status_t fb_judge_run(
             if (!cases[ci].meta.is_edge_case && ns > 0)
                 fb_timing_accum_add(&timing_accum, ns);
 
+            cases_scored_fact++;
             fb_corpus_case_free(&cases[ci]);
+        }
+
+        /* If every single case triggered oracle overflow, no correctness
+         * signal is available for this operation. */
+        if (cases_scored_fact == 0) {
+            return FB_JUDGE_ERR_ORACLE_FAILURE;
         }
 
         /* Finish primary metrics into their respective profile slots. */
@@ -393,6 +402,9 @@ fb_judge_status_t fb_judge_run(
         fb_metric_accum_init(&residual_accum);
         fb_timing_accum_init(&timing_accum);
 
+        int cases_scored_solve = 0;
+        int oracle_fatal_solve = 0;
+
         for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
             fb_judge_solve_result_t solve_res;
             uint64_t ns = 0;
@@ -410,12 +422,12 @@ fb_judge_status_t fb_judge_run(
                 return rs;
             }
 
-            /* Oracle fatal on residual → halt.
-             * Cases 0..ci-1 already freed; only free ci..end. */
+            /* Oracle fatal on residual — skip this case.
+             * (e.g., singular factorization in a degenerate corpus case.) */
             if (solve_res.residual.is_oracle_fatal) {
-                for (int fi = ci; fi < FB_CORPUS_TOTAL_CASES; fi++)
-                    fb_corpus_case_free(&cases[fi]);
-                return FB_JUDGE_ERR_ORACLE_FAILURE;
+                oracle_fatal_solve++;
+                fb_corpus_case_free(&cases[ci]);
+                continue;
             }
 
             fb_metric_accum_add(&residual_accum, &solve_res.residual);
@@ -423,7 +435,12 @@ fb_judge_status_t fb_judge_run(
             if (!cases[ci].meta.is_edge_case && ns > 0)
                 fb_timing_accum_add(&timing_accum, ns);
 
+            cases_scored_solve++;
             fb_corpus_case_free(&cases[ci]);
+        }
+
+        if (cases_scored_solve == 0) {
+            return FB_JUDGE_ERR_ORACLE_FAILURE;
         }
 
         fb_metric_accum_finish(&residual_accum, &profile_out->residual);

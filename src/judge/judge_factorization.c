@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file judge_factorization.c
  * @brief FB_JUDGE_FACTORIZATION archetype evaluator — LU, Cholesky, QR.
  *
@@ -1304,6 +1304,385 @@ static fb_judge_status_t run_zgeqrf(
     free(A_qr); free(tau); free(R);
     return FB_JUDGE_OK;
 }
+/* =========================================================================
+ * SORGQR — generate Q from single-precision QR factorization
+ * ========================================================================= */
+static fb_judge_status_t run_sorgqr(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->sgeqrf || !oracle->sorgqr || !cand->sgeqrf || !cand->sorgqr)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    const float *A_orig = (const float *)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    int k = m < n ? m : n;
+
+    /* Oracle path: SGEQRF then SORGQR */
+    float *A_oq = clone_matrix_f32(A_orig, m, n, lda);
+    float *tau_o = (float *)malloc((size_t)k * sizeof(float));
+    if (!A_oq || !tau_o) { free(A_oq); free(tau_o); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oq, lda, tau_o) != 0) {
+        free(A_oq); free(tau_o); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    if (oracle->sorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_oq, lda, tau_o) != 0) {
+        free(A_oq); free(tau_o); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    /* A_oq now holds Q_oracle (m x k columns within m x lda buffer) */
+
+    /* Candidate path: SGEQRF, then timed SORGQR */
+    float *A_cq = clone_matrix_f32(A_orig, m, n, lda);
+    float *tau_c = (float *)malloc((size_t)k * sizeof(float));
+    if (!A_cq || !tau_c) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cq, lda, tau_c) != 0) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    /* Save post-GEQRF state for timing loops */
+    float *A_saved = clone_matrix_f32(A_cq, m, n, lda);
+    float *tau_saved = (float *)malloc((size_t)k * sizeof(float));
+    if (!A_saved || !tau_saved) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        free(A_saved); free(tau_saved);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(tau_saved, tau_c, (size_t)k * sizeof(float));
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_cq, A_saved, (size_t)m * (size_t)lda * sizeof(float));
+            memcpy(tau_c, tau_saved, (size_t)k * sizeof(float));
+            (void)cand->sorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_cq, A_saved, (size_t)m * (size_t)lda * sizeof(float));
+            memcpy(tau_c, tau_saved, (size_t)k * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_cq, A_saved, (size_t)m * (size_t)lda * sizeof(float));
+    memcpy(tau_c, tau_saved, (size_t)k * sizeof(float));
+    free(A_saved); free(tau_saved);
+    if (cand->sorgqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c) != 0) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    /* A_cq now holds Q_cand (m x k) */
+
+    /* Reconstruction: ||Q_oracle - Q_cand||_F / ||Q_oracle||_F */
+    double norm_diff = 0.0, norm_Q = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < k; j++) {
+            double diff = (double)A_oq[i * lda + j] - (double)A_cq[i * lda + j];
+            norm_diff += diff * diff;
+            double qo = (double)A_oq[i * lda + j];
+            norm_Q += qo * qo;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_Q < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_Q));
+
+    /* Orthogonality of Q_cand: ||Q^T Q - I||_F / sqrt(k) */
+    double ortho_err = 0.0;
+    for (int i = 0; i < k; i++) {
+        for (int j = 0; j < k; j++) {
+            double qtq = 0.0;
+            for (int l = 0; l < m; l++)
+                qtq += (double)A_cq[l * lda + i] * (double)A_cq[l * lda + j];
+            double delta = qtq - (i == j ? 1.0 : 0.0);
+            ortho_err += delta * delta;
+        }
+    }
+    result_from_relerr(&res->orthogonality, sqrt(ortho_err) / sqrt((double)k));
+
+    free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CUNGQR — generate Q from complex single-precision QR factorization
+ * ========================================================================= */
+static fb_judge_status_t run_cungqr(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->cgeqrf || !oracle->cungqr || !cand->cgeqrf || !cand->cungqr)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig ||
+            tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    int k = m < n ? m : n;
+
+    /* Oracle path: CGEQRF then CUNGQR */
+    fb_complex_float_t *A_oq = clone_matrix_cf32(A_orig, m, n, lda);
+    fb_complex_float_t *tau_o =
+        (fb_complex_float_t *)malloc((size_t)k * sizeof(fb_complex_float_t));
+    if (!A_oq || !tau_o) { free(A_oq); free(tau_o); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->cgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_oq, lda, tau_o) != 0) {
+        free(A_oq); free(tau_o); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    if (oracle->cungqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_oq, lda, tau_o) != 0) {
+        free(A_oq); free(tau_o); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Candidate path */
+    fb_complex_float_t *A_cq = clone_matrix_cf32(A_orig, m, n, lda);
+    fb_complex_float_t *tau_c =
+        (fb_complex_float_t *)malloc((size_t)k * sizeof(fb_complex_float_t));
+    if (!A_cq || !tau_c) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand->cgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, A_cq, lda, tau_c) != 0) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_float_t *A_saved = clone_matrix_cf32(A_cq, m, n, lda);
+    fb_complex_float_t *tau_saved =
+        (fb_complex_float_t *)malloc((size_t)k * sizeof(fb_complex_float_t));
+    if (!A_saved || !tau_saved) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        free(A_saved); free(tau_saved);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(tau_saved, tau_c, (size_t)k * sizeof(fb_complex_float_t));
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_cq, A_saved, (size_t)m*(size_t)lda*sizeof(fb_complex_float_t));
+            memcpy(tau_c, tau_saved, (size_t)k*sizeof(fb_complex_float_t));
+            (void)cand->cungqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_cq, A_saved, (size_t)m*(size_t)lda*sizeof(fb_complex_float_t));
+            memcpy(tau_c, tau_saved, (size_t)k*sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cungqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_cq, A_saved, (size_t)m*(size_t)lda*sizeof(fb_complex_float_t));
+    memcpy(tau_c, tau_saved, (size_t)k*sizeof(fb_complex_float_t));
+    free(A_saved); free(tau_saved);
+    if (cand->cungqr(FB_LAYOUT_ROW_MAJOR, m, k, k, A_cq, lda, tau_c) != 0) {
+        free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Reconstruction: ||Q_oracle - Q_cand||_F / ||Q_oracle||_F */
+    double norm_diff = 0.0, norm_Q = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < k; j++) {
+            double dr = (double)(__real__ A_oq[i*lda+j]) - (double)(__real__ A_cq[i*lda+j]);
+            double di = (double)(__imag__ A_oq[i*lda+j]) - (double)(__imag__ A_cq[i*lda+j]);
+            norm_diff += dr*dr + di*di;
+            double qr = (double)(__real__ A_oq[i*lda+j]);
+            double qi = (double)(__imag__ A_oq[i*lda+j]);
+            norm_Q += qr*qr + qi*qi;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_Q < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_Q));
+
+    free(A_oq); free(tau_o); free(A_cq); free(tau_c);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * SORMQR — apply Q (from QR factorization) to a matrix C from the left
+ * ========================================================================= */
+static fb_judge_status_t run_sormqr(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->sgeqrf || !oracle->sormqr || !cand->sgeqrf || !cand->sormqr)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
+    const float *A_orig = (const float *)tc->A;
+    if (m <= 0 || n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    int k = m < n ? m : n;
+
+    /* Use oracle SGEQRF to produce Householder vectors H and tau.
+     * Both oracle and cand receive this same H+tau so we isolate SORMQR. */
+    float *H = clone_matrix_f32(A_orig, m, n, lda);
+    float *tau = (float *)malloc((size_t)k * sizeof(float));
+    if (!H || !tau) { free(H); free(tau); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->sgeqrf(FB_LAYOUT_ROW_MAJOR, m, n, H, lda, tau) != 0) {
+        free(H); free(tau); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Build C matrix (m x n_c, ldc columns): use tc->B if available, else I */
+    int ldc = lda;
+    int n_c = n;
+    size_t C_sz = (size_t)m * (size_t)ldc;
+    float *C_template = (float *)calloc(C_sz, sizeof(float));
+    if (!C_template) { free(H); free(tau); return FB_JUDGE_ERR_ALLOC; }
+    if (tc->B && tc->B_elems >= C_sz) {
+        memcpy(C_template, tc->B, C_sz * sizeof(float));
+    } else {
+        /* Identity block: I_min where min = min(m,n_c) */
+        int id_sz = m < n_c ? m : n_c;
+        for (int i = 0; i < id_sz; i++)
+            C_template[i * ldc + i] = 1.0f;
+    }
+
+    /* Oracle SORMQR */
+    float *H_o = clone_matrix_f32(H, m, n, lda);
+    float *tau_o = (float *)malloc((size_t)k * sizeof(float));
+    float *C_o   = (float *)malloc(C_sz * sizeof(float));
+    if (!H_o || !tau_o || !C_o) {
+        free(H); free(tau); free(C_template); free(H_o); free(tau_o); free(C_o);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(tau_o, tau, (size_t)k * sizeof(float));
+    memcpy(C_o, C_template, C_sz * sizeof(float));
+    if (oracle->sormqr(FB_LAYOUT_ROW_MAJOR, FB_LEFT, FB_NO_TRANS,
+                       m, n_c, k, H_o, lda, tau_o, C_o, ldc) != 0) {
+        free(H); free(tau); free(C_template); free(H_o); free(tau_o); free(C_o);
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Candidate SORMQR */
+    float *H_c   = clone_matrix_f32(H, m, n, lda);
+    float *tau_c = (float *)malloc((size_t)k * sizeof(float));
+    float *C_c   = (float *)malloc(C_sz * sizeof(float));
+    if (!H_c || !tau_c || !C_c) {
+        free(H); free(tau); free(C_template);
+        free(H_o); free(tau_o); free(C_o);
+        free(H_c); free(tau_c); free(C_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(H_c,   H,          (size_t)m*(size_t)lda*sizeof(float));
+            memcpy(tau_c, tau,        (size_t)k*sizeof(float));
+            memcpy(C_c,   C_template, C_sz*sizeof(float));
+            (void)cand->sormqr(FB_LAYOUT_ROW_MAJOR, FB_LEFT, FB_NO_TRANS,
+                               m, n_c, k, H_c, lda, tau_c, C_c, ldc);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(H_c,   H,          (size_t)m*(size_t)lda*sizeof(float));
+            memcpy(tau_c, tau,        (size_t)k*sizeof(float));
+            memcpy(C_c,   C_template, C_sz*sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sormqr(FB_LAYOUT_ROW_MAJOR, FB_LEFT, FB_NO_TRANS,
+                               m, n_c, k, H_c, lda, tau_c, C_c, ldc);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(H_c,   H,          (size_t)m*(size_t)lda*sizeof(float));
+    memcpy(tau_c, tau,        (size_t)k*sizeof(float));
+    memcpy(C_c,   C_template, C_sz*sizeof(float));
+    if (cand->sormqr(FB_LAYOUT_ROW_MAJOR, FB_LEFT, FB_NO_TRANS,
+                     m, n_c, k, H_c, lda, tau_c, C_c, ldc) != 0) {
+        free(H); free(tau); free(C_template);
+        free(H_o); free(tau_o); free(C_o);
+        free(H_c); free(tau_c); free(C_c);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Reconstruction: ||C_oracle - C_cand||_F / ||C_oracle||_F */
+    double norm_diff = 0.0, norm_C = 0.0;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n_c; j++) {
+            double diff = (double)C_o[i*ldc+j] - (double)C_c[i*ldc+j];
+            norm_diff += diff * diff;
+            double co = (double)C_o[i*ldc+j];
+            norm_C += co * co;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_C < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_C));
+
+    free(H); free(tau); free(C_template);
+    free(H_o); free(tau_o); free(C_o);
+    free(H_c); free(tau_c); free(C_c);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * STRTRI — invert a single-precision upper triangular matrix in-place
+ * ========================================================================= */
+static fb_judge_status_t run_strtri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->strtri || !cand->strtri) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    const float *A_orig = (const float *)tc->A;
+    if (n <= 0 || !A_orig ||
+            tc->A_elems < (size_t)n * (size_t)lda) {
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Oracle: invert upper-triangular, non-unit diagonal */
+    float *A_oi = clone_matrix_f32(A_orig, n, n, lda);
+    if (!A_oi) return FB_JUDGE_ERR_ALLOC;
+    if (oracle->strtri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NON_UNIT, n, A_oi, lda) != 0) {
+        free(A_oi); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Candidate: invert */
+    float *A_ci = clone_matrix_f32(A_orig, n, n, lda);
+    if (!A_ci) { free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_orig, (size_t)n * (size_t)lda * sizeof(float));
+            (void)cand->strtri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NON_UNIT, n, A_ci, lda);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_orig, (size_t)n * (size_t)lda * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->strtri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NON_UNIT, n, A_ci, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_orig, (size_t)n * (size_t)lda * sizeof(float));
+    if (cand->strtri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NON_UNIT, n, A_ci, lda) != 0) {
+        free(A_oi); free(A_ci); mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+
+    /* Reconstruction: ||A_oi - A_ci||_F / ||A_oi||_F (upper triangle only) */
+    double norm_diff = 0.0, norm_inv = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            double diff = (double)A_oi[i*lda+j] - (double)A_ci[i*lda+j];
+            norm_diff += diff * diff;
+            double ao = (double)A_oi[i*lda+j];
+            norm_inv += ao * ao;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+
+    free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
 
 /* =========================================================================
  * Dispatch
@@ -1326,6 +1705,10 @@ static const fb_factorization_runner_fn fb_factorization_dispatch[] = {
     [FB_OP_DGEQRF] = run_dgeqrf,
     [FB_OP_CGEQRF] = run_cgeqrf,
     [FB_OP_ZGEQRF] = run_zgeqrf,
+    [FB_OP_SORGQR] = run_sorgqr,
+    [FB_OP_CUNGQR] = run_cungqr,
+    [FB_OP_SORMQR] = run_sormqr,
+    [FB_OP_STRTRI] = run_strtri,
 };
 
 #define FB_FACTORIZATION_DISPATCH_SIZE \

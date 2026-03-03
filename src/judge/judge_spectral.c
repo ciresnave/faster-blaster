@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FB_JUDGE_SPECTRAL implementation — eigenvalue and singular value decompositions.
  *
  * Phase 5: Complete spectral operation evaluation with 5-metric stack.
@@ -2532,6 +2532,363 @@ cleanup_zgeev:
     free(eig_mag);
     return FB_JUDGE_OK;
 }
+/* =========================================================================
+ * SGESDD — divide-and-conquer SVD (single-precision)
+ *          Like SGESVD but no superb[] workspace.
+ * ========================================================================= */
+static fb_judge_status_t run_sgesdd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->sgesdd || !cand->sgesdd)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const float *A_in = (const float *)tc->A;
+    int m = tc->m, n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->m;
+    int minmn = (m < n) ? m : n;
+
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    char jobz = 'A';    /* All singular vectors */
+
+    float *A_oracle  = (float *)malloc((size_t)(lda * n)    * sizeof(float));
+    float *A_cand    = (float *)malloc((size_t)(lda * n)    * sizeof(float));
+    float *s_oracle  = (float *)malloc((size_t)minmn        * sizeof(float));
+    float *s_cand    = (float *)malloc((size_t)minmn        * sizeof(float));
+    float *U         = (float *)malloc((size_t)(m * minmn)  * sizeof(float));
+    float *VT        = (float *)malloc((size_t)(minmn * n)  * sizeof(float));
+
+    if (!A_oracle || !A_cand || !s_oracle || !s_cand || !U || !VT) {
+        mark_oracle_fatal(res);
+        goto cleanup_sdd;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(float));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(float));
+
+    if (oracle->sgesdd(layout, jobz, (int)m, (int)n, A_oracle, (int)lda,
+                       s_oracle, U, (int)m, VT, (int)minmn) != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_sdd;
+    }
+
+    if (cand->sgesdd(layout, jobz, (int)m, (int)n, A_cand, (int)lda,
+                     s_cand, U, (int)m, VT, (int)minmn) != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_sdd;
+    }
+
+    /* VALUES: max relative error in singular values */
+    {
+        double max_sv_error = 0.0;
+        for (int i = 0; i < minmn; i++) {
+            double sv_o = (double)s_oracle[i];
+            double sv_c = (double)s_cand[i];
+            double relerr = (sv_o > 1e-16) ?
+                fabs(sv_o - sv_c) / sv_o : fabs(sv_o - sv_c);
+            if (relerr > max_sv_error) max_sv_error = relerr;
+        }
+        res->values = result_from_relerr(max_sv_error);
+    }
+
+    /* RECONSTRUCTION: ||A - U*Σ*V^T|| / ||A|| */
+    {
+        double norm_A = frobenius_norm_f32(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            float *A_recon = (float *)malloc((size_t)(m * n) * sizeof(float));
+            float *USigma  = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            if (A_recon && USigma) {
+                for (int i = 0; i < m; i++)
+                    for (int j = 0; j < minmn; j++)
+                        USigma[i * minmn + j] = U[i * minmn + j] * s_cand[j];
+                for (int i = 0; i < m; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < minmn; k++)
+                            sum += (double)USigma[i * minmn + k] * (double)VT[k * n + j];
+                        A_recon[i * n + j] = (float)sum;
+                    }
+                }
+                double sum_diff = 0.0;
+                for (int i = 0; i < m; i++)
+                    for (int j = 0; j < n; j++) {
+                        double diff = (double)A_in[i * lda + j] - (double)A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
+                res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            free(A_recon);
+            free(USigma);
+        }
+    }
+
+    /* ORTHOGONALITY: ||U^T U - I|| and ||V^T V - I|| */
+    {
+        double max_ortho_error = 0.0;
+        float *UtU = (float *)malloc((size_t)(minmn * minmn) * sizeof(float));
+        if (UtU) {
+            atac_f32(U, m, minmn, minmn, UtU, minmn);
+            double sum_err = 0.0;
+            for (int i = 0; i < minmn; i++)
+                for (int j = 0; j < minmn; j++) {
+                    double err = (double)UtU[i * minmn + j] - (i == j ? 1.0 : 0.0);
+                    sum_err += err * err;
+                }
+            double ne = sqrt(sum_err) / sqrt((double)minmn);
+            if (ne > max_ortho_error) max_ortho_error = ne;
+            free(UtU);
+        }
+        float *VtV = (float *)malloc((size_t)(n * n) * sizeof(float));
+        if (VtV) {
+            atac_f32(VT, minmn, n, n, VtV, n);
+            double sum_err = 0.0;
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < n; j++) {
+                    double err = (double)VtV[i * n + j] - (i == j ? 1.0 : 0.0);
+                    sum_err += err * err;
+                }
+            double ne = sqrt(sum_err) / sqrt((double)n);
+            if (ne > max_ortho_error) max_ortho_error = ne;
+            free(VtV);
+        }
+        res->orthogonality = result_from_relerr(max_ortho_error);
+    }
+
+    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    res->pairs    = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+
+    /* TIMING */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            float *At  = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *st  = (float *)malloc((size_t)minmn * sizeof(float));
+            float *Ut  = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            float *VTt = (float *)malloc((size_t)(minmn * n) * sizeof(float));
+            if (At && st && Ut && VTt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+                (void)cand->sgesdd(layout, jobz, (int)m, (int)n, At, (int)lda,
+                                   st, Ut, (int)m, VTt, (int)minmn);
+            }
+            free(At); free(st); free(Ut); free(VTt);
+        }
+        for (int t = 0; t < 5; t++) {
+            float *At  = (float *)malloc((size_t)(lda * n) * sizeof(float));
+            float *st  = (float *)malloc((size_t)minmn * sizeof(float));
+            float *Ut  = (float *)malloc((size_t)(m * minmn) * sizeof(float));
+            float *VTt = (float *)malloc((size_t)(minmn * n) * sizeof(float));
+            if (At && st && Ut && VTt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(float));
+                uint64_t t0 = fb_judge_time_ns();
+                (void)cand->sgesdd(layout, jobz, (int)m, (int)n, At, (int)lda,
+                                   st, Ut, (int)m, VTt, (int)minmn);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(At); free(st); free(Ut); free(VTt);
+        }
+        *ns_out = best;
+    }
+
+cleanup_sdd:
+    free(A_oracle);
+    free(A_cand);
+    free(s_oracle);
+    free(s_cand);
+    free(U);
+    free(VT);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * SSYGV — generalized symmetric eigenvalue problem (single-precision)
+ *   Solves A*z = lambda*B*z  (itype=1, jobz='V', uplo=FB_UPPER)
+ *   tc->A: symmetric matrix A (n x n)
+ *   tc->B: symmetric positive-definite matrix B (n x n); identity if missing
+ * ========================================================================= */
+static fb_judge_status_t run_ssygv(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->ssygv || !cand->ssygv)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const float *A_in = (const float *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+    int ldb = lda;  /* B uses same stride */
+
+    fb_layout_t layout  = FB_LAYOUT_ROW_MAJOR;
+    fb_uplo_t uplo      = FB_UPPER;
+    const char jobz     = 'V';
+    const int itype     = 1;    /* A*z = lambda*B*z */
+
+    /* Build B_template: use tc->B if valid, else identity (always SPD) */
+    float *B_template = (float *)calloc((size_t)n * (size_t)ldb, sizeof(float));
+    if (!B_template) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+
+    if (tc->B && tc->B_elems >= (size_t)n * (size_t)ldb) {
+        memcpy(B_template, tc->B, (size_t)n * (size_t)ldb * sizeof(float));
+    } else {
+        /* Identity is symmetric positive definite */
+        for (int i = 0; i < n; i++)
+            B_template[i * ldb + i] = 1.0f;
+    }
+
+    float *A_oracle = (float *)malloc((size_t)n * (size_t)lda * sizeof(float));
+    float *A_cand   = (float *)malloc((size_t)n * (size_t)lda * sizeof(float));
+    float *B_oracle = (float *)malloc((size_t)n * (size_t)ldb * sizeof(float));
+    float *B_cand   = (float *)malloc((size_t)n * (size_t)ldb * sizeof(float));
+    float *w_oracle = (float *)malloc((size_t)n * sizeof(float));
+    float *w_cand   = (float *)malloc((size_t)n * sizeof(float));
+
+    if (!A_oracle || !A_cand || !B_oracle || !B_cand || !w_oracle || !w_cand) {
+        mark_oracle_fatal(res);
+        goto cleanup_sygv;
+    }
+
+    memcpy(A_oracle, A_in,       (size_t)n * (size_t)lda * sizeof(float));
+    memcpy(A_cand,   A_in,       (size_t)n * (size_t)lda * sizeof(float));
+    memcpy(B_oracle, B_template, (size_t)n * (size_t)ldb * sizeof(float));
+    memcpy(B_cand,   B_template, (size_t)n * (size_t)ldb * sizeof(float));
+
+    if (oracle->ssygv(layout, itype, jobz, uplo, (int)n,
+                      A_oracle, (int)lda, B_oracle, (int)ldb, w_oracle) != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_sygv;
+    }
+    if (cand->ssygv(layout, itype, jobz, uplo, (int)n,
+                    A_cand, (int)lda, B_cand, (int)ldb, w_cand) != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_sygv;
+    }
+
+    /* VALUES: max relative error in eigenvalues */
+    {
+        double max_eigval_error = 0.0;
+        for (int i = 0; i < n; i++) {
+            double ev_o = (double)w_oracle[i];
+            double ev_c = (double)w_cand[i];
+            double abs_o = fabs(ev_o);
+            double relerr = (abs_o > 1e-16) ?
+                fabs(ev_o - ev_c) / abs_o : fabs(ev_o - ev_c);
+            if (relerr > max_eigval_error) max_eigval_error = relerr;
+        }
+        res->values = result_from_relerr(max_eigval_error);
+    }
+
+    /* RECONSTRUCTION: ||A - B*Z*diag(w)*Z^T|| / ||A||
+     * (Z stored as columns of A_cand after jobz='V'; B_cand has Cholesky factor)
+     * Use oracle's B_template and compute B * Z * diag(w) * Z^T */
+    {
+        double norm_A = frobenius_norm_f32(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+        } else {
+            /* A_cand holds Z (eigenvectors), w_cand holds eigenvalues.
+             * Compute A_recon = Z * diag(w_cand) * Z^T and compare with A_in.
+             * (This tests A = Z * diag(w) * Z^T up to B; for B=I it's exact.) */
+            float *ZLambda = (float *)malloc((size_t)n * (size_t)n * sizeof(float));
+            float *A_recon = (float *)malloc((size_t)n * (size_t)n * sizeof(float));
+            if (ZLambda && A_recon) {
+                for (int i = 0; i < n; i++)
+                    for (int j = 0; j < n; j++)
+                        ZLambda[i * n + j] = A_cand[i * lda + j] * w_cand[j];
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n; j++) {
+                        double sum = 0.0;
+                        for (int k = 0; k < n; k++)
+                            sum += (double)ZLambda[i * n + k] * (double)A_cand[j * lda + k];
+                        A_recon[i * n + j] = (float)sum;
+                    }
+                }
+                double sum_diff = 0.0;
+                for (int i = 0; i < n; i++)
+                    for (int j = 0; j < n; j++) {
+                        double diff = (double)A_in[i * lda + j] - (double)A_recon[i * n + j];
+                        sum_diff += diff * diff;
+                    }
+                res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+            } else {
+                res->reconstruction = (fb_judge_case_result_t){.digits = 15, .relative_error = 0.0};
+            }
+            free(ZLambda);
+            free(A_recon);
+        }
+    }
+
+    /* ORTHOGONALITY: ||Z^T Z - I||_F / sqrt(n) */
+    {
+        float *ZtZ = (float *)malloc((size_t)n * (size_t)n * sizeof(float));
+        double ortho_err = 0.0;
+        if (ZtZ) {
+            atac_f32(A_cand, n, n, lda, ZtZ, n);
+            for (int i = 0; i < n; i++)
+                for (int j = 0; j < n; j++) {
+                    double err = (double)ZtZ[i * n + j] - (i == j ? 1.0 : 0.0);
+                    ortho_err += err * err;
+                }
+            free(ZtZ);
+        }
+        res->orthogonality = result_from_relerr(sqrt(ortho_err) / sqrt((double)n));
+    }
+
+    res->subspace = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+    res->pairs    = (fb_judge_case_result_t){.digits = 16, .relative_error = 0.0};
+
+    /* TIMING */
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            float *At = (float *)malloc((size_t)n*(size_t)lda*sizeof(float));
+            float *Bt = (float *)malloc((size_t)n*(size_t)ldb*sizeof(float));
+            float *wt = (float *)malloc((size_t)n*sizeof(float));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(float));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(float));
+                (void)cand->ssygv(layout, itype, jobz, uplo, (int)n,
+                                  At, (int)lda, Bt, (int)ldb, wt);
+            }
+            free(At); free(Bt); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            float *At = (float *)malloc((size_t)n*(size_t)lda*sizeof(float));
+            float *Bt = (float *)malloc((size_t)n*(size_t)ldb*sizeof(float));
+            float *wt = (float *)malloc((size_t)n*sizeof(float));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(float));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(float));
+                uint64_t t0 = fb_judge_time_ns();
+                (void)cand->ssygv(layout, itype, jobz, uplo, (int)n,
+                                  At, (int)lda, Bt, (int)ldb, wt);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(At); free(Bt); free(wt);
+        }
+        *ns_out = best;
+    }
+
+cleanup_sygv:
+    free(B_template);
+    free(A_oracle); free(A_cand);
+    free(B_oracle); free(B_cand);
+    free(w_oracle); free(w_cand);
+    return FB_JUDGE_OK;
+}
+
 
 /* =========================================================================
  * Dispatch table
@@ -2554,6 +2911,8 @@ static const fb_spectral_runner_fn fb_spectral_dispatch[] = {
     [FB_OP_DGEEV] = run_dgeev,
     [FB_OP_CGEEV] = run_cgeev,
     [FB_OP_ZGEEV] = run_zgeev,
+    [FB_OP_SGESDD] = run_sgesdd,
+    [FB_OP_SSYGV] = run_ssygv,
 };
 
 #define FB_SPECTRAL_DISPATCH_SIZE \

@@ -90,12 +90,18 @@ static void fill_typed(void *buf, int n, fb_dtype_t dtype,
 {
     switch (dtype) {
     case FB_DTYPE_F32:
-    case FB_DTYPE_CF32:
         fill_f32((float *)buf, n, mean, scale, rng);
         break;
+    case FB_DTYPE_CF32:
+        /* Each CF32 element = 2 floats (real + imag); fill all components */
+        fill_f32((float *)buf, 2 * n, mean, scale, rng);
+        break;
     case FB_DTYPE_F64:
-    case FB_DTYPE_CF64:
         fill_f64((double *)buf, n, mean, scale, rng);
+        break;
+    case FB_DTYPE_CF64:
+        /* Each CF64 element = 2 doubles (real + imag); fill all components */
+        fill_f64((double *)buf, 2 * n, mean, scale, rng);
         break;
     case FB_DTYPE_F16:
     case FB_DTYPE_BF16:
@@ -334,6 +340,74 @@ static void gen_degenerate_svd_f64(double *A, int m, int n, int lda, uint32_t se
 }
 
 /* =========================================================================
+ * Positive-definite matrix generators (for POTRF / POTRS testing)
+ *
+ * Generate A = I + (1/n) * B^T * B  where B is random n×n.
+ * All eigenvalues ≥ 1, so A is always symmetric positive-definite.
+ * ========================================================================= */
+
+static void gen_posdef_f32(float *A, int n, int lda, uint32_t seed)
+{
+    fb_lcg_t rng; lcg_seed(&rng, seed);
+    float *B = (float *)malloc((size_t)n * n * sizeof(float));
+    if (!B) {
+        /* Fallback: identity */
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A[i * lda + j] = (i == j) ? 1.0f : 0.0f;
+        return;
+    }
+    float scale = 1.0f / sqrtf((float)n);
+    for (int i = 0; i < n * n; i++)
+        B[i] = scale * (float)lcg_normal(&rng, 0.0, 1.0);
+    /* A[i,j] = delta(i,j) + sum_k B[k,i] * B[k,j]  (= I + B^T*B) */
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            float s = (i == j) ? 1.0f : 0.0f;
+            for (int ki = 0; ki < n; ki++)
+                s += B[ki * n + i] * B[ki * n + j];
+            A[i * lda + j] = s;
+            A[j * lda + i] = s;  /* symmetric */
+        }
+    }
+    free(B);
+}
+
+static void gen_posdef_f64(double *A, int n, int lda, uint32_t seed)
+{
+    fb_lcg_t rng; lcg_seed(&rng, seed);
+    double *B = (double *)malloc((size_t)n * n * sizeof(double));
+    if (!B) {
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A[i * lda + j] = (i == j) ? 1.0 : 0.0;
+        return;
+    }
+    double scale = 1.0 / sqrt((double)n);
+    for (int i = 0; i < n * n; i++)
+        B[i] = scale * lcg_normal(&rng, 0.0, 1.0);
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            double s = (i == j) ? 1.0 : 0.0;
+            for (int ki = 0; ki < n; ki++)
+                s += B[ki * n + i] * B[ki * n + j];
+            A[i * lda + j] = s;
+            A[j * lda + i] = s;
+        }
+    }
+    free(B);
+}
+
+/* Returns true for ops that require a positive-definite input matrix. */
+static bool is_posdef_op(uint32_t op_id)
+{
+    return op_id == FB_OP_SPOTRF || op_id == FB_OP_DPOTRF ||
+           op_id == FB_OP_CPOTRF || op_id == FB_OP_ZPOTRF ||
+           op_id == FB_OP_SPOTRS || op_id == FB_OP_DPOTRS ||
+           op_id == FB_OP_CPOTRS || op_id == FB_OP_ZPOTRS;
+}
+
+/* =========================================================================
  * Public: fb_corpus_generate
  * ========================================================================= */
 
@@ -490,11 +564,67 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
             } else {
                 fill_case(c, dtype, 1.0, &rng);
             }
+            /* Sync A_snapshot — fill_case handles this for normal/extreme
+             * cases; degenerate spectral custom-generation must do it here. */
+            if (c->A && c->A_snapshot)
+                memcpy(c->A_snapshot, c->A,
+                       c->A_elems * fb_dtype_element_size[dtype]);
         } else {
             /* F32/CF32: normal-fill placeholder — degenerate spectral tests
              * are less meaningful at single precision, but the slot must be
              * populated so the case count is consistent across all dtypes. */
             fill_case(c, dtype, 1.0, &rng);
+        }
+    }
+
+    /* Post-processing: POTRF / POTRS ops require positive-definite input.
+     * Random matrices are not PD, so override A (and sync A_snapshot) in
+     * every case with a generated PD matrix at magnitude ≈ 1. */
+    if (is_posdef_op(op_id) && n > 0) {
+        for (int ci = 0; ci < out_idx; ci++) {
+            fb_corpus_case_t *c = &cases_out[ci];
+            if (!c->A) continue;
+            uint32_t pseed = (op_id * 2654435761u) ^ (uint32_t)ci ^ 0xFEED1234u;
+            if (dtype == FB_DTYPE_F32 || dtype == FB_DTYPE_CF32) {
+                /* CF32: embed real PD matrix with zero imaginary parts */
+                if (dtype == FB_DTYPE_CF32) {
+                    /* Allocate a temporary real buffer, generate, then copy to CF32 */
+                    float *tmp = (float *)malloc((size_t)n * n * sizeof(float));
+                    if (tmp) {
+                        gen_posdef_f32(tmp, n, n, pseed);
+                        float _Complex *ac = (float _Complex *)c->A;
+                        for (int i = 0; i < n; i++)
+                            for (int j = 0; j < n; j++) {
+                                __real__ ac[i * c->lda + j] = tmp[i * n + j];
+                                __imag__ ac[i * c->lda + j] = 0.0f;
+                            }
+                        free(tmp);
+                    }
+                } else {
+                    gen_posdef_f32((float *)c->A, n, (int)c->lda, pseed);
+                }
+            } else {
+                /* F64 / CF64 */
+                if (dtype == FB_DTYPE_CF64) {
+                    double *tmp = (double *)malloc((size_t)n * n * sizeof(double));
+                    if (tmp) {
+                        gen_posdef_f64(tmp, n, n, pseed);
+                        double _Complex *ac = (double _Complex *)c->A;
+                        for (int i = 0; i < n; i++)
+                            for (int j = 0; j < n; j++) {
+                                __real__ ac[i * c->lda + j] = tmp[i * n + j];
+                                __imag__ ac[i * c->lda + j] = 0.0;
+                            }
+                        free(tmp);
+                    }
+                } else {
+                    gen_posdef_f64((double *)c->A, n, (int)c->lda, pseed);
+                }
+            }
+            /* Sync A_snapshot with overridden A */
+            if (c->A_snapshot)
+                memcpy(c->A_snapshot, c->A,
+                       c->A_elems * fb_dtype_element_size[dtype]);
         }
     }
 
