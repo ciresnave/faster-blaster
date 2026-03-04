@@ -309,20 +309,31 @@ static const jr_op_entry_t k_ops[] = {
      "cpotrs"},
     {FB_OP_ZPOTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
      "zpotrs"},
+    /* LAPACK — Least-squares solve (GELS: overdetermined, FB_NO_TRANS)   */
+    {FB_OP_SGELS, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgels"},
+    {FB_OP_DGELS, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64, "dgels"},
+    {FB_OP_CGELS, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "cgels"},
+    {FB_OP_ZGELS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zgels"},
     /* LAPACK — Driver: General LU solve (GESV)                          */
-    {FB_OP_SGESV, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgesv"},
-    {FB_OP_DGESV, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgesv"},
-    {FB_OP_CGESV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgesv"},
-    {FB_OP_ZGESV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgesv"},
+    {FB_OP_SGESV, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgesv"},
+    {FB_OP_DGESV, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64, "dgesv"},
+    {FB_OP_CGESV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "cgesv"},
+    {FB_OP_ZGESV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zgesv"},
     /* LAPACK — Driver: Symmetric positive-definite solve (POSV)         */
-    {FB_OP_SPOSV, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sposv"},
-    {FB_OP_DPOSV, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dposv"},
-    {FB_OP_CPOSV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cposv"},
-    {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zposv"},
+    {FB_OP_SPOSV, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sposv"},
+    {FB_OP_DPOSV, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64, "dposv"},
+    {FB_OP_CPOSV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "cposv"},
+    {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zposv"},
     /* LAPACK — Apply Q from QR (ORMQR real only; RECON metric)          */
     {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
     /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
-    {FB_OP_STRTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "strtri"},
+    {FB_OP_STRTRI, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "strtri"},
     /* SPECTRAL — eigenvalue and singular-value decompositions.
      * Auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref, sbdsqr_ref,
      * chetrd_ref, steqr_ref, ...) are now present in faster-blaster-reference.

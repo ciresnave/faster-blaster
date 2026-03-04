@@ -95,6 +95,28 @@ int dtrtri_ref(const char *uplo, const char *diag, int n, double *a, int lda);
 int ctrtri_ref(const char *uplo, const char *diag, int n, float _Complex *a, int lda);
 int ztrtri_ref(const char *uplo, const char *diag, int n, double _Complex *a, int lda);
 
+/* TRTRS — triangular system solve */
+int strtrs_ref(const char *uplo, const char *trans, const char *diag, int n,
+               int nrhs, const float *a, int lda, float *b, int ldb);
+int dtrtrs_ref(const char *uplo, const char *trans, const char *diag, int n,
+               int nrhs, const double *a, int lda, double *b, int ldb);
+int ctrtrs_ref(const char *uplo, const char *trans, const char *diag, int n,
+               int nrhs, const float _Complex *a, int lda, float _Complex *b,
+               int ldb);
+int ztrtrs_ref(const char *uplo, const char *trans, const char *diag, int n,
+               int nrhs, const double _Complex *a, int lda, double _Complex *b,
+               int ldb);
+
+/* UNMQR (complex) — apply Q from complex QR factorization */
+int cunmqr_ref(const char *side, const char *trans, int m, int n, int k,
+               const float _Complex *a, int lda, const float _Complex *tau,
+               float _Complex *c, int ldc, float _Complex *work, int lwork,
+               int *info);
+int zunmqr_ref(const char *side, const char *trans, int m, int n, int k,
+               const double _Complex *a, int lda, const double _Complex *tau,
+               double _Complex *c, int ldc, double _Complex *work, int lwork,
+               int *info);
+
 /* =========================================================================
  * GETRF wrappers
  * ========================================================================= */
@@ -544,4 +566,245 @@ static int ref_ztrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
     (void)l;
     char up = FU(uplo), dg = FD(diag);
     return ztrtri_ref(&up, &dg, n, A, lda);
+}
+
+/* =========================================================================
+ * GELS wrappers — least-squares / minimum-norm solve.
+ *
+ * sgeqrf_ref / cgeqrf_ref use ROW-MAJOR storage (a[row*lda + col]).
+ * For the square case (m == n), QR and LU give the same solution for
+ * full-rank systems, so we dispatch to the faster/more-stable LU path.
+ * For overdetermined (m > n): QR back-substitution (row-major inline).
+ * Underdetermined (m < n) returns -999; runner marks case fatal/skip.
+ * ========================================================================= */
+
+static int ref_sgels(fb_layout_t l, fb_transpose_t trans, int m, int n,
+                     int nrhs, float *A, int lda, float *B, int ldb) {
+  (void)l;
+  if (trans != FB_NO_TRANS)
+    return -2;
+  if (m < n)
+    return -999;
+  /* Square case: LU is equivalent and fully stable */
+  if (m == n) {
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv)
+      return -12;
+    int info = sgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) {
+      free(ipiv);
+      return info;
+    }
+    info = sgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+    free(ipiv);
+    return info;
+  }
+  /* Overdetermined (m > n): QR back-substitution (row-major inline) */
+  float *tau = (float *)malloc((size_t)n * sizeof(float));
+  if (!tau)
+    return -12;
+  int info = sgeqrf_ref(m, n, A, lda, tau);
+  if (info != 0) {
+    free(tau);
+    return info;
+  }
+  for (int i = 0; i < n; i++) {
+    float t = tau[i];
+    if (t == 0.0f)
+      continue;
+    for (int j = 0; j < nrhs; j++) {
+      float dot = B[i * ldb + j];
+      for (int r = 1; r < m - i; r++)
+        dot += A[(i + r) * lda + i] * B[(i + r) * ldb + j];
+      B[i * ldb + j] -= t * dot;
+      for (int r = 1; r < m - i; r++)
+        B[(i + r) * ldb + j] -= t * dot * A[(i + r) * lda + i];
+    }
+  }
+  for (int j = 0; j < nrhs; j++) {
+    for (int i = n - 1; i >= 0; i--) {
+      float rhs = B[i * ldb + j];
+      for (int kk = i + 1; kk < n; kk++)
+        rhs -= A[i * lda + kk] * B[kk * ldb + j];
+      float diag = A[i * lda + i];
+      if (diag == 0.0f) {
+        free(tau);
+        return i + 1;
+      }
+      B[i * ldb + j] = rhs / diag;
+    }
+  }
+  free(tau);
+  return 0;
+}
+static int ref_dgels(fb_layout_t l, fb_transpose_t trans, int m, int n,
+                     int nrhs, double *A, int lda, double *B, int ldb) {
+  (void)l;
+  if (trans != FB_NO_TRANS)
+    return -2;
+  if (m < n)
+    return -999;
+  if (m == n) {
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv)
+      return -12;
+    int info = dgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) {
+      free(ipiv);
+      return info;
+    }
+    info = dgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+    free(ipiv);
+    return info;
+  }
+  double *tau = (double *)malloc((size_t)n * sizeof(double));
+  if (!tau)
+    return -12;
+  int info = dgeqrf_ref(m, n, A, lda, tau);
+  if (info != 0) {
+    free(tau);
+    return info;
+  }
+  for (int i = 0; i < n; i++) {
+    double t = tau[i];
+    if (t == 0.0)
+      continue;
+    for (int j = 0; j < nrhs; j++) {
+      double dot = B[i * ldb + j];
+      for (int r = 1; r < m - i; r++)
+        dot += A[(i + r) * lda + i] * B[(i + r) * ldb + j];
+      B[i * ldb + j] -= t * dot;
+      for (int r = 1; r < m - i; r++)
+        B[(i + r) * ldb + j] -= t * dot * A[(i + r) * lda + i];
+    }
+  }
+  for (int j = 0; j < nrhs; j++) {
+    for (int i = n - 1; i >= 0; i--) {
+      double rhs = B[i * ldb + j];
+      for (int kk = i + 1; kk < n; kk++)
+        rhs -= A[i * lda + kk] * B[kk * ldb + j];
+      double diag = A[i * lda + i];
+      if (diag == 0.0) {
+        free(tau);
+        return i + 1;
+      }
+      B[i * ldb + j] = rhs / diag;
+    }
+  }
+  free(tau);
+  return 0;
+}
+static int ref_cgels(fb_layout_t l, fb_transpose_t trans, int m, int n,
+                     int nrhs, float _Complex *A, int lda, float _Complex *B,
+                     int ldb) {
+  (void)l;
+  if (trans != FB_NO_TRANS)
+    return -2;
+  if (m < n)
+    return -999;
+  if (m == n) {
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv)
+      return -12;
+    int info = cgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) {
+      free(ipiv);
+      return info;
+    }
+    info = cgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+    free(ipiv);
+    return info;
+  }
+  float _Complex *tau =
+      (float _Complex *)malloc((size_t)n * sizeof(float _Complex));
+  if (!tau)
+    return -12;
+  int info = cgeqrf_ref(m, n, A, lda, tau);
+  if (info != 0) {
+    free(tau);
+    return info;
+  }
+  for (int i = 0; i < n; i++) {
+    float _Complex t = conjf(tau[i]);
+    for (int j = 0; j < nrhs; j++) {
+      float _Complex dot = B[i * ldb + j];
+      for (int r = 1; r < m - i; r++)
+        dot += conjf(A[(i + r) * lda + i]) * B[(i + r) * ldb + j];
+      B[i * ldb + j] -= t * dot;
+      for (int r = 1; r < m - i; r++)
+        B[(i + r) * ldb + j] -= t * dot * A[(i + r) * lda + i];
+    }
+  }
+  for (int j = 0; j < nrhs; j++) {
+    for (int i = n - 1; i >= 0; i--) {
+      float _Complex rhs = B[i * ldb + j];
+      for (int kk = i + 1; kk < n; kk++)
+        rhs -= A[i * lda + kk] * B[kk * ldb + j];
+      float _Complex diag = A[i * lda + i];
+      if (cabsf(diag) == 0.0f) {
+        free(tau);
+        return i + 1;
+      }
+      B[i * ldb + j] = rhs / diag;
+    }
+  }
+  free(tau);
+  return 0;
+}
+static int ref_zgels(fb_layout_t l, fb_transpose_t trans, int m, int n,
+                     int nrhs, double _Complex *A, int lda, double _Complex *B,
+                     int ldb) {
+  (void)l;
+  if (trans != FB_NO_TRANS)
+    return -2;
+  if (m < n)
+    return -999;
+  if (m == n) {
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv)
+      return -12;
+    int info = zgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) {
+      free(ipiv);
+      return info;
+    }
+    info = zgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+    free(ipiv);
+    return info;
+  }
+  double _Complex *tau =
+      (double _Complex *)malloc((size_t)n * sizeof(double _Complex));
+  if (!tau)
+    return -12;
+  int info = zgeqrf_ref(m, n, A, lda, tau);
+  if (info != 0) {
+    free(tau);
+    return info;
+  }
+  for (int i = 0; i < n; i++) {
+    double _Complex t = conj(tau[i]);
+    for (int j = 0; j < nrhs; j++) {
+      double _Complex dot = B[i * ldb + j];
+      for (int r = 1; r < m - i; r++)
+        dot += conj(A[(i + r) * lda + i]) * B[(i + r) * ldb + j];
+      B[i * ldb + j] -= t * dot;
+      for (int r = 1; r < m - i; r++)
+        B[(i + r) * ldb + j] -= t * dot * A[(i + r) * lda + i];
+    }
+  }
+  for (int j = 0; j < nrhs; j++) {
+    for (int i = n - 1; i >= 0; i--) {
+      double _Complex rhs = B[i * ldb + j];
+      for (int kk = i + 1; kk < n; kk++)
+        rhs -= A[i * lda + kk] * B[kk * ldb + j];
+      double _Complex diag = A[i * lda + i];
+      if (cabs(diag) == 0.0) {
+        free(tau);
+        return i + 1;
+      }
+      B[i * ldb + j] = rhs / diag;
+    }
+  }
+  free(tau);
+  return 0;
 }

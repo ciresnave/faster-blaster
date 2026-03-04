@@ -1199,7 +1199,10 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.cgeev = (fb_cgeev_fn)ref_cgeev;
     vt.zgeev = (fb_zgeev_fn)ref_zgeev;
     /* Not yet implemented in faster-blaster-reference */
-    vt.sgels  = NULL;   vt.dgels  = NULL;   vt.cgels  = NULL;   vt.zgels  = NULL;
+    vt.sgels = (fb_sgels_fn)ref_sgels;
+    vt.dgels = (fb_dgels_fn)ref_dgels;
+    vt.cgels = (fb_cgels_fn)ref_cgels;
+    vt.zgels = (fb_zgels_fn)ref_zgels;
     vt.sormqr = (fb_sormqr_fn)ref_sormqr;  vt.dormqr = (fb_dormqr_fn)ref_dormqr;
     vt.cunmqr = NULL;   vt.zunmqr = NULL;
     vt.sgelsd = NULL;   vt.dgelsd = NULL;   vt.cgelsd = NULL;   vt.zgelsd = NULL;
