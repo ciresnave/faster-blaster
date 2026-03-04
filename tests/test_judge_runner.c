@@ -282,14 +282,16 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_DPOTRF, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dpotrf"},
     {FB_OP_CPOTRF, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cpotrf"},
     {FB_OP_ZPOTRF, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zpotrf"},
-    /* LAPACK QR factorization (sgeqrf/dgeqrf/cgeqrf/zgeqrf) and its RECON
-     * partner (sorgqr/dorgqr/cungqr/zungqr):
-     * NOTE: sgeqrf_ref uses column-major indexing (idx_below=(i+1)+i*lda)
-     * instead of row-major ((i+1)*lda+i).  For a 128×128 corpus matrix
-     * slarf_ref accesses a[16510] past the 16384-element bound →
-     * STATUS_ACCESS_VIOLATION.  Re-add after fixing sgeqrf_ref in
-     * faster-blaster-reference (and rebuilding libfaster_blaster_reference.a).
-     */
+    /* LAPACK QR factorization */
+    {FB_OP_SGEQRF, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sgeqrf"},
+    {FB_OP_DGEQRF, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dgeqrf"},
+    {FB_OP_CGEQRF, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cgeqrf"},
+    {FB_OP_ZGEQRF, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zgeqrf"},
+    /* LAPACK Q-factor recovery */
+    {FB_OP_SORGQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sorgqr"},
+    {FB_OP_DORGQR, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dorgqr"},
+    {FB_OP_CUNGQR, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cungqr"},
+    {FB_OP_ZUNGQR, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zungqr"},
     /* LAPACK — Triangular Solve (RESIDUAL metric)                       */
     {FB_OP_SGETRS, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
      "sgetrs"},
@@ -307,6 +309,20 @@ static const jr_op_entry_t k_ops[] = {
      "cpotrs"},
     {FB_OP_ZPOTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
      "zpotrs"},
+    /* LAPACK — Driver: General LU solve (GESV)                          */
+    {FB_OP_SGESV, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgesv"},
+    {FB_OP_DGESV, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgesv"},
+    {FB_OP_CGESV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgesv"},
+    {FB_OP_ZGESV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgesv"},
+    /* LAPACK — Driver: Symmetric positive-definite solve (POSV)         */
+    {FB_OP_SPOSV, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sposv"},
+    {FB_OP_DPOSV, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dposv"},
+    {FB_OP_CPOSV, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cposv"},
+    {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zposv"},
+    /* LAPACK — Apply Q from QR (ORMQR real only; RECON metric)          */
+    {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
+    /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
+    {FB_OP_STRTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "strtri"},
     /* SPECTRAL — eigenvalue and singular-value decompositions.
      * Auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref, sbdsqr_ref,
      * chetrd_ref, steqr_ref, ...) are now present in faster-blaster-reference.

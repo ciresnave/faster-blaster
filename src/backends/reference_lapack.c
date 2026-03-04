@@ -81,6 +81,20 @@ int cungqr_ref(int m, int n, int k,
 int zungqr_ref(int m, int n, int k,
                double _Complex *a, int lda, const double _Complex *tau);
 
+/* ORMQR (real) */
+int sormqr_ref(const char *side, const char *trans, int m, int n, int k,
+               const float *a, int lda, const float *tau,
+               float *c, int ldc, float *work, int lwork, int *info);
+int dormqr_ref(const char *side, const char *trans, int m, int n, int k,
+               const double *a, int lda, const double *tau,
+               double *c, int ldc, double *work, int lwork, int *info);
+
+/* TRTRI — triangular matrix inversion */
+int strtri_ref(const char *uplo, const char *diag, int n, float *a, int lda);
+int dtrtri_ref(const char *uplo, const char *diag, int n, double *a, int lda);
+int ctrtri_ref(const char *uplo, const char *diag, int n, float _Complex *a, int lda);
+int ztrtri_ref(const char *uplo, const char *diag, int n, double _Complex *a, int lda);
+
 /* =========================================================================
  * GETRF wrappers
  * ========================================================================= */
@@ -403,4 +417,131 @@ static int ref_dsygv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
   dsygv_ref(itype, jobz, uo, n, A, lda, B, ldb, w, work, lwork, &info);
   free(work);
   return info;
+}
+/* =========================================================================
+ * GESV wrappers — compound: GETRF then GETRS
+ * ========================================================================= */
+static int ref_sgesv(fb_layout_t l, int n, int nrhs,
+                     float *A, int lda, int *ipiv, float *B, int ldb) {
+    (void)l;
+    int info = sgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) return info;
+    return sgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+}
+static int ref_dgesv(fb_layout_t l, int n, int nrhs,
+                     double *A, int lda, int *ipiv, double *B, int ldb) {
+    (void)l;
+    int info = dgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) return info;
+    return dgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+}
+static int ref_cgesv(fb_layout_t l, int n, int nrhs,
+                     float _Complex *A, int lda, int *ipiv,
+                     float _Complex *B, int ldb) {
+    (void)l;
+    int info = cgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) return info;
+    return cgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+}
+static int ref_zgesv(fb_layout_t l, int n, int nrhs,
+                     double _Complex *A, int lda, int *ipiv,
+                     double _Complex *B, int ldb) {
+    (void)l;
+    int info = zgetrf_ref(n, n, A, lda, ipiv);
+    if (info != 0) return info;
+    return zgetrs_ref('N', n, nrhs, A, lda, ipiv, B, ldb);
+}
+
+/* =========================================================================
+ * POSV wrappers — compound: POTRF then POTRS
+ * ========================================================================= */
+static int ref_sposv(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                     float *A, int lda, float *B, int ldb) {
+    (void)l;
+    int info = spotrf_ref(FU(uplo), n, A, lda);
+    if (info != 0) return info;
+    return spotrs_ref(FU(uplo), n, A, lda, B, ldb, nrhs);
+}
+static int ref_dposv(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                     double *A, int lda, double *B, int ldb) {
+    (void)l;
+    int info = dpotrf_ref(FU(uplo), n, A, lda);
+    if (info != 0) return info;
+    return dpotrs_ref(FU(uplo), n, A, lda, B, ldb, nrhs);
+}
+static int ref_cposv(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                     float _Complex *A, int lda, float _Complex *B, int ldb) {
+    (void)l;
+    int info = cpotrf_ref(FU(uplo), n, A, lda);
+    if (info != 0) return info;
+    return cpotrs_ref(FU(uplo), n, A, lda, B, ldb, nrhs);
+}
+static int ref_zposv(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                     double _Complex *A, int lda, double _Complex *B, int ldb) {
+    (void)l;
+    int info = zpotrf_ref(FU(uplo), n, A, lda);
+    if (info != 0) return info;
+    return zpotrs_ref(FU(uplo), n, A, lda, B, ldb, nrhs);
+}
+
+/* =========================================================================
+ * ORMQR / UNMQR wrappers — apply Q from QR factorization
+ * ========================================================================= */
+static int ref_sormqr(fb_layout_t l, fb_side_t side, fb_transpose_t trans,
+                      int m, int n, int k,
+                      const float *A, int lda, const float *tau,
+                      float *C, int ldc) {
+    (void)l;
+    char si = FS(side), tr = FC(trans);
+    int lwork = (side == FB_LEFT) ? (n >= 1 ? n : 1) : (m >= 1 ? m : 1);
+    if (lwork < 64) lwork = 64;
+    float *work = (float *)malloc((size_t)lwork * sizeof(float));
+    if (!work) return -12;
+    int info = 0;
+    sormqr_ref(&si, &tr, m, n, k, A, lda, tau, C, ldc, work, lwork, &info);
+    free(work);
+    return info;
+}
+static int ref_dormqr(fb_layout_t l, fb_side_t side, fb_transpose_t trans,
+                      int m, int n, int k,
+                      const double *A, int lda, const double *tau,
+                      double *C, int ldc) {
+    (void)l;
+    char si = FS(side), tr = FC(trans);
+    int lwork = (side == FB_LEFT) ? (n >= 1 ? n : 1) : (m >= 1 ? m : 1);
+    if (lwork < 64) lwork = 64;
+    double *work = (double *)malloc((size_t)lwork * sizeof(double));
+    if (!work) return -12;
+    int info = 0;
+    dormqr_ref(&si, &tr, m, n, k, A, lda, tau, C, ldc, work, lwork, &info);
+    free(work);
+    return info;
+}
+
+/* =========================================================================
+ * TRTRI wrappers — in-place triangular matrix inversion
+ * ========================================================================= */
+static int ref_strtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
+                      int n, float *A, int lda) {
+    (void)l;
+    char up = FU(uplo), dg = FD(diag);
+    return strtri_ref(&up, &dg, n, A, lda);
+}
+static int ref_dtrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
+                      int n, double *A, int lda) {
+    (void)l;
+    char up = FU(uplo), dg = FD(diag);
+    return dtrtri_ref(&up, &dg, n, A, lda);
+}
+static int ref_ctrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
+                      int n, float _Complex *A, int lda) {
+    (void)l;
+    char up = FU(uplo), dg = FD(diag);
+    return ctrtri_ref(&up, &dg, n, A, lda);
+}
+static int ref_ztrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
+                      int n, double _Complex *A, int lda) {
+    (void)l;
+    char up = FU(uplo), dg = FD(diag);
+    return ztrtri_ref(&up, &dg, n, A, lda);
 }

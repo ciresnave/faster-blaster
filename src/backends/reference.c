@@ -42,9 +42,9 @@
 /* float_complex  ≡  fb_complex_float_t  ≡  float _Complex  (same ABI)
  * double_complex ≡  fb_complex_double_t ≡  double _Complex (same ABI)       */
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
 /* ============================================================================
  * Enum → char conversion helpers
@@ -79,22 +79,55 @@ static inline char side_char(fb_side_t  s) { return (s == FB_LEFT)  ? 'L' : 'R';
 static void w_cdotu(fb_complex_float_t *res, const int n,
                     const fb_complex_float_t *x, const int incx,
                     const fb_complex_float_t *y, const int incy) {
-    *res = cdotu_ref(n, (const float_complex *)x, incx, (const float_complex *)y, incy);
+  *res = cblas_cdotu(n, (const float_complex *)x, incx,
+                     (const float_complex *)y, incy);
 }
 static void w_zdotu(fb_complex_double_t *res, const int n,
                     const fb_complex_double_t *x, const int incx,
                     const fb_complex_double_t *y, const int incy) {
-    *res = zdotu_ref(n, (const double_complex *)x, incx, (const double_complex *)y, incy);
+  *res = cblas_zdotu(n, (const double_complex *)x, incx,
+                     (const double_complex *)y, incy);
 }
 static void w_cdotc(fb_complex_float_t *res, const int n,
                     const fb_complex_float_t *x, const int incx,
                     const fb_complex_float_t *y, const int incy) {
-    *res = cdotc_ref(n, (const float_complex *)x, incx, (const float_complex *)y, incy);
+  *res = cblas_cdotc(n, (const float_complex *)x, incx,
+                     (const float_complex *)y, incy);
 }
 static void w_zdotc(fb_complex_double_t *res, const int n,
                     const fb_complex_double_t *x, const int incx,
                     const fb_complex_double_t *y, const int incy) {
-    *res = zdotc_ref(n, (const double_complex *)x, incx, (const double_complex *)y, incy);
+  *res = cblas_zdotc(n, (const double_complex *)x, incx,
+                     (const double_complex *)y, incy);
+}
+
+/* ============================================================================
+ * BLAS Level 1 — alpha-by-value wrappers for complex AXPY / SCAL
+ *
+ * vtable convention  : alpha passed BY VALUE (fb_complex_float_t / double)
+ * reference cblas    : alpha passed BY POINTER (const float_complex *)
+ * Fix: take alpha by value, address-of it, then pass the pointer to cblas.
+ * ========================================================================= */
+
+static void w_caxpy(const int n, const fb_complex_float_t alpha,
+                    const fb_complex_float_t *x, const int incx,
+                    fb_complex_float_t *y, const int incy) {
+  cblas_caxpy(n, (const float_complex *)&alpha, (const float_complex *)x, incx,
+              (float_complex *)y, incy);
+}
+static void w_zaxpy(const int n, const fb_complex_double_t alpha,
+                    const fb_complex_double_t *x, const int incx,
+                    fb_complex_double_t *y, const int incy) {
+  cblas_zaxpy(n, (const double_complex *)&alpha, (const double_complex *)x,
+              incx, (double_complex *)y, incy);
+}
+static void w_cscal(const int n, const fb_complex_float_t alpha,
+                    fb_complex_float_t *x, const int incx) {
+  cblas_cscal(n, (const float_complex *)&alpha, (float_complex *)x, incx);
+}
+static void w_zscal(const int n, const fb_complex_double_t alpha,
+                    fb_complex_double_t *x, const int incx) {
+  cblas_zscal(n, (const double_complex *)&alpha, (double_complex *)x, incx);
 }
 
 /* ============================================================================
@@ -104,23 +137,27 @@ static void w_zdotc(fb_complex_double_t *res, const int n,
  * ========================================================================= */
 
 /* --- GEMV ---------------------------------------------------------------- */
-static void w_sgemv(fb_layout_t lay, fb_transpose_t tr,
-                    int m, int n, float a, const float *A, int lda,
-                    const float *x, int incx, float b, float *y, int incy)
-    { (void)lay; sgemv_ref(FC(tr), m, n, a, A, lda, x, incx, b, y, incy); }
-static void w_dgemv(fb_layout_t lay, fb_transpose_t tr,
-                    int m, int n, double a, const double *A, int lda,
-                    const double *x, int incx, double b, double *y, int incy)
-    { (void)lay; dgemv_ref(FC(tr), m, n, a, A, lda, x, incx, b, y, incy); }
+static void w_sgemv(fb_layout_t lay, fb_transpose_t tr, int m, int n, float a,
+                    const float *A, int lda, const float *x, int incx, float b,
+                    float *y, int incy) {
+  (void)lay;
+  cblas_sgemv(FC(tr), m, n, a, A, lda, x, incx, b, y, incy);
+}
+static void w_dgemv(fb_layout_t lay, fb_transpose_t tr, int m, int n, double a,
+                    const double *A, int lda, const double *x, int incx,
+                    double b, double *y, int incy) {
+  (void)lay;
+  cblas_dgemv(FC(tr), m, n, a, A, lda, x, incx, b, y, incy);
+}
 static void w_cgemv(fb_layout_t lay, fb_transpose_t tr,
                     int m, int n, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    cgemv_ref(FC(tr), m, n, (float_complex)a, (const float_complex *)A, lda,
-              (const float_complex *)x, incx, (float_complex)b,
-              (float_complex *)y, incy);
+    cblas_cgemv(FC(tr), m, n, (float_complex)a, (const float_complex *)A, lda,
+                (const float_complex *)x, incx, (float_complex)b,
+                (float_complex *)y, incy);
 }
 static void w_zgemv(fb_layout_t lay, fb_transpose_t tr,
                     int m, int n, fb_complex_double_t a,
@@ -128,31 +165,33 @@ static void w_zgemv(fb_layout_t lay, fb_transpose_t tr,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zgemv_ref(FC(tr), m, n, (double_complex)a, (const double_complex *)A, lda,
-              (const double_complex *)x, incx, (double_complex)b,
-              (double_complex *)y, incy);
+    cblas_zgemv(FC(tr), m, n, (double_complex)a, (const double_complex *)A, lda,
+                (const double_complex *)x, incx, (double_complex)b,
+                (double_complex *)y, incy);
 }
 
 /* --- GBMV ---------------------------------------------------------------- */
-static void w_sgbmv(fb_layout_t lay, fb_transpose_t tr,
-                    int m, int n, int kl, int ku, float a,
-                    const float *A, int lda, const float *x, int incx,
-                    float b, float *y, int incy)
-    { (void)lay; sgbmv_ref(FC(tr), m, n, kl, ku, a, A, lda, x, incx, b, y, incy); }
-static void w_dgbmv(fb_layout_t lay, fb_transpose_t tr,
-                    int m, int n, int kl, int ku, double a,
-                    const double *A, int lda, const double *x, int incx,
-                    double b, double *y, int incy)
-    { (void)lay; dgbmv_ref(FC(tr), m, n, kl, ku, a, A, lda, x, incx, b, y, incy); }
+static void w_sgbmv(fb_layout_t lay, fb_transpose_t tr, int m, int n, int kl,
+                    int ku, float a, const float *A, int lda, const float *x,
+                    int incx, float b, float *y, int incy) {
+  (void)lay;
+  cblas_sgbmv(FC(tr), m, n, kl, ku, a, A, lda, x, incx, b, y, incy);
+}
+static void w_dgbmv(fb_layout_t lay, fb_transpose_t tr, int m, int n, int kl,
+                    int ku, double a, const double *A, int lda, const double *x,
+                    int incx, double b, double *y, int incy) {
+  (void)lay;
+  cblas_dgbmv(FC(tr), m, n, kl, ku, a, A, lda, x, incx, b, y, incy);
+}
 static void w_cgbmv(fb_layout_t lay, fb_transpose_t tr,
                     int m, int n, int kl, int ku, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    cgbmv_ref(FC(tr), m, n, kl, ku, (float_complex)a,
-              (const float_complex *)A, lda, (const float_complex *)x, incx,
-              (float_complex)b, (float_complex *)y, incy);
+    cblas_cgbmv(FC(tr), m, n, kl, ku, (float_complex)a,
+                (const float_complex *)A, lda, (const float_complex *)x, incx,
+                (float_complex)b, (float_complex *)y, incy);
 }
 static void w_zgbmv(fb_layout_t lay, fb_transpose_t tr,
                     int m, int n, int kl, int ku, fb_complex_double_t a,
@@ -160,29 +199,33 @@ static void w_zgbmv(fb_layout_t lay, fb_transpose_t tr,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zgbmv_ref(FC(tr), m, n, kl, ku, (double_complex)a,
-              (const double_complex *)A, lda, (const double_complex *)x, incx,
-              (double_complex)b, (double_complex *)y, incy);
+    cblas_zgbmv(FC(tr), m, n, kl, ku, (double_complex)a,
+                (const double_complex *)A, lda, (const double_complex *)x, incx,
+                (double_complex)b, (double_complex *)y, incy);
 }
 
 /* --- SYMV / HEMV --------------------------------------------------------- */
-static void w_ssymv(fb_layout_t lay, fb_uplo_t up,
-                    int n, float a, const float *A, int lda,
-                    const float *x, int incx, float b, float *y, int incy)
-    { (void)lay; ssymv_ref(FU(up), n, a, A, lda, x, incx, b, y, incy); }
-static void w_dsymv(fb_layout_t lay, fb_uplo_t up,
-                    int n, double a, const double *A, int lda,
-                    const double *x, int incx, double b, double *y, int incy)
-    { (void)lay; dsymv_ref(FU(up), n, a, A, lda, x, incx, b, y, incy); }
+static void w_ssymv(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                    const float *A, int lda, const float *x, int incx, float b,
+                    float *y, int incy) {
+  (void)lay;
+  cblas_ssymv(FU(up), n, a, A, lda, x, incx, b, y, incy);
+}
+static void w_dsymv(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                    const double *A, int lda, const double *x, int incx,
+                    double b, double *y, int incy) {
+  (void)lay;
+  cblas_dsymv(FU(up), n, a, A, lda, x, incx, b, y, incy);
+}
 static void w_csymv(fb_layout_t lay, fb_uplo_t up,
                     int n, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    csymv_ref(FU(up), n, (float_complex)a, (const float_complex *)A, lda,
-              (const float_complex *)x, incx, (float_complex)b,
-              (float_complex *)y, incy);
+    cblas_csymv(FU(up), n, (float_complex)a, (const float_complex *)A, lda,
+                (const float_complex *)x, incx, (float_complex)b,
+                (float_complex *)y, incy);
 }
 static void w_zsymv(fb_layout_t lay, fb_uplo_t up,
                     int n, fb_complex_double_t a,
@@ -190,9 +233,9 @@ static void w_zsymv(fb_layout_t lay, fb_uplo_t up,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zsymv_ref(FU(up), n, (double_complex)a, (const double_complex *)A, lda,
-              (const double_complex *)x, incx, (double_complex)b,
-              (double_complex *)y, incy);
+    cblas_zsymv(FU(up), n, (double_complex)a, (const double_complex *)A, lda,
+                (const double_complex *)x, incx, (double_complex)b,
+                (double_complex *)y, incy);
 }
 static void w_chemv(fb_layout_t lay, fb_uplo_t up,
                     int n, fb_complex_float_t a,
@@ -200,9 +243,9 @@ static void w_chemv(fb_layout_t lay, fb_uplo_t up,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    chemv_ref(FU(up), n, (float_complex)a, (const float_complex *)A, lda,
-              (const float_complex *)x, incx, (float_complex)b,
-              (float_complex *)y, incy);
+    cblas_chemv(FU(up), n, (float_complex)a, (const float_complex *)A, lda,
+                (const float_complex *)x, incx, (float_complex)b,
+                (float_complex *)y, incy);
 }
 static void w_zhemv(fb_layout_t lay, fb_uplo_t up,
                     int n, fb_complex_double_t a,
@@ -210,271 +253,312 @@ static void w_zhemv(fb_layout_t lay, fb_uplo_t up,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zhemv_ref(FU(up), n, (double_complex)a, (const double_complex *)A, lda,
-              (const double_complex *)x, incx, (double_complex)b,
-              (double_complex *)y, incy);
+    cblas_zhemv(FU(up), n, (double_complex)a, (const double_complex *)A, lda,
+                (const double_complex *)x, incx, (double_complex)b,
+                (double_complex *)y, incy);
 }
 
 /* --- SBMV / HBMV --------------------------------------------------------- */
-static void w_ssbmv(fb_layout_t lay, fb_uplo_t up, int n, int k,
-                    float a, const float *A, int lda,
-                    const float *x, int incx, float b, float *y, int incy)
-    { (void)lay; ssbmv_ref(FU(up), n, k, a, A, lda, x, incx, b, y, incy); }
-static void w_dsbmv(fb_layout_t lay, fb_uplo_t up, int n, int k,
-                    double a, const double *A, int lda,
-                    const double *x, int incx, double b, double *y, int incy)
-    { (void)lay; dsbmv_ref(FU(up), n, k, a, A, lda, x, incx, b, y, incy); }
+static void w_ssbmv(fb_layout_t lay, fb_uplo_t up, int n, int k, float a,
+                    const float *A, int lda, const float *x, int incx, float b,
+                    float *y, int incy) {
+  (void)lay;
+  cblas_ssbmv(FU(up), n, k, a, A, lda, x, incx, b, y, incy);
+}
+static void w_dsbmv(fb_layout_t lay, fb_uplo_t up, int n, int k, double a,
+                    const double *A, int lda, const double *x, int incx,
+                    double b, double *y, int incy) {
+  (void)lay;
+  cblas_dsbmv(FU(up), n, k, a, A, lda, x, incx, b, y, incy);
+}
 static void w_chbmv(fb_layout_t lay, fb_uplo_t up, int n, int k,
                     fb_complex_float_t a, const fb_complex_float_t *A, int lda,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    chbmv_ref(FU(up), n, k, (float_complex)a, (const float_complex *)A, lda,
-              (const float_complex *)x, incx, (float_complex)b,
-              (float_complex *)y, incy);
+    cblas_chbmv(FU(up), n, k, (float_complex)a, (const float_complex *)A, lda,
+                (const float_complex *)x, incx, (float_complex)b,
+                (float_complex *)y, incy);
 }
 static void w_zhbmv(fb_layout_t lay, fb_uplo_t up, int n, int k,
                     fb_complex_double_t a, const fb_complex_double_t *A, int lda,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zhbmv_ref(FU(up), n, k, (double_complex)a, (const double_complex *)A, lda,
-              (const double_complex *)x, incx, (double_complex)b,
-              (double_complex *)y, incy);
+    cblas_zhbmv(FU(up), n, k, (double_complex)a, (const double_complex *)A, lda,
+                (const double_complex *)x, incx, (double_complex)b,
+                (double_complex *)y, incy);
 }
 
 /* --- SPMV / HPMV --------------------------------------------------------- */
-static void w_sspmv(fb_layout_t lay, fb_uplo_t up, int n,
-                    float a, const float *ap,
-                    const float *x, int incx, float b, float *y, int incy)
-    { (void)lay; sspmv_ref(FU(up), n, a, ap, x, incx, b, y, incy); }
-static void w_dspmv(fb_layout_t lay, fb_uplo_t up, int n,
-                    double a, const double *ap,
-                    const double *x, int incx, double b, double *y, int incy)
-    { (void)lay; dspmv_ref(FU(up), n, a, ap, x, incx, b, y, incy); }
+static void w_sspmv(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                    const float *ap, const float *x, int incx, float b,
+                    float *y, int incy) {
+  (void)lay;
+  cblas_sspmv(FU(up), n, a, ap, x, incx, b, y, incy);
+}
+static void w_dspmv(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                    const double *ap, const double *x, int incx, double b,
+                    double *y, int incy) {
+  (void)lay;
+  cblas_dspmv(FU(up), n, a, ap, x, incx, b, y, incy);
+}
 static void w_chpmv(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_float_t a, const fb_complex_float_t *ap,
                     const fb_complex_float_t *x, int incx,
                     fb_complex_float_t b, fb_complex_float_t *y, int incy) {
     (void)lay;
-    chpmv_ref(FU(up), n, (float_complex)a, (const float_complex *)ap,
-              (const float_complex *)x, incx, (float_complex)b,
-              (float_complex *)y, incy);
+    cblas_chpmv(FU(up), n, (float_complex)a, (const float_complex *)ap,
+                (const float_complex *)x, incx, (float_complex)b,
+                (float_complex *)y, incy);
 }
 static void w_zhpmv(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_double_t a, const fb_complex_double_t *ap,
                     const fb_complex_double_t *x, int incx,
                     fb_complex_double_t b, fb_complex_double_t *y, int incy) {
     (void)lay;
-    zhpmv_ref(FU(up), n, (double_complex)a, (const double_complex *)ap,
-              (const double_complex *)x, incx, (double_complex)b,
-              (double_complex *)y, incy);
+    cblas_zhpmv(FU(up), n, (double_complex)a, (const double_complex *)ap,
+                (const double_complex *)x, incx, (double_complex)b,
+                (double_complex *)y, incy);
 }
 
 /* --- TRMV ---------------------------------------------------------------- */
 static void w_strmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const float *A, int lda,
-                    float *x, int incx)
-    { (void)lay; strmv_ref(FU(up), FC(tr), FD(dg), n, A, lda, x, incx); }
+                    fb_diag_t dg, int n, const float *A, int lda, float *x,
+                    int incx) {
+  (void)lay;
+  cblas_strmv(FU(up), FC(tr), FD(dg), n, A, lda, x, incx);
+}
 static void w_dtrmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const double *A, int lda,
-                    double *x, int incx)
-    { (void)lay; dtrmv_ref(FU(up), FC(tr), FD(dg), n, A, lda, x, incx); }
+                    fb_diag_t dg, int n, const double *A, int lda, double *x,
+                    int incx) {
+  (void)lay;
+  cblas_dtrmv(FU(up), FC(tr), FD(dg), n, A, lda, x, incx);
+}
 static void w_ctrmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctrmv_ref(FU(up), FC(tr), FD(dg), n, (const float_complex *)A, lda,
-              (float_complex *)x, incx);
+    cblas_ctrmv(FU(up), FC(tr), FD(dg), n, (const float_complex *)A, lda,
+                (float_complex *)x, incx);
 }
 static void w_ztrmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztrmv_ref(FU(up), FC(tr), FD(dg), n, (const double_complex *)A, lda,
-              (double_complex *)x, incx);
+    cblas_ztrmv(FU(up), FC(tr), FD(dg), n, (const double_complex *)A, lda,
+                (double_complex *)x, incx);
 }
 
 /* --- TBMV ---------------------------------------------------------------- */
 static void w_stbmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, int k,
-                    const float *A, int lda, float *x, int incx)
-    { (void)lay; stbmv_ref(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx); }
+                    fb_diag_t dg, int n, int k, const float *A, int lda,
+                    float *x, int incx) {
+  (void)lay;
+  cblas_stbmv(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx);
+}
 static void w_dtbmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, int k,
-                    const double *A, int lda, double *x, int incx)
-    { (void)lay; dtbmv_ref(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx); }
+                    fb_diag_t dg, int n, int k, const double *A, int lda,
+                    double *x, int incx) {
+  (void)lay;
+  cblas_dtbmv(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx);
+}
 static void w_ctbmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n, int k,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctbmv_ref(FU(up), FC(tr), FD(dg), n, k, (const float_complex *)A, lda,
-              (float_complex *)x, incx);
+    cblas_ctbmv(FU(up), FC(tr), FD(dg), n, k, (const float_complex *)A, lda,
+                (float_complex *)x, incx);
 }
 static void w_ztbmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n, int k,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztbmv_ref(FU(up), FC(tr), FD(dg), n, k, (const double_complex *)A, lda,
-              (double_complex *)x, incx);
+    cblas_ztbmv(FU(up), FC(tr), FD(dg), n, k, (const double_complex *)A, lda,
+                (double_complex *)x, incx);
 }
 
 /* --- TPMV ---------------------------------------------------------------- */
 static void w_stpmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const float *ap, float *x, int incx)
-    { (void)lay; stpmv_ref(FU(up), FC(tr), FD(dg), n, ap, x, incx); }
+                    fb_diag_t dg, int n, const float *ap, float *x, int incx) {
+  (void)lay;
+  cblas_stpmv(FU(up), FC(tr), FD(dg), n, ap, x, incx);
+}
 static void w_dtpmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const double *ap, double *x, int incx)
-    { (void)lay; dtpmv_ref(FU(up), FC(tr), FD(dg), n, ap, x, incx); }
+                    fb_diag_t dg, int n, const double *ap, double *x,
+                    int incx) {
+  (void)lay;
+  cblas_dtpmv(FU(up), FC(tr), FD(dg), n, ap, x, incx);
+}
 static void w_ctpmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_float_t *ap, fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctpmv_ref(FU(up), FC(tr), FD(dg), n, (const float_complex *)ap,
-              (float_complex *)x, incx);
+    cblas_ctpmv(FU(up), FC(tr), FD(dg), n, (const float_complex *)ap,
+                (float_complex *)x, incx);
 }
 static void w_ztpmv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_double_t *ap, fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztpmv_ref(FU(up), FC(tr), FD(dg), n, (const double_complex *)ap,
-              (double_complex *)x, incx);
+    cblas_ztpmv(FU(up), FC(tr), FD(dg), n, (const double_complex *)ap,
+                (double_complex *)x, incx);
 }
 
 /* --- TRSV ---------------------------------------------------------------- */
 static void w_strsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const float *A, int lda,
-                    float *x, int incx)
-    { (void)lay; strsv_ref(FU(up), FC(tr), FD(dg), n, A, lda, x, incx); }
+                    fb_diag_t dg, int n, const float *A, int lda, float *x,
+                    int incx) {
+  (void)lay;
+  cblas_strsv(FU(up), FC(tr), FD(dg), n, A, lda, x, incx);
+}
 static void w_dtrsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const double *A, int lda,
-                    double *x, int incx)
-    { (void)lay; dtrsv_ref(FU(up), FC(tr), FD(dg), n, A, lda, x, incx); }
+                    fb_diag_t dg, int n, const double *A, int lda, double *x,
+                    int incx) {
+  (void)lay;
+  cblas_dtrsv(FU(up), FC(tr), FD(dg), n, A, lda, x, incx);
+}
 static void w_ctrsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctrsv_ref(FU(up), FC(tr), FD(dg), n, (const float_complex *)A, lda,
-              (float_complex *)x, incx);
+    cblas_ctrsv(FU(up), FC(tr), FD(dg), n, (const float_complex *)A, lda,
+                (float_complex *)x, incx);
 }
 static void w_ztrsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztrsv_ref(FU(up), FC(tr), FD(dg), n, (const double_complex *)A, lda,
-              (double_complex *)x, incx);
+    cblas_ztrsv(FU(up), FC(tr), FD(dg), n, (const double_complex *)A, lda,
+                (double_complex *)x, incx);
 }
 
 /* --- TBSV ---------------------------------------------------------------- */
 static void w_stbsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, int k,
-                    const float *A, int lda, float *x, int incx)
-    { (void)lay; stbsv_ref(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx); }
+                    fb_diag_t dg, int n, int k, const float *A, int lda,
+                    float *x, int incx) {
+  (void)lay;
+  cblas_stbsv(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx);
+}
 static void w_dtbsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, int k,
-                    const double *A, int lda, double *x, int incx)
-    { (void)lay; dtbsv_ref(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx); }
+                    fb_diag_t dg, int n, int k, const double *A, int lda,
+                    double *x, int incx) {
+  (void)lay;
+  cblas_dtbsv(FU(up), FC(tr), FD(dg), n, k, A, lda, x, incx);
+}
 static void w_ctbsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n, int k,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctbsv_ref(FU(up), FC(tr), FD(dg), n, k, (const float_complex *)A, lda,
-              (float_complex *)x, incx);
+    cblas_ctbsv(FU(up), FC(tr), FD(dg), n, k, (const float_complex *)A, lda,
+                (float_complex *)x, incx);
 }
 static void w_ztbsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n, int k,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztbsv_ref(FU(up), FC(tr), FD(dg), n, k, (const double_complex *)A, lda,
-              (double_complex *)x, incx);
+    cblas_ztbsv(FU(up), FC(tr), FD(dg), n, k, (const double_complex *)A, lda,
+                (double_complex *)x, incx);
 }
 
 /* --- TPSV ---------------------------------------------------------------- */
 static void w_stpsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const float *ap, float *x, int incx)
-    { (void)lay; stpsv_ref(FU(up), FC(tr), FD(dg), n, ap, x, incx); }
+                    fb_diag_t dg, int n, const float *ap, float *x, int incx) {
+  (void)lay;
+  cblas_stpsv(FU(up), FC(tr), FD(dg), n, ap, x, incx);
+}
 static void w_dtpsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    fb_diag_t dg, int n, const double *ap, double *x, int incx)
-    { (void)lay; dtpsv_ref(FU(up), FC(tr), FD(dg), n, ap, x, incx); }
+                    fb_diag_t dg, int n, const double *ap, double *x,
+                    int incx) {
+  (void)lay;
+  cblas_dtpsv(FU(up), FC(tr), FD(dg), n, ap, x, incx);
+}
 static void w_ctpsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_float_t *ap, fb_complex_float_t *x, int incx) {
     (void)lay;
-    ctpsv_ref(FU(up), FC(tr), FD(dg), n, (const float_complex *)ap,
-              (float_complex *)x, incx);
+    cblas_ctpsv(FU(up), FC(tr), FD(dg), n, (const float_complex *)ap,
+                (float_complex *)x, incx);
 }
 static void w_ztpsv(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     fb_diag_t dg, int n,
                     const fb_complex_double_t *ap, fb_complex_double_t *x, int incx) {
     (void)lay;
-    ztpsv_ref(FU(up), FC(tr), FD(dg), n, (const double_complex *)ap,
-              (double_complex *)x, incx);
+    cblas_ztpsv(FU(up), FC(tr), FD(dg), n, (const double_complex *)ap,
+                (double_complex *)x, incx);
 }
 
 /* --- SYR / HER ----------------------------------------------------------- */
-static void w_ssyr(fb_layout_t lay, fb_uplo_t up, int n,
-                   float a, const float *x, int incx, float *A, int lda)
-    { (void)lay; ssyr_ref(FU(up), n, a, x, incx, A, lda); }
-static void w_dsyr(fb_layout_t lay, fb_uplo_t up, int n,
-                   double a, const double *x, int incx, double *A, int lda)
-    { (void)lay; dsyr_ref(FU(up), n, a, x, incx, A, lda); }
+static void w_ssyr(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                   const float *x, int incx, float *A, int lda) {
+  (void)lay;
+  cblas_ssyr(FU(up), n, a, x, incx, A, lda);
+}
+static void w_dsyr(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                   const double *x, int incx, double *A, int lda) {
+  (void)lay;
+  cblas_dsyr(FU(up), n, a, x, incx, A, lda);
+}
 static void w_csyr(fb_layout_t lay, fb_uplo_t up, int n,
                    fb_complex_float_t a,
                    const fb_complex_float_t *x, int incx,
                    fb_complex_float_t *A, int lda) {
     (void)lay;
-    csyr_ref(FU(up), n, (float_complex)a,
-             (const float_complex *)x, incx, (float_complex *)A, lda);
+    cblas_csyr(FU(up), n, (float_complex)a, (const float_complex *)x, incx,
+               (float_complex *)A, lda);
 }
 static void w_zsyr(fb_layout_t lay, fb_uplo_t up, int n,
                    fb_complex_double_t a,
                    const fb_complex_double_t *x, int incx,
                    fb_complex_double_t *A, int lda) {
     (void)lay;
-    zsyr_ref(FU(up), n, (double_complex)a,
-             (const double_complex *)x, incx, (double_complex *)A, lda);
+    cblas_zsyr(FU(up), n, (double_complex)a, (const double_complex *)x, incx,
+               (double_complex *)A, lda);
 }
 static void w_cher(fb_layout_t lay, fb_uplo_t up, int n,
                    float a, const fb_complex_float_t *x, int incx,
                    fb_complex_float_t *A, int lda) {
     (void)lay;
-    cher_ref(FU(up), n, a, (const float_complex *)x, incx,
-             (float_complex *)A, lda);
+    cblas_cher(FU(up), n, a, (const float_complex *)x, incx, (float_complex *)A,
+               lda);
 }
 static void w_zher(fb_layout_t lay, fb_uplo_t up, int n,
                    double a, const fb_complex_double_t *x, int incx,
                    fb_complex_double_t *A, int lda) {
     (void)lay;
-    zher_ref(FU(up), n, a, (const double_complex *)x, incx,
-             (double_complex *)A, lda);
+    cblas_zher(FU(up), n, a, (const double_complex *)x, incx,
+               (double_complex *)A, lda);
 }
 
 /* --- SYR2 / HER2 --------------------------------------------------------- */
-static void w_ssyr2(fb_layout_t lay, fb_uplo_t up, int n,
-                    float a, const float *x, int incx,
-                    const float *y, int incy, float *A, int lda)
-    { (void)lay; ssyr2_ref(FU(up), n, a, x, incx, y, incy, A, lda); }
-static void w_dsyr2(fb_layout_t lay, fb_uplo_t up, int n,
-                    double a, const double *x, int incx,
-                    const double *y, int incy, double *A, int lda)
-    { (void)lay; dsyr2_ref(FU(up), n, a, x, incx, y, incy, A, lda); }
+static void w_ssyr2(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                    const float *x, int incx, const float *y, int incy,
+                    float *A, int lda) {
+  (void)lay;
+  cblas_ssyr2(FU(up), n, a, x, incx, y, incy, A, lda);
+}
+static void w_dsyr2(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                    const double *x, int incx, const double *y, int incy,
+                    double *A, int lda) {
+  (void)lay;
+  cblas_dsyr2(FU(up), n, a, x, incx, y, incy, A, lda);
+}
 static void w_cher2(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_float_t a,
                     const fb_complex_float_t *x, int incx,
                     const fb_complex_float_t *y, int incy,
                     fb_complex_float_t *A, int lda) {
     (void)lay;
-    cher2_ref(FU(up), n, (float_complex)a,
-              (const float_complex *)x, incx, (const float_complex *)y, incy,
-              (float_complex *)A, lda);
+    cblas_cher2(FU(up), n, (float_complex)a, (const float_complex *)x, incx,
+                (const float_complex *)y, incy, (float_complex *)A, lda);
 }
 static void w_zher2(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_double_t a,
@@ -482,29 +566,29 @@ static void w_zher2(fb_layout_t lay, fb_uplo_t up, int n,
                     const fb_complex_double_t *y, int incy,
                     fb_complex_double_t *A, int lda) {
     (void)lay;
-    zher2_ref(FU(up), n, (double_complex)a,
-              (const double_complex *)x, incx, (const double_complex *)y, incy,
-              (double_complex *)A, lda);
+    cblas_zher2(FU(up), n, (double_complex)a, (const double_complex *)x, incx,
+                (const double_complex *)y, incy, (double_complex *)A, lda);
 }
 
 /* --- GER / GERU / GERC --------------------------------------------------- */
-static void w_sger(fb_layout_t lay, int m, int n,
-                   float a, const float *x, int incx,
-                   const float *y, int incy, float *A, int lda)
-    { (void)lay; sger_ref(m, n, a, x, incx, y, incy, A, lda); }
-static void w_dger(fb_layout_t lay, int m, int n,
-                   double a, const double *x, int incx,
-                   const double *y, int incy, double *A, int lda)
-    { (void)lay; dger_ref(m, n, a, x, incx, y, incy, A, lda); }
+static void w_sger(fb_layout_t lay, int m, int n, float a, const float *x,
+                   int incx, const float *y, int incy, float *A, int lda) {
+  (void)lay;
+  cblas_sger(m, n, a, x, incx, y, incy, A, lda);
+}
+static void w_dger(fb_layout_t lay, int m, int n, double a, const double *x,
+                   int incx, const double *y, int incy, double *A, int lda) {
+  (void)lay;
+  cblas_dger(m, n, a, x, incx, y, incy, A, lda);
+}
 static void w_cgeru(fb_layout_t lay, int m, int n,
                     fb_complex_float_t a,
                     const fb_complex_float_t *x, int incx,
                     const fb_complex_float_t *y, int incy,
                     fb_complex_float_t *A, int lda) {
     (void)lay;
-    cgeru_ref(m, n, (float_complex)a,
-              (const float_complex *)x, incx, (const float_complex *)y, incy,
-              (float_complex *)A, lda);
+    cblas_cgeru(m, n, (float_complex)a, (const float_complex *)x, incx,
+                (const float_complex *)y, incy, (float_complex *)A, lda);
 }
 static void w_zgeru(fb_layout_t lay, int m, int n,
                     fb_complex_double_t a,
@@ -512,9 +596,8 @@ static void w_zgeru(fb_layout_t lay, int m, int n,
                     const fb_complex_double_t *y, int incy,
                     fb_complex_double_t *A, int lda) {
     (void)lay;
-    zgeru_ref(m, n, (double_complex)a,
-              (const double_complex *)x, incx, (const double_complex *)y, incy,
-              (double_complex *)A, lda);
+    cblas_zgeru(m, n, (double_complex)a, (const double_complex *)x, incx,
+                (const double_complex *)y, incy, (double_complex *)A, lda);
 }
 static void w_cgerc(fb_layout_t lay, int m, int n,
                     fb_complex_float_t a,
@@ -522,9 +605,8 @@ static void w_cgerc(fb_layout_t lay, int m, int n,
                     const fb_complex_float_t *y, int incy,
                     fb_complex_float_t *A, int lda) {
     (void)lay;
-    cgerc_ref(m, n, (float_complex)a,
-              (const float_complex *)x, incx, (const float_complex *)y, incy,
-              (float_complex *)A, lda);
+    cblas_cgerc(m, n, (float_complex)a, (const float_complex *)x, incx,
+                (const float_complex *)y, incy, (float_complex *)A, lda);
 }
 static void w_zgerc(fb_layout_t lay, int m, int n,
                     fb_complex_double_t a,
@@ -532,50 +614,57 @@ static void w_zgerc(fb_layout_t lay, int m, int n,
                     const fb_complex_double_t *y, int incy,
                     fb_complex_double_t *A, int lda) {
     (void)lay;
-    zgerc_ref(m, n, (double_complex)a,
-              (const double_complex *)x, incx, (const double_complex *)y, incy,
-              (double_complex *)A, lda);
+    cblas_zgerc(m, n, (double_complex)a, (const double_complex *)x, incx,
+                (const double_complex *)y, incy, (double_complex *)A, lda);
 }
 
 /* --- SPR / HPR ----------------------------------------------------------- */
-static void w_sspr(fb_layout_t lay, fb_uplo_t up, int n,
-                   float a, const float *x, int incx, float *ap)
-    { (void)lay; sspr_ref(FU(up), n, a, x, incx, ap); }
-static void w_dspr(fb_layout_t lay, fb_uplo_t up, int n,
-                   double a, const double *x, int incx, double *ap)
-    { (void)lay; dspr_ref(FU(up), n, a, x, incx, ap); }
+static void w_sspr(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                   const float *x, int incx, float *ap) {
+  (void)lay;
+  cblas_sspr(FU(up), n, a, x, incx, ap);
+}
+static void w_dspr(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                   const double *x, int incx, double *ap) {
+  (void)lay;
+  cblas_dspr(FU(up), n, a, x, incx, ap);
+}
 static void w_chpr(fb_layout_t lay, fb_uplo_t up, int n,
                    float a, const fb_complex_float_t *x, int incx,
                    fb_complex_float_t *ap) {
     (void)lay;
-    chpr_ref(FU(up), n, a, (const float_complex *)x, incx, (float_complex *)ap);
+    cblas_chpr(FU(up), n, a, (const float_complex *)x, incx,
+               (float_complex *)ap);
 }
 static void w_zhpr(fb_layout_t lay, fb_uplo_t up, int n,
                    double a, const fb_complex_double_t *x, int incx,
                    fb_complex_double_t *ap) {
     (void)lay;
-    zhpr_ref(FU(up), n, a, (const double_complex *)x, incx,
-             (double_complex *)ap);
+    cblas_zhpr(FU(up), n, a, (const double_complex *)x, incx,
+               (double_complex *)ap);
 }
 
 /* --- SPR2 / HPR2 --------------------------------------------------------- */
-static void w_sspr2(fb_layout_t lay, fb_uplo_t up, int n,
-                    float a, const float *x, int incx,
-                    const float *y, int incy, float *ap)
-    { (void)lay; sspr2_ref(FU(up), n, a, x, incx, y, incy, ap); }
-static void w_dspr2(fb_layout_t lay, fb_uplo_t up, int n,
-                    double a, const double *x, int incx,
-                    const double *y, int incy, double *ap)
-    { (void)lay; dspr2_ref(FU(up), n, a, x, incx, y, incy, ap); }
+static void w_sspr2(fb_layout_t lay, fb_uplo_t up, int n, float a,
+                    const float *x, int incx, const float *y, int incy,
+                    float *ap) {
+  (void)lay;
+  cblas_sspr2(FU(up), n, a, x, incx, y, incy, ap);
+}
+static void w_dspr2(fb_layout_t lay, fb_uplo_t up, int n, double a,
+                    const double *x, int incx, const double *y, int incy,
+                    double *ap) {
+  (void)lay;
+  cblas_dspr2(FU(up), n, a, x, incx, y, incy, ap);
+}
 static void w_chpr2(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_float_t a,
                     const fb_complex_float_t *x, int incx,
                     const fb_complex_float_t *y, int incy,
                     fb_complex_float_t *ap) {
     (void)lay;
-    chpr2_ref(FU(up), n, (float_complex)a,
-              (const float_complex *)x, incx, (const float_complex *)y, incy,
-              (float_complex *)ap);
+    cblas_chpr2(FU(up), n, (float_complex)a, (const float_complex *)x, incx,
+                (const float_complex *)y, incy, (float_complex *)ap);
 }
 static void w_zhpr2(fb_layout_t lay, fb_uplo_t up, int n,
                     fb_complex_double_t a,
@@ -583,9 +672,8 @@ static void w_zhpr2(fb_layout_t lay, fb_uplo_t up, int n,
                     const fb_complex_double_t *y, int incy,
                     fb_complex_double_t *ap) {
     (void)lay;
-    zhpr2_ref(FU(up), n, (double_complex)a,
-              (const double_complex *)x, incx, (const double_complex *)y, incy,
-              (double_complex *)ap);
+    cblas_zhpr2(FU(up), n, (double_complex)a, (const double_complex *)x, incx,
+                (const double_complex *)y, incy, (double_complex *)ap);
 }
 
 /* ============================================================================
@@ -593,18 +681,18 @@ static void w_zhpr2(fb_layout_t lay, fb_uplo_t up, int n,
  * ========================================================================= */
 
 /* --- GEMM ---------------------------------------------------------------- */
-static void w_sgemm(fb_layout_t lay,
-                    fb_transpose_t ta, fb_transpose_t tb,
-                    int m, int n, int k, float a,
-                    const float *A, int lda, const float *B, int ldb,
-                    float b, float *C, int ldc)
-    { (void)lay; sgemm_ref(FC(ta), FC(tb), m, n, k, a, A, lda, B, ldb, b, C, ldc); }
-static void w_dgemm(fb_layout_t lay,
-                    fb_transpose_t ta, fb_transpose_t tb,
-                    int m, int n, int k, double a,
-                    const double *A, int lda, const double *B, int ldb,
-                    double b, double *C, int ldc)
-    { (void)lay; dgemm_ref(FC(ta), FC(tb), m, n, k, a, A, lda, B, ldb, b, C, ldc); }
+static void w_sgemm(fb_layout_t lay, fb_transpose_t ta, fb_transpose_t tb,
+                    int m, int n, int k, float a, const float *A, int lda,
+                    const float *B, int ldb, float b, float *C, int ldc) {
+  (void)lay;
+  cblas_sgemm(FC(ta), FC(tb), m, n, k, a, A, lda, B, ldb, b, C, ldc);
+}
+static void w_dgemm(fb_layout_t lay, fb_transpose_t ta, fb_transpose_t tb,
+                    int m, int n, int k, double a, const double *A, int lda,
+                    const double *B, int ldb, double b, double *C, int ldc) {
+  (void)lay;
+  cblas_dgemm(FC(ta), FC(tb), m, n, k, a, A, lda, B, ldb, b, C, ldc);
+}
 static void w_cgemm(fb_layout_t lay,
                     fb_transpose_t ta, fb_transpose_t tb,
                     int m, int n, int k,
@@ -614,9 +702,9 @@ static void w_cgemm(fb_layout_t lay,
                     fb_complex_float_t b,
                     fb_complex_float_t *C, int ldc) {
     (void)lay;
-    cgemm_ref(FC(ta), FC(tb), m, n, k, (float_complex)a,
-              (const float_complex *)A, lda, (const float_complex *)B, ldb,
-              (float_complex)b, (float_complex *)C, ldc);
+    cblas_cgemm(FC(ta), FC(tb), m, n, k, (float_complex)a,
+                (const float_complex *)A, lda, (const float_complex *)B, ldb,
+                (float_complex)b, (float_complex *)C, ldc);
 }
 static void w_zgemm(fb_layout_t lay,
                     fb_transpose_t ta, fb_transpose_t tb,
@@ -627,31 +715,33 @@ static void w_zgemm(fb_layout_t lay,
                     fb_complex_double_t b,
                     fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zgemm_ref(FC(ta), FC(tb), m, n, k, (double_complex)a,
-              (const double_complex *)A, lda, (const double_complex *)B, ldb,
-              (double_complex)b, (double_complex *)C, ldc);
+    cblas_zgemm(FC(ta), FC(tb), m, n, k, (double_complex)a,
+                (const double_complex *)A, lda, (const double_complex *)B, ldb,
+                (double_complex)b, (double_complex *)C, ldc);
 }
 
 /* --- SYMM / HEMM --------------------------------------------------------- */
-static void w_ssymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    int m, int n, float a,
-                    const float *A, int lda, const float *B, int ldb,
-                    float b, float *C, int ldc)
-    { (void)lay; ssymm_ref(FS(si), FU(up), m, n, a, A, lda, B, ldb, b, C, ldc); }
-static void w_dsymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    int m, int n, double a,
-                    const double *A, int lda, const double *B, int ldb,
-                    double b, double *C, int ldc)
-    { (void)lay; dsymm_ref(FS(si), FU(up), m, n, a, A, lda, B, ldb, b, C, ldc); }
+static void w_ssymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up, int m, int n,
+                    float a, const float *A, int lda, const float *B, int ldb,
+                    float b, float *C, int ldc) {
+  (void)lay;
+  cblas_ssymm(FS(si), FU(up), m, n, a, A, lda, B, ldb, b, C, ldc);
+}
+static void w_dsymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up, int m, int n,
+                    double a, const double *A, int lda, const double *B,
+                    int ldb, double b, double *C, int ldc) {
+  (void)lay;
+  cblas_dsymm(FS(si), FU(up), m, n, a, A, lda, B, ldb, b, C, ldc);
+}
 static void w_csymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     int m, int n, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     const fb_complex_float_t *B, int ldb,
                     fb_complex_float_t b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    csymm_ref(FS(si), FU(up), m, n, (float_complex)a,
-              (const float_complex *)A, lda, (const float_complex *)B, ldb,
-              (float_complex)b, (float_complex *)C, ldc);
+    cblas_csymm(FS(si), FU(up), m, n, (float_complex)a,
+                (const float_complex *)A, lda, (const float_complex *)B, ldb,
+                (float_complex)b, (float_complex *)C, ldc);
 }
 static void w_zsymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     int m, int n, fb_complex_double_t a,
@@ -659,9 +749,9 @@ static void w_zsymm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     const fb_complex_double_t *B, int ldb,
                     fb_complex_double_t b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zsymm_ref(FS(si), FU(up), m, n, (double_complex)a,
-              (const double_complex *)A, lda, (const double_complex *)B, ldb,
-              (double_complex)b, (double_complex *)C, ldc);
+    cblas_zsymm(FS(si), FU(up), m, n, (double_complex)a,
+                (const double_complex *)A, lda, (const double_complex *)B, ldb,
+                (double_complex)b, (double_complex *)C, ldc);
 }
 static void w_chemm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     int m, int n, fb_complex_float_t a,
@@ -669,9 +759,9 @@ static void w_chemm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     const fb_complex_float_t *B, int ldb,
                     fb_complex_float_t b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    chemm_ref(FS(si), FU(up), m, n, (float_complex)a,
-              (const float_complex *)A, lda, (const float_complex *)B, ldb,
-              (float_complex)b, (float_complex *)C, ldc);
+    cblas_chemm(FS(si), FU(up), m, n, (float_complex)a,
+                (const float_complex *)A, lda, (const float_complex *)B, ldb,
+                (float_complex)b, (float_complex *)C, ldc);
 }
 static void w_zhemm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     int m, int n, fb_complex_double_t a,
@@ -679,75 +769,81 @@ static void w_zhemm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     const fb_complex_double_t *B, int ldb,
                     fb_complex_double_t b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zhemm_ref(FS(si), FU(up), m, n, (double_complex)a,
-              (const double_complex *)A, lda, (const double_complex *)B, ldb,
-              (double_complex)b, (double_complex *)C, ldc);
+    cblas_zhemm(FS(si), FU(up), m, n, (double_complex)a,
+                (const double_complex *)A, lda, (const double_complex *)B, ldb,
+                (double_complex)b, (double_complex *)C, ldc);
 }
 
 /* --- SYRK / HERK --------------------------------------------------------- */
-static void w_ssyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    int n, int k, float a, const float *A, int lda,
-                    float b, float *C, int ldc)
-    { (void)lay; ssyrk_ref(FU(up), FC(tr), n, k, a, A, lda, b, C, ldc); }
-static void w_dsyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                    int n, int k, double a, const double *A, int lda,
-                    double b, double *C, int ldc)
-    { (void)lay; dsyrk_ref(FU(up), FC(tr), n, k, a, A, lda, b, C, ldc); }
+static void w_ssyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr, int n,
+                    int k, float a, const float *A, int lda, float b, float *C,
+                    int ldc) {
+  (void)lay;
+  cblas_ssyrk(FU(up), FC(tr), n, k, a, A, lda, b, C, ldc);
+}
+static void w_dsyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr, int n,
+                    int k, double a, const double *A, int lda, double b,
+                    double *C, int ldc) {
+  (void)lay;
+  cblas_dsyrk(FU(up), FC(tr), n, k, a, A, lda, b, C, ldc);
+}
 static void w_csyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     int n, int k, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    csyrk_ref(FU(up), FC(tr), n, k, (float_complex)a,
-              (const float_complex *)A, lda, (float_complex)b,
-              (float_complex *)C, ldc);
+    cblas_csyrk(FU(up), FC(tr), n, k, (float_complex)a,
+                (const float_complex *)A, lda, (float_complex)b,
+                (float_complex *)C, ldc);
 }
 static void w_zsyrk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     int n, int k, fb_complex_double_t a,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zsyrk_ref(FU(up), FC(tr), n, k, (double_complex)a,
-              (const double_complex *)A, lda, (double_complex)b,
-              (double_complex *)C, ldc);
+    cblas_zsyrk(FU(up), FC(tr), n, k, (double_complex)a,
+                (const double_complex *)A, lda, (double_complex)b,
+                (double_complex *)C, ldc);
 }
 static void w_cherk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     int n, int k, float a,
                     const fb_complex_float_t *A, int lda,
                     float b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    cherk_ref(FU(up), FC(tr), n, k, a, (const float_complex *)A, lda,
-              b, (float_complex *)C, ldc);
+    cblas_cherk(FU(up), FC(tr), n, k, a, (const float_complex *)A, lda, b,
+                (float_complex *)C, ldc);
 }
 static void w_zherk(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                     int n, int k, double a,
                     const fb_complex_double_t *A, int lda,
                     double b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zherk_ref(FU(up), FC(tr), n, k, a, (const double_complex *)A, lda,
-              b, (double_complex *)C, ldc);
+    cblas_zherk(FU(up), FC(tr), n, k, a, (const double_complex *)A, lda, b,
+                (double_complex *)C, ldc);
 }
 
 /* --- SYR2K / HER2K ------------------------------------------------------- */
-static void w_ssyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                     int n, int k, float a,
-                     const float *A, int lda, const float *B, int ldb,
-                     float b, float *C, int ldc)
-    { (void)lay; ssyr2k_ref(FU(up), FC(tr), n, k, a, A, lda, B, ldb, b, C, ldc); }
-static void w_dsyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
-                     int n, int k, double a,
-                     const double *A, int lda, const double *B, int ldb,
-                     double b, double *C, int ldc)
-    { (void)lay; dsyr2k_ref(FU(up), FC(tr), n, k, a, A, lda, B, ldb, b, C, ldc); }
+static void w_ssyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr, int n,
+                     int k, float a, const float *A, int lda, const float *B,
+                     int ldb, float b, float *C, int ldc) {
+  (void)lay;
+  cblas_ssyr2k(FU(up), FC(tr), n, k, a, A, lda, B, ldb, b, C, ldc);
+}
+static void w_dsyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr, int n,
+                     int k, double a, const double *A, int lda, const double *B,
+                     int ldb, double b, double *C, int ldc) {
+  (void)lay;
+  cblas_dsyr2k(FU(up), FC(tr), n, k, a, A, lda, B, ldb, b, C, ldc);
+}
 static void w_csyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      int n, int k, fb_complex_float_t a,
                      const fb_complex_float_t *A, int lda,
                      const fb_complex_float_t *B, int ldb,
                      fb_complex_float_t b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    csyr2k_ref(FU(up), FC(tr), n, k, (float_complex)a,
-               (const float_complex *)A, lda, (const float_complex *)B, ldb,
-               (float_complex)b, (float_complex *)C, ldc);
+    cblas_csyr2k(FU(up), FC(tr), n, k, (float_complex)a,
+                 (const float_complex *)A, lda, (const float_complex *)B, ldb,
+                 (float_complex)b, (float_complex *)C, ldc);
 }
 static void w_zsyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      int n, int k, fb_complex_double_t a,
@@ -755,9 +851,9 @@ static void w_zsyr2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      const fb_complex_double_t *B, int ldb,
                      fb_complex_double_t b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zsyr2k_ref(FU(up), FC(tr), n, k, (double_complex)a,
-               (const double_complex *)A, lda, (const double_complex *)B, ldb,
-               (double_complex)b, (double_complex *)C, ldc);
+    cblas_zsyr2k(FU(up), FC(tr), n, k, (double_complex)a,
+                 (const double_complex *)A, lda, (const double_complex *)B, ldb,
+                 (double_complex)b, (double_complex *)C, ldc);
 }
 static void w_cher2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      int n, int k, fb_complex_float_t a,
@@ -765,9 +861,9 @@ static void w_cher2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      const fb_complex_float_t *B, int ldb,
                      float b, fb_complex_float_t *C, int ldc) {
     (void)lay;
-    cher2k_ref(FU(up), FC(tr), n, k, (float_complex)a,
-               (const float_complex *)A, lda, (const float_complex *)B, ldb,
-               b, (float_complex *)C, ldc);
+    cblas_cher2k(FU(up), FC(tr), n, k, (float_complex)a,
+                 (const float_complex *)A, lda, (const float_complex *)B, ldb,
+                 b, (float_complex *)C, ldc);
 }
 static void w_zher2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      int n, int k, fb_complex_double_t a,
@@ -775,30 +871,32 @@ static void w_zher2k(fb_layout_t lay, fb_uplo_t up, fb_transpose_t tr,
                      const fb_complex_double_t *B, int ldb,
                      double b, fb_complex_double_t *C, int ldc) {
     (void)lay;
-    zher2k_ref(FU(up), FC(tr), n, k, (double_complex)a,
-               (const double_complex *)A, lda, (const double_complex *)B, ldb,
-               b, (double_complex *)C, ldc);
+    cblas_zher2k(FU(up), FC(tr), n, k, (double_complex)a,
+                 (const double_complex *)A, lda, (const double_complex *)B, ldb,
+                 b, (double_complex *)C, ldc);
 }
 
 /* --- TRMM ---------------------------------------------------------------- */
 static void w_strmm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    fb_transpose_t tr, fb_diag_t dg,
-                    int m, int n, float a,
-                    const float *A, int lda, float *B, int ldb)
-    { (void)lay; strmm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb); }
+                    fb_transpose_t tr, fb_diag_t dg, int m, int n, float a,
+                    const float *A, int lda, float *B, int ldb) {
+  (void)lay;
+  cblas_strmm(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb);
+}
 static void w_dtrmm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    fb_transpose_t tr, fb_diag_t dg,
-                    int m, int n, double a,
-                    const double *A, int lda, double *B, int ldb)
-    { (void)lay; dtrmm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb); }
+                    fb_transpose_t tr, fb_diag_t dg, int m, int n, double a,
+                    const double *A, int lda, double *B, int ldb) {
+  (void)lay;
+  cblas_dtrmm(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb);
+}
 static void w_ctrmm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     fb_transpose_t tr, fb_diag_t dg,
                     int m, int n, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *B, int ldb) {
     (void)lay;
-    ctrmm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, (float_complex)a,
-              (const float_complex *)A, lda, (float_complex *)B, ldb);
+    cblas_ctrmm(FS(si), FU(up), FC(tr), FD(dg), m, n, (float_complex)a,
+                (const float_complex *)A, lda, (float_complex *)B, ldb);
 }
 static void w_ztrmm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     fb_transpose_t tr, fb_diag_t dg,
@@ -806,29 +904,31 @@ static void w_ztrmm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *B, int ldb) {
     (void)lay;
-    ztrmm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, (double_complex)a,
-              (const double_complex *)A, lda, (double_complex *)B, ldb);
+    cblas_ztrmm(FS(si), FU(up), FC(tr), FD(dg), m, n, (double_complex)a,
+                (const double_complex *)A, lda, (double_complex *)B, ldb);
 }
 
 /* --- TRSM ---------------------------------------------------------------- */
 static void w_strsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    fb_transpose_t tr, fb_diag_t dg,
-                    int m, int n, float a,
-                    const float *A, int lda, float *B, int ldb)
-    { (void)lay; strsm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb); }
+                    fb_transpose_t tr, fb_diag_t dg, int m, int n, float a,
+                    const float *A, int lda, float *B, int ldb) {
+  (void)lay;
+  cblas_strsm(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb);
+}
 static void w_dtrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
-                    fb_transpose_t tr, fb_diag_t dg,
-                    int m, int n, double a,
-                    const double *A, int lda, double *B, int ldb)
-    { (void)lay; dtrsm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb); }
+                    fb_transpose_t tr, fb_diag_t dg, int m, int n, double a,
+                    const double *A, int lda, double *B, int ldb) {
+  (void)lay;
+  cblas_dtrsm(FS(si), FU(up), FC(tr), FD(dg), m, n, a, A, lda, B, ldb);
+}
 static void w_ctrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     fb_transpose_t tr, fb_diag_t dg,
                     int m, int n, fb_complex_float_t a,
                     const fb_complex_float_t *A, int lda,
                     fb_complex_float_t *B, int ldb) {
     (void)lay;
-    ctrsm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, (float_complex)a,
-              (const float_complex *)A, lda, (float_complex *)B, ldb);
+    cblas_ctrsm(FS(si), FU(up), FC(tr), FD(dg), m, n, (float_complex)a,
+                (const float_complex *)A, lda, (float_complex *)B, ldb);
 }
 static void w_ztrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     fb_transpose_t tr, fb_diag_t dg,
@@ -836,8 +936,8 @@ static void w_ztrsm(fb_layout_t lay, fb_side_t si, fb_uplo_t up,
                     const fb_complex_double_t *A, int lda,
                     fb_complex_double_t *B, int ldb) {
     (void)lay;
-    ztrsm_ref(FS(si), FU(up), FC(tr), FD(dg), m, n, (double_complex)a,
-              (const double_complex *)A, lda, (double_complex *)B, ldb);
+    cblas_ztrsm(FS(si), FU(up), FC(tr), FD(dg), m, n, (double_complex)a,
+                (const double_complex *)A, lda, (double_complex *)B, ldb);
 }
 
 /* ============================================================================
@@ -880,31 +980,31 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.info.min_efficient_size = 0;
 
     /* ---- Level 1: direct casts (identical signatures) ---- */
-    vt.scopy   = (fb_scopy_fn)scopy_ref;
-    vt.dcopy   = (fb_dcopy_fn)dcopy_ref;
-    vt.ccopy   = (fb_ccopy_fn)ccopy_ref;
-    vt.zcopy   = (fb_zcopy_fn)zcopy_ref;
+    vt.scopy = (fb_scopy_fn)cblas_scopy;
+    vt.dcopy = (fb_dcopy_fn)cblas_dcopy;
+    vt.ccopy = (fb_ccopy_fn)cblas_ccopy;
+    vt.zcopy = (fb_zcopy_fn)cblas_zcopy;
 
-    vt.sswap   = (fb_sswap_fn)sswap_ref;
-    vt.dswap   = (fb_dswap_fn)dswap_ref;
-    vt.cswap   = (fb_cswap_fn)cswap_ref;
-    vt.zswap   = (fb_zswap_fn)zswap_ref;
+    vt.sswap = (fb_sswap_fn)cblas_sswap;
+    vt.dswap = (fb_dswap_fn)cblas_dswap;
+    vt.cswap = (fb_cswap_fn)cblas_cswap;
+    vt.zswap = (fb_zswap_fn)cblas_zswap;
 
-    vt.sscal   = (fb_sscal_fn)sscal_ref;
-    vt.dscal   = (fb_dscal_fn)dscal_ref;
-    vt.cscal   = (fb_cscal_fn)cscal_ref;
-    vt.zscal   = (fb_zscal_fn)zscal_ref;
-    vt.csscal  = (fb_csscal_fn)csscal_ref;
-    vt.zdscal  = (fb_zdscal_fn)zdscal_ref;
+    vt.sscal = (fb_sscal_fn)cblas_sscal;
+    vt.dscal = (fb_dscal_fn)cblas_dscal;
+    vt.cscal = w_cscal;
+    vt.zscal = w_zscal;
+    vt.csscal = (fb_csscal_fn)cblas_csscal;
+    vt.zdscal = (fb_zdscal_fn)cblas_zdscal;
 
-    vt.saxpy   = (fb_saxpy_fn)saxpy_ref;
-    vt.daxpy   = (fb_daxpy_fn)daxpy_ref;
-    vt.caxpy   = (fb_caxpy_fn)caxpy_ref;
-    vt.zaxpy   = (fb_zaxpy_fn)zaxpy_ref;
+    vt.saxpy = (fb_saxpy_fn)cblas_saxpy;
+    vt.daxpy = (fb_daxpy_fn)cblas_daxpy;
+    vt.caxpy = w_caxpy;
+    vt.zaxpy = w_zaxpy;
 
-    vt.sdot    = (fb_sdot_fn)sdot_ref;
-    vt.ddot    = (fb_ddot_fn)ddot_ref;
-    /* extended dot variants: sdsdot_ref/dsdot_ref are static inline; use exported CBLAS wrappers */
+    vt.sdot = (fb_sdot_fn)cblas_sdot;
+    vt.ddot = (fb_ddot_fn)cblas_ddot;
+    /* extended dot variants use exported CBLAS wrappers */
     vt.sdsdot  = (fb_sdsdot_fn)cblas_sdsdot;
     vt.dsdot   = (fb_dsdot_fn)cblas_dsdot;
     /* complex dot: result-pointer wrappers needed */
@@ -913,36 +1013,36 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.cdotc   = (fb_cdotc_fn)w_cdotc;
     vt.zdotc   = (fb_zdotc_fn)w_zdotc;
 
-    vt.snrm2   = (fb_snrm2_fn)snrm2_ref;
-    vt.dnrm2   = (fb_dnrm2_fn)dnrm2_ref;
-    vt.scnrm2  = (fb_scnrm2_fn)scnrm2_ref;
-    vt.dznrm2  = (fb_dznrm2_fn)cblas_dznrm2; /* dznrm2_ref is static inline; use exported CBLAS wrapper */
+    vt.snrm2 = (fb_snrm2_fn)cblas_snrm2;
+    vt.dnrm2 = (fb_dnrm2_fn)cblas_dnrm2;
+    vt.scnrm2 = (fb_scnrm2_fn)cblas_scnrm2;
+    vt.dznrm2 = (fb_dznrm2_fn)cblas_dznrm2;
 
-    vt.sasum   = (fb_sasum_fn)sasum_ref;
-    vt.dasum   = (fb_dasum_fn)dasum_ref;
-    vt.scasum  = (fb_scasum_fn)scasum_ref;
-    vt.dzasum  = (fb_dzasum_fn)dzasum_ref;
+    vt.sasum = (fb_sasum_fn)cblas_sasum;
+    vt.dasum = (fb_dasum_fn)cblas_dasum;
+    vt.scasum = (fb_scasum_fn)cblas_scasum;
+    vt.dzasum = (fb_dzasum_fn)cblas_dzasum;
 
-    vt.isamax  = (fb_isamax_fn)isamax_ref;
-    vt.idamax  = (fb_idamax_fn)idamax_ref;
-    vt.icamax  = (fb_icamax_fn)icamax_ref;
-    vt.izamax  = (fb_izamax_fn)izamax_ref;
+    vt.isamax = (fb_isamax_fn)cblas_isamax;
+    vt.idamax = (fb_idamax_fn)cblas_idamax;
+    vt.icamax = (fb_icamax_fn)cblas_icamax;
+    vt.izamax = (fb_izamax_fn)cblas_izamax;
 
-    vt.srotg   = (fb_srotg_fn)srotg_ref;
-    vt.drotg   = (fb_drotg_fn)drotg_ref;
-    vt.crotg   = (fb_crotg_fn)crotg_ref;
-    vt.zrotg   = (fb_zrotg_fn)zrotg_ref;
+    vt.srotg = (fb_srotg_fn)cblas_srotg;
+    vt.drotg = (fb_drotg_fn)cblas_drotg;
+    vt.crotg = (fb_crotg_fn)cblas_crotg;
+    vt.zrotg = (fb_zrotg_fn)cblas_zrotg;
 
-    vt.srot    = (fb_srot_fn)srot_ref;
-    vt.drot    = (fb_drot_fn)drot_ref;
-    vt.crot    = (fb_crot_fn)cblas_crot;  /* crot_ref is static inline; use exported CBLAS wrapper */
-    vt.zrot    = (fb_zrot_fn)cblas_zrot;  /* zrot_ref is static inline; use exported CBLAS wrapper */
-    vt.zdrot   = (fb_zdrot_fn)cblas_zdrot; /* zdrot_ref is static inline; use exported CBLAS wrapper */
+    vt.srot = (fb_srot_fn)cblas_srot;
+    vt.drot = (fb_drot_fn)cblas_drot;
+    vt.crot = (fb_crot_fn)cblas_crot;
+    vt.zrot = (fb_zrot_fn)cblas_zrot;
+    vt.zdrot = (fb_zdrot_fn)cblas_zdrot;
 
-    vt.srotmg  = (fb_srotmg_fn)srotmg_ref;
-    vt.drotmg  = (fb_drotmg_fn)drotmg_ref;
-    vt.srotm   = (fb_srotm_fn)srotm_ref;
-    vt.drotm   = (fb_drotm_fn)drotm_ref;
+    vt.srotmg = (fb_srotmg_fn)cblas_srotmg;
+    vt.drotmg = (fb_drotmg_fn)cblas_drotmg;
+    vt.srotm = (fb_srotm_fn)cblas_srotm;
+    vt.drotm = (fb_drotm_fn)cblas_drotm;
 
     /* ---- Level 2: enum-conversion wrappers ---- */
     vt.sgemv   = (fb_sgemv_fn)w_sgemv;
@@ -1086,17 +1186,40 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.cungqr = (fb_cungqr_fn)ref_cungqr;  vt.zungqr = (fb_zungqr_fn)ref_zungqr;
     /* Spectral (SYEV/HEEV/GESVD/GEEV): auxiliary routines not yet in
      * faster-blaster-reference (gehrd/hseqr/trevc/bdsqr/…); wire when they land */
-    vt.ssyev  = NULL;  vt.dsyev  = NULL;  vt.cheev  = NULL;  vt.zheev  = NULL;
-    vt.sgesvd = NULL;  vt.dgesvd = NULL;  vt.cgesvd = NULL;  vt.zgesvd = NULL;
-    vt.sgeev  = NULL;  vt.dgeev  = NULL;  vt.cgeev  = NULL;  vt.zgeev  = NULL;
+    vt.ssyev = (fb_ssyev_fn)ref_ssyev;
+    vt.dsyev = (fb_dsyev_fn)ref_dsyev;
+    vt.cheev = (fb_cheev_fn)ref_cheev;
+    vt.zheev = (fb_zheev_fn)ref_zheev;
+    vt.sgesvd = (fb_sgesvd_fn)ref_sgesvd;
+    vt.dgesvd = (fb_dgesvd_fn)ref_dgesvd;
+    vt.cgesvd = (fb_cgesvd_fn)ref_cgesvd;
+    vt.zgesvd = (fb_zgesvd_fn)ref_zgesvd;
+    vt.sgeev = (fb_sgeev_fn)ref_sgeev;
+    vt.dgeev = (fb_dgeev_fn)ref_dgeev;
+    vt.cgeev = (fb_cgeev_fn)ref_cgeev;
+    vt.zgeev = (fb_zgeev_fn)ref_zgeev;
     /* Not yet implemented in faster-blaster-reference */
-    vt.sgels   = NULL;  vt.dgels   = NULL;  vt.cgels   = NULL;  vt.zgels   = NULL;
-    vt.sormqr  = NULL;  vt.dormqr  = NULL;  vt.cunmqr  = NULL;  vt.zunmqr  = NULL;
-    vt.sgelsd  = NULL;  vt.dgelsd  = NULL;  vt.cgelsd  = NULL;  vt.zgelsd  = NULL;
-    vt.strtri  = NULL;  vt.dtrtri  = NULL;  vt.ctrtri  = NULL;  vt.ztrtri  = NULL;
-    vt.sgesdd  = NULL;  vt.dgesdd  = NULL;  vt.cgesdd  = NULL;  vt.zgesdd  = NULL;
-    vt.ssygv   = NULL;  vt.dsygv   = NULL;  vt.chegv   = NULL;  vt.zhegv   = NULL;
-    vt.sgelsy  = NULL;  vt.dgelsy  = NULL;  vt.cgelsy  = NULL;  vt.zgelsy  = NULL;
+    vt.sgels  = NULL;   vt.dgels  = NULL;   vt.cgels  = NULL;   vt.zgels  = NULL;
+    vt.sormqr = (fb_sormqr_fn)ref_sormqr;  vt.dormqr = (fb_dormqr_fn)ref_dormqr;
+    vt.cunmqr = NULL;   vt.zunmqr = NULL;
+    vt.sgelsd = NULL;   vt.dgelsd = NULL;   vt.cgelsd = NULL;   vt.zgelsd = NULL;
+    vt.strtri = (fb_strtri_fn)ref_strtri;  vt.dtrtri = (fb_dtrtri_fn)ref_dtrtri;
+    vt.ctrtri = (fb_ctrtri_fn)ref_ctrtri;  vt.ztrtri = (fb_ztrtri_fn)ref_ztrtri;
+    vt.sgesdd = (fb_sgesdd_fn)ref_sgesdd;
+    vt.dgesdd = (fb_dgesdd_fn)ref_dgesdd;
+    vt.cgesdd = NULL;
+    vt.zgesdd = NULL;
+    vt.ssygv = (fb_ssygv_fn)ref_ssygv;
+    vt.dsygv = (fb_dsygv_fn)ref_dsygv;
+    vt.chegv = NULL;
+    vt.zhegv = NULL;
+    vt.sgelsy = NULL;   vt.dgelsy = NULL;   vt.cgelsy = NULL;   vt.zgelsy = NULL;
+    /* GESV — compound factorization+solve */
+    vt.sgesv = (fb_sgesv_fn)ref_sgesv;  vt.dgesv = (fb_dgesv_fn)ref_dgesv;
+    vt.cgesv = (fb_cgesv_fn)ref_cgesv;  vt.zgesv = (fb_zgesv_fn)ref_zgesv;
+    /* POSV — compound Cholesky+solve */
+    vt.sposv = (fb_sposv_fn)ref_sposv;  vt.dposv = (fb_dposv_fn)ref_dposv;
+    vt.cposv = (fb_cposv_fn)ref_cposv;  vt.zposv = (fb_zposv_fn)ref_zposv;
 
     /* ---- GPU memory management (not needed for CPU reference) ---- */
     vt.mem_alloc      = NULL;
