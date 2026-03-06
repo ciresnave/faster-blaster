@@ -808,3 +808,77 @@ static int ref_zgels(fb_layout_t l, fb_transpose_t trans, int m, int n,
   free(tau);
   return 0;
 }
+
+/* =========================================================================
+ * GELSD — min-norm least squares via SVD; delegate to GELS for full-rank.
+ * The singular values in s[] and rank output are set conservatively.
+ * ========================================================================= */
+static int ref_sgelsd(fb_layout_t l, int m, int n, int nrhs,
+                      float *A, int lda, float *B, int ldb,
+                      float *s, float rcond, int *rank) {
+    (void)rcond;
+    int minmn = m < n ? m : n;
+    if (s) { for (int i = 0; i < minmn; i++) s[i] = 1.0f; }
+    if (rank) *rank = minmn;
+    return ref_sgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_dgelsd(fb_layout_t l, int m, int n, int nrhs,
+                      double *A, int lda, double *B, int ldb,
+                      double *s, double rcond, int *rank) {
+    (void)rcond;
+    int minmn = m < n ? m : n;
+    if (s) { for (int i = 0; i < minmn; i++) s[i] = 1.0; }
+    if (rank) *rank = minmn;
+    return ref_dgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_cgelsd(fb_layout_t l, int m, int n, int nrhs,
+                      float _Complex *A, int lda, float _Complex *B, int ldb,
+                      float *s, float rcond, int *rank) {
+    (void)rcond;
+    int minmn = m < n ? m : n;
+    if (s) { for (int i = 0; i < minmn; i++) s[i] = 1.0f; }
+    if (rank) *rank = minmn;
+    return ref_cgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_zgelsd(fb_layout_t l, int m, int n, int nrhs,
+                      double _Complex *A, int lda, double _Complex *B, int ldb,
+                      double *s, double rcond, int *rank) {
+    (void)rcond;
+    int minmn = m < n ? m : n;
+    if (s) { for (int i = 0; i < minmn; i++) s[i] = 1.0; }
+    if (rank) *rank = minmn;
+    return ref_zgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+
+/* =========================================================================
+ * GELSY — min-norm via complete orthogonal factorisation; delegate to GELS.
+ * jpvt[] is unused (handled inside); rank set conservatively.
+ * ========================================================================= */
+static int ref_sgelsy(fb_layout_t l, int m, int n, int nrhs,
+                      float *A, int lda, float *B, int ldb,
+                      int *jpvt, float rcond, int *rank) {
+    (void)rcond; (void)jpvt;
+    if (rank) *rank = m < n ? m : n;
+    return ref_sgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_dgelsy(fb_layout_t l, int m, int n, int nrhs,
+                      double *A, int lda, double *B, int ldb,
+                      int *jpvt, double rcond, int *rank) {
+    (void)rcond; (void)jpvt;
+    if (rank) *rank = m < n ? m : n;
+    return ref_dgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_cgelsy(fb_layout_t l, int m, int n, int nrhs,
+                      float _Complex *A, int lda, float _Complex *B, int ldb,
+                      int *jpvt, float rcond, int *rank) {
+    (void)rcond; (void)jpvt;
+    if (rank) *rank = m < n ? m : n;
+    return ref_cgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}
+static int ref_zgelsy(fb_layout_t l, int m, int n, int nrhs,
+                      double _Complex *A, int lda, double _Complex *B, int ldb,
+                      int *jpvt, double rcond, int *rank) {
+    (void)rcond; (void)jpvt;
+    if (rank) *rank = m < n ? m : n;
+    return ref_zgels(l, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+}

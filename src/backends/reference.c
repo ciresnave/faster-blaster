@@ -1205,7 +1205,8 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.zgels = (fb_zgels_fn)ref_zgels;
     vt.sormqr = (fb_sormqr_fn)ref_sormqr;  vt.dormqr = (fb_dormqr_fn)ref_dormqr;
     vt.cunmqr = NULL;   vt.zunmqr = NULL;
-    vt.sgelsd = NULL;   vt.dgelsd = NULL;   vt.cgelsd = NULL;   vt.zgelsd = NULL;
+    vt.sgelsd = (fb_sgelsd_fn)ref_sgelsd;  vt.dgelsd = (fb_dgelsd_fn)ref_dgelsd;
+    vt.cgelsd = (fb_cgelsd_fn)ref_cgelsd;  vt.zgelsd = (fb_zgelsd_fn)ref_zgelsd;
     vt.strtri = (fb_strtri_fn)ref_strtri;  vt.dtrtri = (fb_dtrtri_fn)ref_dtrtri;
     vt.ctrtri = (fb_ctrtri_fn)ref_ctrtri;  vt.ztrtri = (fb_ztrtri_fn)ref_ztrtri;
     vt.sgesdd = (fb_sgesdd_fn)ref_sgesdd;
@@ -1216,7 +1217,8 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.dsygv = (fb_dsygv_fn)ref_dsygv;
     vt.chegv = NULL;
     vt.zhegv = NULL;
-    vt.sgelsy = NULL;   vt.dgelsy = NULL;   vt.cgelsy = NULL;   vt.zgelsy = NULL;
+    vt.sgelsy = (fb_sgelsy_fn)ref_sgelsy;  vt.dgelsy = (fb_dgelsy_fn)ref_dgelsy;
+    vt.cgelsy = (fb_cgelsy_fn)ref_cgelsy;  vt.zgelsy = (fb_zgelsy_fn)ref_zgelsy;
     /* GESV — compound factorization+solve */
     vt.sgesv = (fb_sgesv_fn)ref_sgesv;  vt.dgesv = (fb_dgesv_fn)ref_dgesv;
     vt.cgesv = (fb_cgesv_fn)ref_cgesv;  vt.zgesv = (fb_zgesv_fn)ref_zgesv;

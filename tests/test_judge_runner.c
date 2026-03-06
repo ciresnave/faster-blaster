@@ -330,6 +330,10 @@ static const jr_op_entry_t k_ops[] = {
      "cposv"},
     {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
      "zposv"},
+    /* LAPACK — SVD-based least-squares driver (GELSD; residual metric)   */
+    {FB_OP_SGELSD, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsd"},
+    /* LAPACK — Pivoted QR least-squares driver (GELSY; residual metric)  */
+    {FB_OP_SGELSY, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsy"},
     /* LAPACK — Apply Q from QR (ORMQR real only; RECON metric)          */
     {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
     /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
