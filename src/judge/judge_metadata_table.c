@@ -185,6 +185,12 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
      * Rank‑1 update (GER, HER) inherits same bounds.
      * ----------------------------------------------------------------- */
 
+    /* GBMV — banded general matrix-vector multiply (same bounds as GEMV) */
+    DIRECT_ENTRY(FB_OP_SGBMV, 5, 12),
+    DIRECT_ENTRY(FB_OP_DGBMV, 5, 12),
+    DIRECT_ENTRY(FB_OP_CGBMV, 5, 12),
+    DIRECT_ENTRY(FB_OP_ZGBMV, 5, 12),
+
     /* GEMV */
     DIRECT_ENTRY(FB_OP_SGEMV, 5, 12),
     DIRECT_ENTRY(FB_OP_DGEMV, 5, 12),
@@ -361,6 +367,22 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     FACTOR_ENTRY(FB_OP_DGEQRF, 4, 10),
     FACTOR_ENTRY(FB_OP_CGEQRF, 4, 10),
     FACTOR_ENTRY(FB_OP_ZGEQRF, 4, 10),
+
+    /* Q-factor recovery (ORGQR / UNGQR) — orthogonality residual */
+    FACTOR_ENTRY(FB_OP_SORGQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_DORGQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_CUNGQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZUNGQR, 4, 10),
+
+    /* Q-apply (ORMQR / UNMQR) — reconstruction residual */
+    FACTOR_ENTRY(FB_OP_SORMQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_DORMQR, 4, 10),
+
+    /* Triangular inversion (TRTRI) — reconstruction residual */
+    FACTOR_ENTRY(FB_OP_STRTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_DTRTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_CTRTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZTRTRI, 4, 10),
 
     /* Symmetric/Hermitian indefinite factorisation (SYTRF) */
     FACTOR_ENTRY(FB_OP_SSYTRF, 4, 10),
