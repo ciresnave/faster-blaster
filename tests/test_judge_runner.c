@@ -334,10 +334,14 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_SGELSD, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsd"},
     /* LAPACK — Pivoted QR least-squares driver (GELSY; residual metric)  */
     {FB_OP_SGELSY, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsy"},
-    /* LAPACK — Apply Q from QR (ORMQR real only; RECON metric)          */
+    /* LAPACK — Apply Q from QR (RECON metric)                           */
     {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
+    {FB_OP_DORMQR, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
     /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
-    {FB_OP_STRTRI, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "strtri"},
+    {FB_OP_STRTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "strtri"},
+    {FB_OP_DTRTRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dtrtri"},
+    {FB_OP_CTRTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "ctrtri"},
+    {FB_OP_ZTRTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "ztrtri"},
     /* SPECTRAL — eigenvalue and singular-value decompositions.
      * Auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref, sbdsqr_ref,
      * chetrd_ref, steqr_ref, ...) are now present in faster-blaster-reference.
