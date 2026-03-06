@@ -1372,6 +1372,365 @@ static fb_judge_status_t run_sgelsy(
 
 
 /* =========================================================================
+ * DGELSD — double precision min-norm least squares via divide-and-conquer SVD
+ * ========================================================================= */
+static fb_judge_status_t run_dgelsd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->dgelsd || !cand->dgelsd) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const double *A0 = (const double*)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const double *b0 = (const double*)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    int minmn = m < n ? m : n;
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(double);
+    size_t Bsz = tc->B_elems * sizeof(double);
+    double *s_work = (double *)malloc((size_t)minmn * sizeof(double));
+    int rank_out = 0;
+    double *Ao = (double *)malloc(Asz), *Bo = (double *)malloc(Bsz);
+    if (!Ao || !Bo || !s_work) {
+        free(Ao); free(Bo); free(s_work); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz);
+    if (oracle->dgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       s_work, -1.0, &rank_out) != 0) {
+        free(Ao); free(Bo); free(s_work); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    double *Ac = (double *)malloc(Asz), *Bc = (double *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(s_work); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            (void)cand->dgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+    if (cand->dgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     s_work, -1.0, &rank_out) != 0) {
+        free(Ac); free(Bc); free(s_work); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_f64(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(minmn * 10);
+    free(Ac); free(Bc); free(s_work);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CGELSD — complex single precision min-norm least squares via SVD
+ * ========================================================================= */
+static fb_judge_status_t run_cgelsd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->cgelsd || !cand->cgelsd) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_float_t *A0 = (const fb_complex_float_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_float_t *b0 = (const fb_complex_float_t *)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    int minmn = m < n ? m : n;
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_float_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_float_t);
+    float *s_work = (float *)malloc((size_t)minmn * sizeof(float));
+    int rank_out = 0;
+    fb_complex_float_t *Ao = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bo = (fb_complex_float_t *)malloc(Bsz);
+    if (!Ao || !Bo || !s_work) {
+        free(Ao); free(Bo); free(s_work); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz);
+    if (oracle->cgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       s_work, -1.0f, &rank_out) != 0) {
+        free(Ao); free(Bo); free(s_work); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    fb_complex_float_t *Ac = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bc = (fb_complex_float_t *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(s_work); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            (void)cand->cgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0f, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0f, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+    if (cand->cgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     s_work, -1.0f, &rank_out) != 0) {
+        free(Ac); free(Bc); free(s_work); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf32(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(minmn * 10);
+    free(Ac); free(Bc); free(s_work);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZGELSD — complex double precision min-norm least squares via SVD
+ * ========================================================================= */
+static fb_judge_status_t run_zgelsd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->zgelsd || !cand->zgelsd) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_double_t *A0 = (const fb_complex_double_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_double_t *b0 = (const fb_complex_double_t *)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    int minmn = m < n ? m : n;
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_double_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_double_t);
+    double *s_work = (double *)malloc((size_t)minmn * sizeof(double));
+    int rank_out = 0;
+    fb_complex_double_t *Ao = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bo = (fb_complex_double_t *)malloc(Bsz);
+    if (!Ao || !Bo || !s_work) {
+        free(Ao); free(Bo); free(s_work); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz);
+    if (oracle->zgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       s_work, -1.0, &rank_out) != 0) {
+        free(Ao); free(Bo); free(s_work); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    fb_complex_double_t *Ac = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bc = (fb_complex_double_t *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(s_work); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            (void)cand->zgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               s_work, -1.0, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz);
+    if (cand->zgelsd(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     s_work, -1.0, &rank_out) != 0) {
+        free(Ac); free(Bc); free(s_work); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf64(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(minmn * 10);
+    free(Ac); free(Bc); free(s_work);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * DGELSY — double precision min-norm via complete orthogonal factorization
+ * ========================================================================= */
+static fb_judge_status_t run_dgelsy(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->dgelsy || !cand->dgelsy) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const double *A0 = (const double*)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const double *b0 = (const double*)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(double);
+    size_t Bsz = tc->B_elems * sizeof(double);
+    int *jpvt = (int *)calloc((size_t)n, sizeof(int));
+    int rank_out = 0;
+    double *Ao = (double *)malloc(Asz), *Bo = (double *)malloc(Bsz);
+    if (!Ao || !Bo || !jpvt) {
+        free(Ao); free(Bo); free(jpvt); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (oracle->dgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       jpvt, -1.0, &rank_out) != 0) {
+        free(Ao); free(Bo); free(jpvt); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    double *Ac = (double *)malloc(Asz), *Bc = (double *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(jpvt); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            (void)cand->dgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (cand->dgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     jpvt, -1.0, &rank_out) != 0) {
+        free(Ac); free(Bc); free(jpvt); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_f64(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(Ac); free(Bc); free(jpvt);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CGELSY — complex single precision min-norm via complete orthogonal factorization
+ * ========================================================================= */
+static fb_judge_status_t run_cgelsy(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->cgelsy || !cand->cgelsy) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_float_t *A0 = (const fb_complex_float_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_float_t *b0 = (const fb_complex_float_t *)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_float_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_float_t);
+    int *jpvt = (int *)calloc((size_t)n, sizeof(int));
+    int rank_out = 0;
+    fb_complex_float_t *Ao = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bo = (fb_complex_float_t *)malloc(Bsz);
+    if (!Ao || !Bo || !jpvt) {
+        free(Ao); free(Bo); free(jpvt); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (oracle->cgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       jpvt, -1.0f, &rank_out) != 0) {
+        free(Ao); free(Bo); free(jpvt); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    fb_complex_float_t *Ac = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bc = (fb_complex_float_t *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(jpvt); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            (void)cand->cgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0f, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0f, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (cand->cgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     jpvt, -1.0f, &rank_out) != 0) {
+        free(Ac); free(Bc); free(jpvt); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf32(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(Ac); free(Bc); free(jpvt);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZGELSY — complex double precision min-norm via complete orthogonal factorization
+ * ========================================================================= */
+static fb_judge_status_t run_zgelsy(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->zgelsy || !cand->zgelsy) return FB_JUDGE_ERR_NOT_IMPL;
+    int m = (int)tc->m, n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_double_t *A0 = (const fb_complex_double_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_double_t *b0 = (const fb_complex_double_t *)tc->B;
+    if (m <= 0 || n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)m * (size_t)lda * sizeof(fb_complex_double_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_double_t);
+    int *jpvt = (int *)calloc((size_t)n, sizeof(int));
+    int rank_out = 0;
+    fb_complex_double_t *Ao = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bo = (fb_complex_double_t *)malloc(Bsz);
+    if (!Ao || !Bo || !jpvt) {
+        free(Ao); free(Bo); free(jpvt); return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, A0, Asz); memcpy(Bo, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (oracle->zgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ao, lda, Bo, ldb,
+                       jpvt, -1.0, &rank_out) != 0) {
+        free(Ao); free(Bo); free(jpvt); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(Ao); free(Bo);
+    fb_complex_double_t *Ac = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bc = (fb_complex_double_t *)malloc(Bsz);
+    if (!Ac || !Bc) { free(Ac); free(Bc); free(jpvt); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            (void)cand->zgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0, &rank_out);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                               jpvt, -1.0, &rank_out);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Ac, A0, Asz); memcpy(Bc, b0, Bsz); memset(jpvt, 0, (size_t)n * sizeof(int));
+    if (cand->zgelsy(FB_LAYOUT_ROW_MAJOR, m, n, nrhs, Ac, lda, Bc, ldb,
+                     jpvt, -1.0, &rank_out) != 0) {
+        free(Ac); free(Bc); free(jpvt); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf64(A0, m, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(Ac); free(Bc); free(jpvt);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
  * Dispatch table
  * ========================================================================= */
 
@@ -1401,7 +1760,13 @@ static const fb_solve_runner_fn fb_solve_dispatch[] = {
     [FB_OP_CPOTRS] = run_cpotrs,
     [FB_OP_ZPOTRS] = run_zpotrs,
     [FB_OP_SGELSD] = run_sgelsd,
+    [FB_OP_DGELSD] = run_dgelsd,
+    [FB_OP_CGELSD] = run_cgelsd,
+    [FB_OP_ZGELSD] = run_zgelsd,
     [FB_OP_SGELSY] = run_sgelsy,
+    [FB_OP_DGELSY] = run_dgelsy,
+    [FB_OP_CGELSY] = run_cgelsy,
+    [FB_OP_ZGELSY] = run_zgelsy,
 };
 
 #define FB_SOLVE_DISPATCH_SIZE \

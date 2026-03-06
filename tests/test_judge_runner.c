@@ -331,9 +331,15 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
      "zposv"},
     /* LAPACK — SVD-based least-squares driver (GELSD; residual metric)   */
-    {FB_OP_SGELSD, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsd"},
+    {FB_OP_SGELSD, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgelsd"},
+    {FB_OP_DGELSD, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgelsd"},
+    {FB_OP_CGELSD, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgelsd"},
+    {FB_OP_ZGELSD, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgelsd"},
     /* LAPACK — Pivoted QR least-squares driver (GELSY; residual metric)  */
-    {FB_OP_SGELSY, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "sgelsy"},
+    {FB_OP_SGELSY, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgelsy"},
+    {FB_OP_DGELSY, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgelsy"},
+    {FB_OP_CGELSY, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgelsy"},
+    {FB_OP_ZGELSY, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgelsy"},
     /* LAPACK — Apply Q from QR (RECON metric)                           */
     {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
     {FB_OP_DORMQR, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
