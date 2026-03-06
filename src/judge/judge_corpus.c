@@ -404,7 +404,10 @@ static bool is_posdef_op(uint32_t op_id)
     return op_id == FB_OP_SPOTRF || op_id == FB_OP_DPOTRF ||
            op_id == FB_OP_CPOTRF || op_id == FB_OP_ZPOTRF ||
            op_id == FB_OP_SPOTRS || op_id == FB_OP_DPOTRS ||
-           op_id == FB_OP_CPOTRS || op_id == FB_OP_ZPOTRS;
+           op_id == FB_OP_CPOTRS || op_id == FB_OP_ZPOTRS ||
+           /* POSV driver also requires a positive-definite A */
+           op_id == FB_OP_SPOSV  || op_id == FB_OP_DPOSV  ||
+           op_id == FB_OP_CPOSV  || op_id == FB_OP_ZPOSV;
 }
 
 /* =========================================================================
