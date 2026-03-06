@@ -377,6 +377,8 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     /* Q-apply (ORMQR / UNMQR) — reconstruction residual */
     FACTOR_ENTRY(FB_OP_SORMQR, 4, 10),
     FACTOR_ENTRY(FB_OP_DORMQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_CUNMQR, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZUNMQR, 4, 10),
 
     /* Triangular inversion (TRTRI) — reconstruction residual */
     FACTOR_ENTRY(FB_OP_STRTRI, 4, 10),

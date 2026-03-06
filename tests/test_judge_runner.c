@@ -341,8 +341,10 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_CGELSY, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgelsy"},
     {FB_OP_ZGELSY, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgelsy"},
     /* LAPACK — Apply Q from QR (RECON metric)                           */
-    {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
-    {FB_OP_DORMQR, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
+    {FB_OP_SORMQR, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
+    {FB_OP_DORMQR, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
+    {FB_OP_CUNMQR, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cunmqr"},
+    {FB_OP_ZUNMQR, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zunmqr"},
     /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
     {FB_OP_STRTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "strtri"},
     {FB_OP_DTRTRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dtrtri"},

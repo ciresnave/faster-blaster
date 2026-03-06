@@ -1204,7 +1204,7 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.cgels = (fb_cgels_fn)ref_cgels;
     vt.zgels = (fb_zgels_fn)ref_zgels;
     vt.sormqr = (fb_sormqr_fn)ref_sormqr;  vt.dormqr = (fb_dormqr_fn)ref_dormqr;
-    vt.cunmqr = NULL;   vt.zunmqr = NULL;
+    vt.cunmqr = (fb_cunmqr_fn)ref_cunmqr;   vt.zunmqr = (fb_zunmqr_fn)ref_zunmqr;
     vt.sgelsd = (fb_sgelsd_fn)ref_sgelsd;  vt.dgelsd = (fb_dgelsd_fn)ref_dgelsd;
     vt.cgelsd = (fb_cgelsd_fn)ref_cgelsd;  vt.zgelsd = (fb_zgelsd_fn)ref_zgelsd;
     vt.strtri = (fb_strtri_fn)ref_strtri;  vt.dtrtri = (fb_dtrtri_fn)ref_dtrtri;

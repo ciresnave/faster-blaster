@@ -540,6 +540,248 @@ static int ref_dormqr(fb_layout_t l, fb_side_t side, fb_transpose_t trans,
     return info;
 }
 
+/* ---- CUNMQR / ZUNMQR — inline row-major implementations ---------------
+ * cunmqr_ref / zunmqr_ref in faster-blaster-reference use column-major
+ * indexing, which is incompatible with the row-major data in the judge.
+ * We implement Q-application inline here, following the sormqr_ref pattern
+ * (row-major: A[r*lda+c], C[r*ldc+c]) with complex arithmetic.
+ * H(i) = I - tau[i] * v_i * v_i^H  (unitary Householder)
+ * ----------------------------------------------------------------------- */
+static int ref_cunmqr(fb_layout_t l, fb_side_t side, fb_transpose_t trans,
+                      int m, int n, int k,
+                      const float _Complex *A, int lda, const float _Complex *tau,
+                      float _Complex *C, int ldc) {
+    (void)l;
+    if (m < 0 || n < 0 || k < 0) return -3;
+    if (lda < ((k > 1) ? k : 1)) return -7;
+    if (ldc < ((n > 1) ? n : 1)) return -10;
+    int use_conj = (trans == FB_CONJ_TRANS);
+    if (side == FB_LEFT) {
+        if (!use_conj) {
+            /* C := Q*C = H(1)...H(k)*C — apply in reverse order */
+            for (int i = k - 1; i >= 0; i--) {
+                float _Complex ti = tau[i];
+                float trs = (__real__ ti)*(__real__ ti) + (__imag__ ti)*(__imag__ ti);
+                if (trs == 0.0f) continue;
+                for (int j = 0; j < n; j++) {
+                    /* dot = v^H * C[:,j]: v[i]=1 (implicit), v[r]=conj(A[r*lda+i]) */
+                    float _Complex dot = C[i*ldc + j];
+                    for (int r = i + 1; r < m; r++) {
+                        float ar = __real__ A[r*lda + i],  ai = -(__imag__ A[r*lda + i]);
+                        float cr = __real__ C[r*ldc + j],  ci =  __imag__ C[r*ldc + j];
+                        __real__ dot += ar*cr - ai*ci;
+                        __imag__ dot += ar*ci + ai*cr;
+                    }
+                    /* fac = tau * dot */
+                    float fr = (__real__ ti)*(__real__ dot) - (__imag__ ti)*(__imag__ dot);
+                    float fi = (__real__ ti)*(__imag__ dot) + (__imag__ ti)*(__real__ dot);
+                    __real__ C[i*ldc + j] -= fr;
+                    __imag__ C[i*ldc + j] -= fi;
+                    for (int r = i + 1; r < m; r++) {
+                        float vr = __real__ A[r*lda + i], vi = __imag__ A[r*lda + i];
+                        __real__ C[r*ldc + j] -= fr*vr - fi*vi;
+                        __imag__ C[r*ldc + j] -= fr*vi + fi*vr;
+                    }
+                }
+            }
+        } else {
+            /* C := Q^H*C — apply H(i)^H in forward order; factor = conj(tau) */
+            for (int i = 0; i < k; i++) {
+                float _Complex ti = tau[i];
+                float trs = (__real__ ti)*(__real__ ti) + (__imag__ ti)*(__imag__ ti);
+                if (trs == 0.0f) continue;
+                for (int j = 0; j < n; j++) {
+                    float _Complex dot = C[i*ldc + j];
+                    for (int r = i + 1; r < m; r++) {
+                        float ar = __real__ A[r*lda + i],  ai = -(__imag__ A[r*lda + i]);
+                        float cr = __real__ C[r*ldc + j],  ci =  __imag__ C[r*ldc + j];
+                        __real__ dot += ar*cr - ai*ci;
+                        __imag__ dot += ar*ci + ai*cr;
+                    }
+                    /* fac = conj(tau) * dot */
+                    float tr2 = __real__ ti,  ti2 = -(__imag__ ti);
+                    float fr = tr2*(__real__ dot) - ti2*(__imag__ dot);
+                    float fi = tr2*(__imag__ dot) + ti2*(__real__ dot);
+                    __real__ C[i*ldc + j] -= fr;
+                    __imag__ C[i*ldc + j] -= fi;
+                    for (int r = i + 1; r < m; r++) {
+                        float vr = __real__ A[r*lda + i], vi = __imag__ A[r*lda + i];
+                        __real__ C[r*ldc + j] -= fr*vr - fi*vi;
+                        __imag__ C[r*ldc + j] -= fr*vi + fi*vr;
+                    }
+                }
+            }
+        }
+    } else {
+        /* side == FB_RIGHT: A is n×k, v_i[s] = A[s*lda+i] for s=i..n-1 */
+        if (!use_conj) {
+            for (int i = 0; i < k; i++) {
+                float _Complex ti = tau[i];
+                float trs = (__real__ ti)*(__real__ ti) + (__imag__ ti)*(__imag__ ti);
+                if (trs == 0.0f) continue;
+                for (int r = 0; r < m; r++) {
+                    float _Complex dot = C[r*ldc + i];
+                    for (int s = i + 1; s < n; s++) {
+                        float as = __real__ A[s*lda + i], ais = -(__imag__ A[s*lda + i]);
+                        float cs = __real__ C[r*ldc + s], cis =  __imag__ C[r*ldc + s];
+                        __real__ dot += as*cs - ais*cis;
+                        __imag__ dot += as*cis + ais*cs;
+                    }
+                    float fr = (__real__ ti)*(__real__ dot) - (__imag__ ti)*(__imag__ dot);
+                    float fi = (__real__ ti)*(__imag__ dot) + (__imag__ ti)*(__real__ dot);
+                    __real__ C[r*ldc + i] -= fr;
+                    __imag__ C[r*ldc + i] -= fi;
+                    for (int s = i + 1; s < n; s++) {
+                        float vs = __real__ A[s*lda + i], vis = __imag__ A[s*lda + i];
+                        __real__ C[r*ldc + s] -= fr*vs - fi*vis;
+                        __imag__ C[r*ldc + s] -= fr*vis + fi*vs;
+                    }
+                }
+            }
+        } else {
+            for (int i = k - 1; i >= 0; i--) {
+                float _Complex ti = tau[i];
+                float trs = (__real__ ti)*(__real__ ti) + (__imag__ ti)*(__imag__ ti);
+                if (trs == 0.0f) continue;
+                for (int r = 0; r < m; r++) {
+                    float _Complex dot = C[r*ldc + i];
+                    for (int s = i + 1; s < n; s++) {
+                        float as = __real__ A[s*lda + i], ais = -(__imag__ A[s*lda + i]);
+                        float cs = __real__ C[r*ldc + s], cis =  __imag__ C[r*ldc + s];
+                        __real__ dot += as*cs - ais*cis;
+                        __imag__ dot += as*cis + ais*cs;
+                    }
+                    float tr2 = __real__ ti, ti2 = -(__imag__ ti);
+                    float fr = tr2*(__real__ dot) - ti2*(__imag__ dot);
+                    float fi = tr2*(__imag__ dot) + ti2*(__real__ dot);
+                    __real__ C[r*ldc + i] -= fr;
+                    __imag__ C[r*ldc + i] -= fi;
+                    for (int s = i + 1; s < n; s++) {
+                        float vs = __real__ A[s*lda + i], vis = __imag__ A[s*lda + i];
+                        __real__ C[r*ldc + s] -= fr*vs - fi*vis;
+                        __imag__ C[r*ldc + s] -= fr*vis + fi*vs;
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+static int ref_zunmqr(fb_layout_t l, fb_side_t side, fb_transpose_t trans,
+                      int m, int n, int k,
+                      const double _Complex *A, int lda, const double _Complex *tau,
+                      double _Complex *C, int ldc) {
+    (void)l;
+    if (m < 0 || n < 0 || k < 0) { return -3; }
+    if (lda < ((k > 1) ? k : 1)) { return -7; }
+    if (ldc < ((n > 1) ? n : 1)) { return -10; }
+    int use_conj = (trans == FB_CONJ_TRANS);
+    if (side == FB_LEFT) {
+        if (!use_conj) {
+            for (int i = k - 1; i >= 0; i--) {
+                double ti_re = __real__(tau[i]), ti_im = __imag__(tau[i]);
+                double ti_sq = ti_re*ti_re + ti_im*ti_im;
+                if (ti_sq == 0.0) { continue; }
+                for (int j = 0; j < n; j++) {
+                    double dot_re = __real__(C[i*ldc + j]);
+                    double dot_im = __imag__(C[i*ldc + j]);
+                    for (int r = i + 1; r < m; r++) {
+                        /* dot += conj(A[r][i]) * C[r][j] */
+                        double ar = __real__(A[r*lda + i]), ai = -(__imag__(A[r*lda + i]));
+                        double cr = __real__(C[r*ldc + j]), ci =  __imag__(C[r*ldc + j]);
+                        dot_re += ar*cr - ai*ci;
+                        dot_im += ar*ci + ai*cr;
+                    }
+                    /* fac = tau[i] * dot; C[i][j] -= fac; C[r][j] -= fac * A[r][i] */
+                    double fr = ti_re*dot_re - ti_im*dot_im;
+                    double fi = ti_re*dot_im + ti_im*dot_re;
+                    C[i*ldc + j] -= __builtin_complex(fr, fi);
+                    for (int r = i + 1; r < m; r++) {
+                        double vr = __real__(A[r*lda + i]), vi = __imag__(A[r*lda + i]);
+                        C[r*ldc + j] -= __builtin_complex(fr*vr - fi*vi, fr*vi + fi*vr);
+                    }
+                }
+            }
+        } else {
+            for (int i = 0; i < k; i++) {
+                /* conj(tau[i]) */
+                double ti_re = __real__(tau[i]), ti_im = -(__imag__(tau[i]));
+                double ti_sq = ti_re*ti_re + ti_im*ti_im;
+                if (ti_sq == 0.0) { continue; }
+                for (int j = 0; j < n; j++) {
+                    double dot_re = __real__(C[i*ldc + j]);
+                    double dot_im = __imag__(C[i*ldc + j]);
+                    for (int r = i + 1; r < m; r++) {
+                        double ar = __real__(A[r*lda + i]), ai = -(__imag__(A[r*lda + i]));
+                        double cr = __real__(C[r*ldc + j]), ci =  __imag__(C[r*ldc + j]);
+                        dot_re += ar*cr - ai*ci;
+                        dot_im += ar*ci + ai*cr;
+                    }
+                    double fr = ti_re*dot_re - ti_im*dot_im;
+                    double fi = ti_re*dot_im + ti_im*dot_re;
+                    C[i*ldc + j] -= __builtin_complex(fr, fi);
+                    for (int r = i + 1; r < m; r++) {
+                        double vr = __real__(A[r*lda + i]), vi = __imag__(A[r*lda + i]);
+                        C[r*ldc + j] -= __builtin_complex(fr*vr - fi*vi, fr*vi + fi*vr);
+                    }
+                }
+            }
+        }
+    } else {
+        /* side == FB_RIGHT */
+        if (!use_conj) {
+            for (int i = 0; i < k; i++) {
+                double ti_re = __real__(tau[i]), ti_im = __imag__(tau[i]);
+                double ti_sq = ti_re*ti_re + ti_im*ti_im;
+                if (ti_sq == 0.0) { continue; }
+                for (int r = 0; r < m; r++) {
+                    double dot_re = __real__(C[r*ldc + i]);
+                    double dot_im = __imag__(C[r*ldc + i]);
+                    for (int s = i + 1; s < n; s++) {
+                        double as = __real__(A[s*lda + i]), ais = -(__imag__(A[s*lda + i]));
+                        double cs = __real__(C[r*ldc + s]), cis =  __imag__(C[r*ldc + s]);
+                        dot_re += as*cs - ais*cis;
+                        dot_im += as*cis + ais*cs;
+                    }
+                    double fr = ti_re*dot_re - ti_im*dot_im;
+                    double fi = ti_re*dot_im + ti_im*dot_re;
+                    C[r*ldc + i] -= __builtin_complex(fr, fi);
+                    for (int s = i + 1; s < n; s++) {
+                        double vs = __real__(A[s*lda + i]), vis = __imag__(A[s*lda + i]);
+                        /* real: fr*vs - fi*vis;  imag: fr*vis + fi*vs */
+                        C[r*ldc + s] -= __builtin_complex(fr*vs - fi*vis, fr*vis + fi*vs);
+                    }
+                }
+            }
+        } else {
+            for (int i = k - 1; i >= 0; i--) {
+                double ti_re = __real__(tau[i]), ti_im = -(__imag__(tau[i]));
+                double ti_sq = ti_re*ti_re + ti_im*ti_im;
+                if (ti_sq == 0.0) { continue; }
+                for (int r = 0; r < m; r++) {
+                    double dot_re = __real__(C[r*ldc + i]);
+                    double dot_im = __imag__(C[r*ldc + i]);
+                    for (int s = i + 1; s < n; s++) {
+                        double as = __real__(A[s*lda + i]), ais = -(__imag__(A[s*lda + i]));
+                        double cs = __real__(C[r*ldc + s]), cis =  __imag__(C[r*ldc + s]);
+                        dot_re += as*cs - ais*cis;
+                        dot_im += as*cis + ais*cs;
+                    }
+                    double fr = ti_re*dot_re - ti_im*dot_im;
+                    double fi = ti_re*dot_im + ti_im*dot_re;
+                    C[r*ldc + i] -= __builtin_complex(fr, fi);
+                    for (int s = i + 1; s < n; s++) {
+                        double vs = __real__(A[s*lda + i]), vis = __imag__(A[s*lda + i]);
+                        /* real: fr*vs - fi*vis;  imag: fr*vis + fi*vs */
+                        C[r*ldc + s] -= __builtin_complex(fr*vs - fi*vis, fr*vis + fi*vs);
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
 /* =========================================================================
  * TRTRI wrappers — in-place triangular matrix inversion
  * ========================================================================= */
