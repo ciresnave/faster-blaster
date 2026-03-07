@@ -1211,12 +1211,12 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.ctrtri = (fb_ctrtri_fn)ref_ctrtri;  vt.ztrtri = (fb_ztrtri_fn)ref_ztrtri;
     vt.sgesdd = (fb_sgesdd_fn)ref_sgesdd;
     vt.dgesdd = (fb_dgesdd_fn)ref_dgesdd;
-    vt.cgesdd = NULL;
-    vt.zgesdd = NULL;
+    vt.cgesdd = (fb_cgesdd_fn)ref_cgesdd;
+    vt.zgesdd = (fb_zgesdd_fn)ref_zgesdd;
     vt.ssygv = (fb_ssygv_fn)ref_ssygv;
     vt.dsygv = (fb_dsygv_fn)ref_dsygv;
-    vt.chegv = NULL;
-    vt.zhegv = NULL;
+    vt.chegv = (fb_chegv_fn)ref_chegv;
+    vt.zhegv = (fb_zhegv_fn)ref_zhegv;
     vt.sgelsy = (fb_sgelsy_fn)ref_sgelsy;  vt.dgelsy = (fb_dgelsy_fn)ref_dgelsy;
     vt.cgelsy = (fb_cgelsy_fn)ref_cgelsy;  vt.zgelsy = (fb_zgelsy_fn)ref_zgelsy;
     /* GESV — compound factorization+solve */

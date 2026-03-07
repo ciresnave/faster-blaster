@@ -3265,6 +3265,611 @@ cleanup_dsygv:
 }
 
 /* =========================================================================
+ * CGESDD — complex single-precision divide-and-conquer SVD
+ *   A = U * Sigma * V^H  (jobz='A', all singular vectors)
+ *   tc->A: complex m×n matrix (row-major, fb_complex_float_t elements)
+ * ========================================================================= */
+static fb_judge_status_t run_cgesdd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->cgesdd || !cand->cgesdd)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_float_t *A_in = (const fb_complex_float_t *)tc->A;
+    int m = tc->m, n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->m;
+    int minmn = (m < n) ? m : n;
+
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    char jobz = 'S';  /* 'A' skips back-transforms in cgesdd_ref; 'S' is correct */
+
+    fb_complex_float_t *A_oracle = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    fb_complex_float_t *A_cand = (fb_complex_float_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    float *s_oracle = (float *)malloc((size_t)minmn * sizeof(float));
+    float *s_cand   = (float *)malloc((size_t)minmn * sizeof(float));
+    fb_complex_float_t *U  = (fb_complex_float_t *)malloc(
+        (size_t)(m * minmn) * sizeof(fb_complex_float_t));
+    fb_complex_float_t *VT = (fb_complex_float_t *)malloc(
+        (size_t)(minmn * n) * sizeof(fb_complex_float_t));
+
+    if (!A_oracle || !A_cand || !s_oracle || !s_cand || !U || !VT) {
+        mark_oracle_fatal(res);
+        goto cleanup_cgesdd;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+
+    {
+        int info = oracle->cgesdd(layout, jobz, m, n, A_oracle, lda,
+                                  s_oracle, U, m, VT, minmn);
+        if (info != 0) { mark_oracle_fatal(res); goto cleanup_cgesdd; }
+    }
+    {
+        int info = cand->cgesdd(layout, jobz, m, n, A_cand, lda,
+                                s_cand, U, m, VT, minmn);
+        if (info != 0) { mark_cand_fatal(res); goto cleanup_cgesdd; }
+    }
+
+    /* VALUES: max relative error in singular values */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < minmn; i++) {
+            double os = (double)s_oracle[i], cs = (double)s_cand[i];
+            double re = (os > 1e-16) ? fabs(os - cs) / os : fabs(os - cs);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* RECONSTRUCTION: ||A - U*Σ*V^H||_F / ||A||_F */
+    {
+        double norm_A = frobenius_norm_cf32(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < minmn; k++) {
+                        double u_re  = (double)FB_CF_REAL(U[i * minmn + k]);
+                        double u_im  = (double)FB_CF_IMAG(U[i * minmn + k]);
+                        double vt_re = (double)FB_CF_REAL(VT[k * n + j]);
+                        double vt_im = (double)FB_CF_IMAG(VT[k * n + j]);
+                        double sk    = (double)s_cand[k];
+                        re_sum += sk * (u_re * vt_re - u_im * vt_im);
+                        im_sum += sk * (u_re * vt_im + u_im * vt_re);
+                    }
+                    double a_re = (double)FB_CF_REAL(A_in[i * lda + j]);
+                    double a_im = (double)FB_CF_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* ORTHOGONALITY: max(||U^H U - I||, ||VT VT^H - I||) / sqrt(minmn) */
+    {
+        double err_u = ahac_cf32_ortho_error(U, m, minmn, minmn);
+        double err_v = ahac_cf32_ortho_error(VT, minmn, n, n);
+        double max_err = (err_u > err_v ? err_u : err_v);
+        res->orthogonality = result_from_relerr(max_err / sqrt((double)minmn));
+    }
+
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(s_cand, minmn, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            fb_complex_float_t *Ut  = (fb_complex_float_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VTt = (fb_complex_float_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_float_t));
+            if (At && st && Ut && VTt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+                (void)cand->cgesdd(layout, jobz, m, n, At, lda, st, Ut, m, VTt, minmn);
+            }
+            free(At); free(st); free(Ut); free(VTt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_float_t *At = (fb_complex_float_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_float_t));
+            float *st = (float *)malloc((size_t)minmn * sizeof(float));
+            fb_complex_float_t *Ut  = (fb_complex_float_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_float_t));
+            fb_complex_float_t *VTt = (fb_complex_float_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_float_t));
+            if (!At || !st || !Ut || !VTt) { free(At); free(st); free(Ut); free(VTt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgesdd(layout, jobz, m, n, At, lda, st, Ut, m, VTt, minmn);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+cleanup_cgesdd:
+    free(A_oracle); free(A_cand);
+    free(s_oracle); free(s_cand);
+    free(U); free(VT);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZGESDD — complex double-precision divide-and-conquer SVD
+ * ========================================================================= */
+static fb_judge_status_t run_zgesdd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->zgesdd || !cand->zgesdd)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_double_t *A_in = (const fb_complex_double_t *)tc->A;
+    int m = tc->m, n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->m;
+    int minmn = (m < n) ? m : n;
+
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    char jobz = 'S';  /* 'A' skips back-transforms in cgesdd_ref; 'S' is correct */
+
+    fb_complex_double_t *A_oracle = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    fb_complex_double_t *A_cand = (fb_complex_double_t *)malloc(
+        (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    double *s_oracle = (double *)malloc((size_t)minmn * sizeof(double));
+    double *s_cand   = (double *)malloc((size_t)minmn * sizeof(double));
+    fb_complex_double_t *U  = (fb_complex_double_t *)malloc(
+        (size_t)(m * minmn) * sizeof(fb_complex_double_t));
+    fb_complex_double_t *VT = (fb_complex_double_t *)malloc(
+        (size_t)(minmn * n) * sizeof(fb_complex_double_t));
+
+    if (!A_oracle || !A_cand || !s_oracle || !s_cand || !U || !VT) {
+        mark_oracle_fatal(res);
+        goto cleanup_zgesdd;
+    }
+
+    memcpy(A_oracle, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+    memcpy(A_cand,   A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+
+    {
+        int info = oracle->zgesdd(layout, jobz, m, n, A_oracle, lda,
+                                  s_oracle, U, m, VT, minmn);
+        if (info != 0) { mark_oracle_fatal(res); goto cleanup_zgesdd; }
+    }
+    {
+        int info = cand->zgesdd(layout, jobz, m, n, A_cand, lda,
+                                s_cand, U, m, VT, minmn);
+        if (info != 0) { mark_cand_fatal(res); goto cleanup_zgesdd; }
+    }
+
+    /* VALUES */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < minmn; i++) {
+            double os = s_oracle[i], cs = s_cand[i];
+            double re = (os > 1e-16) ? fabs(os - cs) / os : fabs(os - cs);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* RECONSTRUCTION */
+    {
+        double norm_A = frobenius_norm_cf64(A_in, m, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < minmn; k++) {
+                        double u_re  = FB_CD_REAL(U[i * minmn + k]);
+                        double u_im  = FB_CD_IMAG(U[i * minmn + k]);
+                        double vt_re = FB_CD_REAL(VT[k * n + j]);
+                        double vt_im = FB_CD_IMAG(VT[k * n + j]);
+                        double sk    = s_cand[k];
+                        re_sum += sk * (u_re * vt_re - u_im * vt_im);
+                        im_sum += sk * (u_re * vt_im + u_im * vt_re);
+                    }
+                    double a_re = FB_CD_REAL(A_in[i * lda + j]);
+                    double a_im = FB_CD_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* ORTHOGONALITY */
+    {
+        double err_u = ahac_cf64_ortho_error(U, m, minmn, minmn);
+        double err_v = ahac_cf64_ortho_error(VT, minmn, n, n);
+        double max_err = (err_u > err_v ? err_u : err_v);
+        res->orthogonality = result_from_relerr(max_err / sqrt((double)minmn));
+    }
+
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f64(s_cand, minmn, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            fb_complex_double_t *Ut  = (fb_complex_double_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VTt = (fb_complex_double_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_double_t));
+            if (At && st && Ut && VTt) {
+                memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+                (void)cand->zgesdd(layout, jobz, m, n, At, lda, st, Ut, m, VTt, minmn);
+            }
+            free(At); free(st); free(Ut); free(VTt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_double_t *At = (fb_complex_double_t *)malloc((size_t)(lda * n) * sizeof(fb_complex_double_t));
+            double *st = (double *)malloc((size_t)minmn * sizeof(double));
+            fb_complex_double_t *Ut  = (fb_complex_double_t *)malloc((size_t)(m * minmn) * sizeof(fb_complex_double_t));
+            fb_complex_double_t *VTt = (fb_complex_double_t *)malloc((size_t)(minmn * n) * sizeof(fb_complex_double_t));
+            if (!At || !st || !Ut || !VTt) { free(At); free(st); free(Ut); free(VTt); break; }
+            memcpy(At, A_in, (size_t)(lda * n) * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgesdd(layout, jobz, m, n, At, lda, st, Ut, m, VTt, minmn);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            free(At); free(st); free(Ut); free(VTt);
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+cleanup_zgesdd:
+    free(A_oracle); free(A_cand);
+    free(s_oracle); free(s_cand);
+    free(U); free(VT);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CHEGV — generalized Hermitian eigenvalue problem (complex single-precision)
+ *   Solves A*z = lambda*B*z  (itype=1, jobz='V', uplo=FB_UPPER)
+ *   tc->A: Hermitian matrix A (n x n, fb_complex_float_t)
+ *   tc->B: Hermitian positive-definite B (n x n); identity if missing
+ * ========================================================================= */
+static fb_judge_status_t run_chegv(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->chegv || !cand->chegv)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_float_t *A_in = (const fb_complex_float_t *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+    int ldb = lda;
+
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    fb_uplo_t uplo = FB_UPPER;
+    const char jobz = 'V';
+    const int itype = 1;
+
+    /* Build B_template: identity (always HPD) */
+    fb_complex_float_t *B_template = (fb_complex_float_t *)calloc(
+        (size_t)n * (size_t)ldb, sizeof(fb_complex_float_t));
+    if (!B_template) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* Identity: diagonal entries are real 1, all others 0 */
+    for (int i = 0; i < n; i++)
+        B_template[i * ldb + i] = __builtin_complex(1.0f, 0.0f);
+
+    fb_complex_float_t *A_oracle = (fb_complex_float_t *)malloc((size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    fb_complex_float_t *A_cand   = (fb_complex_float_t *)malloc((size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    fb_complex_float_t *B_oracle = (fb_complex_float_t *)malloc((size_t)n * (size_t)ldb * sizeof(fb_complex_float_t));
+    fb_complex_float_t *B_cand   = (fb_complex_float_t *)malloc((size_t)n * (size_t)ldb * sizeof(fb_complex_float_t));
+    float *w_oracle = (float *)malloc((size_t)n * sizeof(float));
+    float *w_cand   = (float *)malloc((size_t)n * sizeof(float));
+
+    if (!A_oracle || !A_cand || !B_oracle || !B_cand || !w_oracle || !w_cand) {
+        mark_oracle_fatal(res);
+        goto cleanup_chegv;
+    }
+
+    memcpy(A_oracle, A_in,       (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    memcpy(A_cand,   A_in,       (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    memcpy(B_oracle, B_template, (size_t)n * (size_t)ldb * sizeof(fb_complex_float_t));
+    memcpy(B_cand,   B_template, (size_t)n * (size_t)ldb * sizeof(fb_complex_float_t));
+
+    if (oracle->chegv(layout, itype, jobz, uplo, n,
+                      A_oracle, lda, B_oracle, ldb, w_oracle) != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_chegv;
+    }
+    if (cand->chegv(layout, itype, jobz, uplo, n,
+                    A_cand, lda, B_cand, ldb, w_cand) != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_chegv;
+    }
+
+    /* VALUES: max relative error in eigenvalues (real) */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < n; i++) {
+            double ow = (double)w_oracle[i], cw = (double)w_cand[i];
+            double ao = fabs(ow);
+            double re = (ao > 1e-16) ? fabs(ow - cw) / ao : fabs(ow - cw);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* RECONSTRUCTION: ||A - Z*diag(w)*Z^H||_F / ||A||_F  (with B=I) */
+    {
+        double norm_A = frobenius_norm_cf32(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double z_ik_re = (double)FB_CF_REAL(A_cand[i * lda + k]);
+                        double z_ik_im = (double)FB_CF_IMAG(A_cand[i * lda + k]);
+                        double z_jk_re = (double)FB_CF_REAL(A_cand[j * lda + k]);
+                        double z_jk_im = (double)FB_CF_IMAG(A_cand[j * lda + k]);
+                        double wk = (double)w_cand[k];
+                        re_sum += wk * (z_ik_re * z_jk_re + z_ik_im * z_jk_im);
+                        im_sum += wk * (z_ik_im * z_jk_re - z_ik_re * z_jk_im);
+                    }
+                    double a_re = (double)FB_CF_REAL(A_in[i * lda + j]);
+                    double a_im = (double)FB_CF_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* ORTHOGONALITY: ||Z^H Z - I||_F / sqrt(n) */
+    {
+        double raw_err = ahac_cf32_ortho_error(A_cand, n, n, lda);
+        res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
+    }
+
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f32(w_cand, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_float_t *At  = (fb_complex_float_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_float_t));
+            fb_complex_float_t *Bt  = (fb_complex_float_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_float_t));
+            float *wt = (float *)malloc((size_t)n*sizeof(float));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_float_t));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_float_t));
+                (void)cand->chegv(layout, itype, jobz, uplo, n, At, lda, Bt, ldb, wt);
+            }
+            free(At); free(Bt); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_float_t *At  = (fb_complex_float_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_float_t));
+            fb_complex_float_t *Bt  = (fb_complex_float_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_float_t));
+            float *wt = (float *)malloc((size_t)n*sizeof(float));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_float_t));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_float_t));
+                uint64_t t0 = fb_judge_time_ns();
+                (void)cand->chegv(layout, itype, jobz, uplo, n, At, lda, Bt, ldb, wt);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(At); free(Bt); free(wt);
+        }
+        *ns_out = best;
+    }
+
+cleanup_chegv:
+    free(B_template);
+    free(A_oracle); free(A_cand);
+    free(B_oracle); free(B_cand);
+    free(w_oracle); free(w_cand);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZHEGV — generalized Hermitian eigenvalue problem (complex double-precision)
+ * ========================================================================= */
+static fb_judge_status_t run_zhegv(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_spectral_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->zhegv || !cand->zhegv)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    memset(res, 0, sizeof(*res));
+    *ns_out = 0;
+
+    const fb_complex_double_t *A_in = (const fb_complex_double_t *)tc->A;
+    int n = tc->n;
+    int lda = tc->lda ? tc->lda : tc->n;
+    int ldb = lda;
+
+    fb_layout_t layout = FB_LAYOUT_ROW_MAJOR;
+    fb_uplo_t uplo = FB_UPPER;
+    const char jobz = 'V';
+    const int itype = 1;
+
+    fb_complex_double_t *B_template = (fb_complex_double_t *)calloc(
+        (size_t)n * (size_t)ldb, sizeof(fb_complex_double_t));
+    if (!B_template) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    for (int i = 0; i < n; i++)
+        B_template[i * ldb + i] = __builtin_complex(1.0, 0.0);
+
+    fb_complex_double_t *A_oracle = (fb_complex_double_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+    fb_complex_double_t *A_cand   = (fb_complex_double_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+    fb_complex_double_t *B_oracle = (fb_complex_double_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+    fb_complex_double_t *B_cand   = (fb_complex_double_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+    double *w_oracle = (double *)malloc((size_t)n*sizeof(double));
+    double *w_cand   = (double *)malloc((size_t)n*sizeof(double));
+
+    if (!A_oracle || !A_cand || !B_oracle || !B_cand || !w_oracle || !w_cand) {
+        mark_oracle_fatal(res);
+        goto cleanup_zhegv;
+    }
+
+    memcpy(A_oracle, A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+    memcpy(A_cand,   A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+    memcpy(B_oracle, B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+    memcpy(B_cand,   B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+
+    if (oracle->zhegv(layout, itype, jobz, uplo, n,
+                      A_oracle, lda, B_oracle, ldb, w_oracle) != 0) {
+        mark_oracle_fatal(res);
+        goto cleanup_zhegv;
+    }
+    if (cand->zhegv(layout, itype, jobz, uplo, n,
+                    A_cand, lda, B_cand, ldb, w_cand) != 0) {
+        mark_cand_fatal(res);
+        goto cleanup_zhegv;
+    }
+
+    /* VALUES */
+    {
+        double max_err = 0.0;
+        for (int i = 0; i < n; i++) {
+            double ow = w_oracle[i], cw = w_cand[i];
+            double ao = fabs(ow);
+            double re = (ao > 1e-16) ? fabs(ow - cw) / ao : fabs(ow - cw);
+            if (re > max_err) max_err = re;
+        }
+        res->values = result_from_relerr(max_err);
+    }
+
+    /* RECONSTRUCTION: ||A - Z*diag(w)*Z^H||_F / ||A||_F  (with B=I) */
+    {
+        double norm_A = frobenius_norm_cf64(A_in, n, n, lda);
+        if (norm_A < 1e-16) {
+            res->reconstruction = (fb_judge_case_result_t){.digits = 16};
+        } else {
+            double sum_diff = 0.0;
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    double re_sum = 0.0, im_sum = 0.0;
+                    for (int k = 0; k < n; k++) {
+                        double z_ik_re = FB_CD_REAL(A_cand[i * lda + k]);
+                        double z_ik_im = FB_CD_IMAG(A_cand[i * lda + k]);
+                        double z_jk_re = FB_CD_REAL(A_cand[j * lda + k]);
+                        double z_jk_im = FB_CD_IMAG(A_cand[j * lda + k]);
+                        double wk = w_cand[k];
+                        re_sum += wk * (z_ik_re * z_jk_re + z_ik_im * z_jk_im);
+                        im_sum += wk * (z_ik_im * z_jk_re - z_ik_re * z_jk_im);
+                    }
+                    double a_re = FB_CD_REAL(A_in[i * lda + j]);
+                    double a_im = FB_CD_IMAG(A_in[i * lda + j]);
+                    double dr = a_re - re_sum, di = a_im - im_sum;
+                    sum_diff += dr * dr + di * di;
+                }
+            }
+            res->reconstruction = result_from_relerr(sqrt(sum_diff) / norm_A);
+        }
+    }
+
+    /* ORTHOGONALITY */
+    {
+        double raw_err = ahac_cf64_ortho_error(A_cand, n, n, lda);
+        res->orthogonality = result_from_relerr(raw_err / sqrt((double)n));
+    }
+
+    {
+        double gap_min = 1.0;
+        bool clustered = is_clustered_f64(w_cand, n, &gap_min);
+        if (clustered && gap_min < 1.0)
+            res->subspace = result_from_relerr(gap_min);
+        else
+            res->subspace = (fb_judge_case_result_t){.digits = 16};
+    }
+    res->pairs = (fb_judge_case_result_t){.digits = 16};
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < 2; w++) {
+            fb_complex_double_t *At  = (fb_complex_double_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+            fb_complex_double_t *Bt  = (fb_complex_double_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+            double *wt = (double *)malloc((size_t)n*sizeof(double));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+                (void)cand->zhegv(layout, itype, jobz, uplo, n, At, lda, Bt, ldb, wt);
+            }
+            free(At); free(Bt); free(wt);
+        }
+        for (int t = 0; t < 5; t++) {
+            fb_complex_double_t *At  = (fb_complex_double_t *)malloc((size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+            fb_complex_double_t *Bt  = (fb_complex_double_t *)malloc((size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+            double *wt = (double *)malloc((size_t)n*sizeof(double));
+            if (At && Bt && wt) {
+                memcpy(At, A_in,       (size_t)n*(size_t)lda*sizeof(fb_complex_double_t));
+                memcpy(Bt, B_template, (size_t)n*(size_t)ldb*sizeof(fb_complex_double_t));
+                uint64_t t0 = fb_judge_time_ns();
+                (void)cand->zhegv(layout, itype, jobz, uplo, n, At, lda, Bt, ldb, wt);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(At); free(Bt); free(wt);
+        }
+        *ns_out = best;
+    }
+
+cleanup_zhegv:
+    free(B_template);
+    free(A_oracle); free(A_cand);
+    free(B_oracle); free(B_cand);
+    free(w_oracle); free(w_cand);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
  * Dispatch table
  * ========================================================================= */
 
@@ -3280,7 +3885,9 @@ static const fb_spectral_runner_fn fb_spectral_dispatch[] = {
     [FB_OP_SGEEV] = run_sgeev,   [FB_OP_DGEEV] = run_dgeev,
     [FB_OP_CGEEV] = run_cgeev,   [FB_OP_ZGEEV] = run_zgeev,
     [FB_OP_SGESDD] = run_sgesdd, [FB_OP_DGESDD] = run_dgesdd,
+    [FB_OP_CGESDD] = run_cgesdd, [FB_OP_ZGESDD] = run_zgesdd,
     [FB_OP_SSYGV] = run_ssygv,   [FB_OP_DSYGV] = run_dsygv,
+    [FB_OP_CHEGV]  = run_chegv,  [FB_OP_ZHEGV]  = run_zhegv,
 };
 
 #define FB_SPECTRAL_DISPATCH_SIZE \

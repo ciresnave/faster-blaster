@@ -277,6 +277,22 @@ int dsygv_ref(int itype, char jobz, char uplo, int n, double *a, int lda,
               double *b, int ldb, double *w, double *work, int lwork,
               int *info);
 
+/* GESDD — complex variants (divide-and-conquer SVD; needs work/iwork) */
+int cgesdd_ref(char jobz, int m, int n, float _Complex *a, int lda, float *s,
+               float _Complex *u, int ldu, float _Complex *vt, int ldvt,
+               float _Complex *work, int lwork, int *iwork, int *info);
+int zgesdd_ref(char jobz, int m, int n, double _Complex *a, int lda, double *s,
+               double _Complex *u, int ldu, double _Complex *vt, int ldvt,
+               double _Complex *work, int lwork, int *iwork, int *info);
+
+/* HEGV (generalized Hermitian eigenproblem; needs work + rwork allocation) */
+int chegv_ref(int itype, char jobz, char uplo, int n,
+              float _Complex *a, int lda, float _Complex *b, int ldb,
+              float *w, float _Complex *work, int lwork, float *rwork, int *info);
+int zhegv_ref(int itype, char jobz, char uplo, int n,
+              double _Complex *a, int lda, double _Complex *b, int ldb,
+              double *w, double _Complex *work, int lwork, double *rwork, int *info);
+
 /* --- Wrapper bodies ------------------------------------------------------ */
 
 /* SYEV: pass A/lda as eigenvector output z/ldz (LAPACK in-place convention) */
@@ -440,6 +456,79 @@ static int ref_dsygv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
   free(work);
   return info;
 }
+
+/* =========================================================================
+ * CGESDD / ZGESDD — complex divide-and-conquer SVD
+ * ========================================================================= */
+static int ref_cgesdd(fb_layout_t l, char jobz, int m, int n,
+                      float _Complex *A, int lda, float *s,
+                      float _Complex *U, int ldu, float _Complex *VT, int ldvt) {
+    (void)l;
+    int minmn = (m < n) ? m : n;
+    if (minmn < 1) minmn = 1;
+    int lwork = 3 * minmn * minmn + 5 * minmn + ((m > n) ? m : n);
+    if (lwork < 1) lwork = 1;
+    float _Complex *work = (float _Complex *)malloc((size_t)lwork * sizeof(float _Complex));
+    int *iwork = (int *)malloc((size_t)(8 * minmn) * sizeof(int));
+    if (!work || !iwork) { free(work); free(iwork); return -12; }
+    int info = 0;
+    cgesdd_ref(jobz, m, n, A, lda, s, U, ldu, VT, ldvt, work, lwork, iwork, &info);
+    free(work); free(iwork);
+    return info;
+}
+static int ref_zgesdd(fb_layout_t l, char jobz, int m, int n,
+                      double _Complex *A, int lda, double *s,
+                      double _Complex *U, int ldu, double _Complex *VT, int ldvt) {
+    (void)l;
+    int minmn = (m < n) ? m : n;
+    if (minmn < 1) minmn = 1;
+    int lwork = 3 * minmn * minmn + 5 * minmn + ((m > n) ? m : n);
+    if (lwork < 1) lwork = 1;
+    double _Complex *work = (double _Complex *)malloc((size_t)lwork * sizeof(double _Complex));
+    int *iwork = (int *)malloc((size_t)(8 * minmn) * sizeof(int));
+    if (!work || !iwork) { free(work); free(iwork); return -12; }
+    int info = 0;
+    zgesdd_ref(jobz, m, n, A, lda, s, U, ldu, VT, ldvt, work, lwork, iwork, &info);
+    free(work); free(iwork);
+    return info;
+}
+
+/* =========================================================================
+ * CHEGV / ZHEGV — generalized Hermitian eigenvalue problem
+ * ========================================================================= */
+static int ref_chegv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
+                     float _Complex *A, int lda, float _Complex *B, int ldb,
+                     float *w) {
+    (void)l;
+    char uo = FU(uplo);
+    int lwork = 2 * n + 64;
+    if (lwork < 1) lwork = 1;
+    float _Complex *work = (float _Complex *)malloc((size_t)lwork * sizeof(float _Complex));
+    int rwork_n = (3 * n > 1) ? 3 * n : 1;
+    float *rwork = (float *)malloc((size_t)rwork_n * sizeof(float));
+    if (!work || !rwork) { free(work); free(rwork); return -11; }
+    int info = 0;
+    chegv_ref(itype, jobz, uo, n, A, lda, B, ldb, w, work, lwork, rwork, &info);
+    free(work); free(rwork);
+    return info;
+}
+static int ref_zhegv(fb_layout_t l, int itype, char jobz, fb_uplo_t uplo, int n,
+                     double _Complex *A, int lda, double _Complex *B, int ldb,
+                     double *w) {
+    (void)l;
+    char uo = FU(uplo);
+    int lwork = 2 * n + 64;
+    if (lwork < 1) lwork = 1;
+    double _Complex *work = (double _Complex *)malloc((size_t)lwork * sizeof(double _Complex));
+    int rwork_n = (3 * n > 1) ? 3 * n : 1;
+    double *rwork = (double *)malloc((size_t)rwork_n * sizeof(double));
+    if (!work || !rwork) { free(work); free(rwork); return -11; }
+    int info = 0;
+    zhegv_ref(itype, jobz, uo, n, A, lda, B, ldb, w, work, lwork, rwork, &info);
+    free(work); free(rwork);
+    return info;
+}
+
 /* =========================================================================
  * GESV wrappers — compound: GETRF then GETRS
  * ========================================================================= */

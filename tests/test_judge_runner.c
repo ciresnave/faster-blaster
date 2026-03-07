@@ -386,9 +386,17 @@ static const jr_op_entry_t k_ops[] = {
      "sgesdd"},
     {FB_OP_DGESDD, FB_DTYPE_F64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
      "dgesdd"},
+    /* GESDD — complex divide-and-conquer SVD */
+    {FB_OP_CGESDD, FB_DTYPE_CF32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32,
+     "cgesdd"},
+    {FB_OP_ZGESDD, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
+     "zgesdd"},
     /* SYGV — generalized symmetric eigenproblem */
     {FB_OP_SSYGV, FB_DTYPE_F32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32, "ssygv"},
     {FB_OP_DSYGV, FB_DTYPE_F64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64, "dsygv"},
+    /* HEGV — generalized Hermitian eigenproblem */
+    {FB_OP_CHEGV, FB_DTYPE_CF32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32, "chegv"},
+    {FB_OP_ZHEGV, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64, "zhegv"},
 };
 
 static const int k_op_count = (int)(sizeof(k_ops) / sizeof(k_ops[0]));

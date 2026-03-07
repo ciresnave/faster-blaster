@@ -462,6 +462,14 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     /* Divide-and-conquer SVD — double precision */
     SPECTRAL_ENTRY(FB_OP_DGESDD, 4, 10),
 
+    /* Complex divide-and-conquer SVD (GESDD) */
+    SPECTRAL_ENTRY(FB_OP_CGESDD, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZGESDD, 4, 10),
+
+    /* Generalized Hermitian eigenvalue (HEGV) */
+    SPECTRAL_ENTRY(FB_OP_CHEGV, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZHEGV, 4, 10),
+
     /*
      * Entries 312–1247 are zero‐initialised.
      * fb_judge_meta_get() treats any entry with max_certifiable_f64==0
