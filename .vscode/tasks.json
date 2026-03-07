@@ -1,0 +1,64 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build faster-blaster DLL",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster 2>&1 | Select-String 'error:|FAILED' | Select-Object -First 20; echo DONE:$LASTEXITCODE"
+		},
+		{
+			"label": "Run device_api test",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; .\\test_device_api.exe 2>&1 | Select-Object -Last 15"
+		},
+		{
+			"label": "Run failing ctest tests",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; ctest -C Release -R 'device_api|comprehensive' --output-on-failure 2>&1 | Select-Object -Last 30; echo DONE:$LASTEXITCODE"
+		},
+		{
+			"label": "Full ctest + check failures",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; ctest -C Release 2>&1; Get-Content 'Testing\\Temporary\\LastTestsFailed.log'"
+		},
+		{
+			"label": "Run BLIS test check exit code",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; .\\test_blis_backend.exe 2>&1 | Select-Object -First 5; echo EXIT:$LASTEXITCODE"
+		},
+		{
+			"label": "Build DLL and BLIS test",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster test_blis_backend 2>&1 | Select-String 'error:|FAILED|BUILD' | Select-Object -First 10; echo DONE:$LASTEXITCODE"
+		},
+		{
+			"label": "Full ctest after BLIS fix",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; ctest -C Release 2>&1; Get-Content 'Testing\\Temporary\\LastTestsFailed.log'"
+		},
+		{
+			"label": "Reconfigure cmake for BLIS disabled",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release 2>&1 | Select-String 'error:|BLIS' | Select-Object -First 5; echo CMAKE:$LASTEXITCODE"
+		},
+		{
+			"label": "Run comprehensive correctness test",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; .\\test_comprehensive_correctness.exe 2>&1 | Select-Object -Last 30; echo EXIT:$LASTEXITCODE"
+		},
+		{
+			"label": "Run BLIS Test",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja test_blis_backend && echo BUILD_OK && cd tests && .\\test_blis_backend.exe; echo EXIT:$LASTEXITCODE"
+		},
+		{
+			"label": "Build faster-blaster",
+			"type": "shell",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster 2>&1",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build"
+		}
+	]
+}

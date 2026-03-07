@@ -689,48 +689,59 @@ target_include_directories(faster-blaster
 )
 
 # ---- faster-blaster-reference: canonical BLAS/LAPACK correctness oracle ----
-# Loaded as a SHARED DLL so fb_enumerate_and_populate() can scan its cblas_*
-# exports at runtime.  Link faster-blaster against the import library so that
-# the _ref symbols used in reference.c resolve to the static archive at link time.
-# The DLL is loaded separately at runtime via LoadLibraryEx (in plugin_reference.c /
-# test_judge_runner.c) so fb_enumerate_and_populate can scan its export table.
+# faster-blaster-reference is DLL-only.  faster-blaster links against the DLL
+# import library (libfaster_blaster_reference.dll.a) so the _ref symbols in
+# reference.c resolve at load time through the DLL.
+# fb_enumerate_and_populate() also scans the DLL export table at runtime.
 # Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE conflicts.
 set(_FBR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../faster-blaster-reference")
 
-# ── Static archive for link-time _ref symbol resolution ──────────────────────
-set(_FBR_STATIC "${_FBR_DIR}/build-extended/libfaster_blaster_reference.a")
-if(NOT EXISTS "${_FBR_STATIC}")
+# ── DLL import library for link-time symbol resolution ───────────────────────
+# MinGW/clang produces lib-prefixed import lib names (libfoo.dll.a).
+file(GLOB _FBR_IMPLIB_CANDIDATES
+    "${_FBR_DIR}/build-extended/libfaster_blaster_reference.dll.a"
+    "${_FBR_DIR}/build-extended/faster_blaster_reference.lib")
+if(_FBR_IMPLIB_CANDIDATES)
+    list(GET _FBR_IMPLIB_CANDIDATES 0 _FBR_IMPLIB)
+    message(STATUS "Reference import lib: ${_FBR_IMPLIB}")
+else()
     message(FATAL_ERROR
-        "faster-blaster-reference static archive not found at:\n  ${_FBR_STATIC}\n"
+        "faster-blaster-reference import library not found in:\n"
+        "  ${_FBR_DIR}/build-extended/\n"
         "Build it first:\n"
         "  cd ../faster-blaster-reference\n"
         "  cmake -B build-extended -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
         "  cmake --build build-extended")
 endif()
-message(STATUS "Reference static lib: ${_FBR_STATIC}")
 
-# ── DLL (runtime-loaded only; not linked at build time) ──────────────────────
+# ── DLL (linked via import lib; also copied to tests for fb_enumerate) ────────
 # MinGW/clang produces lib-prefixed DLL names (libfoo.dll), MSVC does not.
 file(GLOB _FBR_DLL_CANDIDATES
     "${_FBR_DIR}/build-extended/libfaster_blaster_reference.dll"
     "${_FBR_DIR}/build-extended/faster_blaster_reference.dll")
 if(_FBR_DLL_CANDIDATES)
     list(GET _FBR_DLL_CANDIDATES 0 _FBR_DLL)
-    message(STATUS "Reference DLL (runtime): ${_FBR_DLL}")
+    message(STATUS "Reference DLL: ${_FBR_DLL}")
 else()
-    message(WARNING "faster-blaster-reference DLL not found; fb_enumerate_and_populate will have no symbols to scan.")
-    set(_FBR_DLL "")
+    message(FATAL_ERROR
+        "faster-blaster-reference DLL not found in:\n"
+        "  ${_FBR_DIR}/build-extended/\n"
+        "Build faster-blaster-reference first.")
 endif()
 
-add_library(faster_blaster_reference STATIC IMPORTED GLOBAL)
+add_library(faster_blaster_reference SHARED IMPORTED GLOBAL)
 set_target_properties(faster_blaster_reference PROPERTIES
-    IMPORTED_LOCATION "${_FBR_STATIC}")
+    IMPORTED_LOCATION "${_FBR_DLL}"
+    IMPORTED_IMPLIB   "${_FBR_IMPLIB}")
 target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
-# Static archive consumers must not see dllimport on cblas_* declarations.
-target_compile_definitions(faster-blaster PRIVATE FBR_STATIC_LIB)
-# _clang_rt_builtins (__mulsc3/__divsc3 etc.) are now compiled INTO the DLL;
-# no longer needed as a direct link dependency of faster-blaster.
+# DLL consumers get __declspec(dllimport) from fbr_export.h automatically;
+# do NOT define FBR_STATIC_LIB.
 # ---------------------------------------------------------------------------
+
+# The LAPACK *_ref symbols are now exported directly from the DLL via
+# src/lapack/lapack_ref_exports.def (wired in fbr's CMakeLists.txt with
+# /DEF:).  faster-blaster resolves them through the import library alone —
+# no separate static archive or cross-project rebuild trigger needed.
 
 target_link_libraries(faster-blaster
     PRIVATE
@@ -952,12 +963,14 @@ if(BUILD_TESTS)
             ${CMAKE_CURRENT_BINARY_DIR}/tests/$<TARGET_FILE_NAME:faster-blaster>
         COMMENT "Copying faster-blaster DLL to tests directory"
     )
-    # Also copy the reference DLL so test_judge_runner can load it at runtime
+    # Also copy the reference DLL so test_judge_runner can load it at runtime.
+    # Preserve the original filename (lib-prefixed on MinGW/clang, no prefix on MSVC).
+    cmake_path(GET _FBR_DLL FILENAME _FBR_DLL_FILENAME)
     add_custom_command(TARGET faster-blaster POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${_FBR_DLL}"
-            ${CMAKE_CURRENT_BINARY_DIR}/tests/faster_blaster_reference.dll
-        COMMENT "Copying faster_blaster_reference.dll to tests directory"
+            ${CMAKE_CURRENT_BINARY_DIR}/tests/${_FBR_DLL_FILENAME}
+        COMMENT "Copying ${_FBR_DLL_FILENAME} to tests directory"
     )
     add_subdirectory(tests)
 endif()
