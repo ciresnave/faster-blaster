@@ -350,6 +350,16 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_DTRTRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dtrtri"},
     {FB_OP_CTRTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "ctrtri"},
     {FB_OP_ZTRTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "ztrtri"},
+    /* LAPACK — LU-based full matrix inversion (GETRI; RECON metric)     */
+    {FB_OP_SGETRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "sgetri"},
+    {FB_OP_DGETRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dgetri"},
+    {FB_OP_CGETRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "cgetri"},
+    {FB_OP_ZGETRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "zgetri"},
+    /* LAPACK — Cholesky-based SPD matrix inversion (POTRI; RECON metric) */
+    {FB_OP_SPOTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "spotri"},
+    {FB_OP_DPOTRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dpotri"},
+    {FB_OP_CPOTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "cpotri"},
+    {FB_OP_ZPOTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "zpotri"},
     /* SPECTRAL — eigenvalue and singular-value decompositions.
      * Auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref, sbdsqr_ref,
      * chetrd_ref, steqr_ref, ...) are now present in faster-blaster-reference.

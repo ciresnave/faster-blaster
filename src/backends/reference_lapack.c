@@ -95,6 +95,18 @@ int dtrtri_ref(const char *uplo, const char *diag, int n, double *a, int lda);
 int ctrtri_ref(const char *uplo, const char *diag, int n, float _Complex *a, int lda);
 int ztrtri_ref(const char *uplo, const char *diag, int n, double _Complex *a, int lda);
 
+/* GETRI — LU-based matrix inversion */
+int sgetri_ref(int n, float *a, int lda, const int *ipiv);
+int dgetri_ref(int n, double *a, int lda, const int *ipiv);
+int cgetri_ref(int n, float _Complex *a, int lda, const int *ipiv);
+int zgetri_ref(int n, double _Complex *a, int lda, const int *ipiv);
+
+/* POTRI — Cholesky-based matrix inversion */
+int spotri_ref(char uplo, int n, float *a, int lda);
+int dpotri_ref(char uplo, int n, double *a, int lda);
+int cpotri_ref(char uplo, int n, float _Complex *a, int lda);
+int zpotri_ref(char uplo, int n, double _Complex *a, int lda);
+
 /* TRTRS — triangular system solve */
 int strtrs_ref(const char *uplo, const char *trans, const char *diag, int n,
                int nrhs, const float *a, int lda, float *b, int ldb);
@@ -897,6 +909,40 @@ static int ref_ztrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
     (void)l;
     char up = FU(uplo), dg = FD(diag);
     return ztrtri_ref(&up, &dg, n, A, lda);
+}
+
+/* =========================================================================
+ * GETRI wrappers — LU-based full matrix inversion.
+ * Caller pre-factors A with GETRF; we just forward (layout stripped).
+ * ========================================================================= */
+static int ref_sgetri(fb_layout_t l, int n, float *A, int lda,
+                      const int *ipiv)
+    { (void)l; return sgetri_ref(n, A, lda, ipiv); }
+static int ref_dgetri(fb_layout_t l, int n, double *A, int lda,
+                      const int *ipiv)
+    { (void)l; return dgetri_ref(n, A, lda, ipiv); }
+static int ref_cgetri(fb_layout_t l, int n, float _Complex *A, int lda,
+                      const int *ipiv)
+    { (void)l; return cgetri_ref(n, A, lda, ipiv); }
+static int ref_zgetri(fb_layout_t l, int n, double _Complex *A, int lda,
+                      const int *ipiv)
+    { (void)l; return zgetri_ref(n, A, lda, ipiv); }
+
+/* =========================================================================
+ * POTRI wrappers — Cholesky-based full matrix inversion.
+ * Caller pre-factors A with POTRF; uplo char converted via FU().
+ * ========================================================================= */
+static int ref_spotri(fb_layout_t l, fb_uplo_t uplo, int n, float *A, int lda) {
+    (void)l; char up = FU(uplo); return spotri_ref(up, n, A, lda);
+}
+static int ref_dpotri(fb_layout_t l, fb_uplo_t uplo, int n, double *A, int lda) {
+    (void)l; char up = FU(uplo); return dpotri_ref(up, n, A, lda);
+}
+static int ref_cpotri(fb_layout_t l, fb_uplo_t uplo, int n, float _Complex *A, int lda) {
+    (void)l; char up = FU(uplo); return cpotri_ref(up, n, A, lda);
+}
+static int ref_zpotri(fb_layout_t l, fb_uplo_t uplo, int n, double _Complex *A, int lda) {
+    (void)l; char up = FU(uplo); return zpotri_ref(up, n, A, lda);
 }
 
 /* =========================================================================

@@ -386,6 +386,18 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     FACTOR_ENTRY(FB_OP_CTRTRI, 4, 10),
     FACTOR_ENTRY(FB_OP_ZTRTRI, 4, 10),
 
+    /* LU-based full matrix inversion (GETRI) */
+    FACTOR_ENTRY(FB_OP_SGETRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGETRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_CGETRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZGETRI, 4, 10),
+
+    /* Cholesky-based SPD matrix inversion (POTRI) */
+    FACTOR_ENTRY(FB_OP_SPOTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_DPOTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_CPOTRI, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZPOTRI, 4, 10),
+
     /* Symmetric/Hermitian indefinite factorisation (SYTRF) */
     FACTOR_ENTRY(FB_OP_SSYTRF, 4, 10),
     FACTOR_ENTRY(FB_OP_DSYTRF, 4, 10),

@@ -2484,6 +2484,550 @@ static fb_judge_status_t run_ztrtri(
     return FB_JUDGE_OK;
 }
 
+/* =========================================================================
+ * SGETRI — invert single-precision matrix from LU factors (after sgetrf)
+ * ========================================================================= */
+static fb_judge_status_t run_sgetri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->sgetri || !cand->sgetri || !oracle->sgetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    const float *A_orig = (const float *)tc->A;
+    if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* Pre-factor with oracle SGETRF -> LU factors + ipiv */
+    float *A_lu = clone_matrix_f32(A_orig, n, n, lda);
+    if (!A_lu) return FB_JUDGE_ERR_ALLOC;
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv) { free(A_lu); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->sgetrf(FB_LAYOUT_ROW_MAJOR, n, n, A_lu, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    /* Oracle: invert from LU */
+    float *A_oi = clone_matrix_f32(A_lu, n, n, lda);
+    if (!A_oi) { free(A_lu); free(ipiv); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->sgetri(FB_LAYOUT_ROW_MAJOR, n, A_oi, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi);
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    /* Candidate: invert from same LU (with optional timing) */
+    float *A_ci = clone_matrix_f32(A_lu, n, n, lda);
+    if (!A_ci) { free(A_lu); free(ipiv); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(float));
+            (void)cand->sgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->sgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(float));
+    if (cand->sgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double d = (double)A_oi[i*lda + j] - (double)A_ci[i*lda + j];
+            norm_diff += d * d;
+            double a = (double)A_oi[i*lda + j];
+            norm_inv += a * a;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * DGETRI — invert double-precision matrix from LU factors (after dgetrf)
+ * ========================================================================= */
+static fb_judge_status_t run_dgetri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->dgetri || !cand->dgetri || !oracle->dgetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    const double *A_orig = (const double *)tc->A;
+    if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    double *A_lu = clone_matrix_f64(A_orig, n, n, lda);
+    if (!A_lu) return FB_JUDGE_ERR_ALLOC;
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv) { free(A_lu); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->dgetrf(FB_LAYOUT_ROW_MAJOR, n, n, A_lu, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    double *A_oi = clone_matrix_f64(A_lu, n, n, lda);
+    if (!A_oi) { free(A_lu); free(ipiv); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->dgetri(FB_LAYOUT_ROW_MAJOR, n, A_oi, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi);
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    double *A_ci = clone_matrix_f64(A_lu, n, n, lda);
+    if (!A_ci) { free(A_lu); free(ipiv); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(double));
+            (void)cand->dgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(double));
+    if (cand->dgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double d = A_oi[i*lda + j] - A_ci[i*lda + j];
+            norm_diff += d * d;
+            double a = A_oi[i*lda + j];
+            norm_inv += a * a;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CGETRI — invert complex single-precision matrix from LU factors
+ * ========================================================================= */
+static fb_judge_status_t run_cgetri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->cgetri || !cand->cgetri || !oracle->cgetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
+    if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    fb_complex_float_t *A_lu = clone_matrix_cf32(A_orig, n, n, lda);
+    if (!A_lu) return FB_JUDGE_ERR_ALLOC;
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv) { free(A_lu); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->cgetrf(FB_LAYOUT_ROW_MAJOR, n, n, A_lu, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_float_t *A_oi = clone_matrix_cf32(A_lu, n, n, lda);
+    if (!A_oi) { free(A_lu); free(ipiv); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->cgetri(FB_LAYOUT_ROW_MAJOR, n, A_oi, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi);
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_float_t *A_ci = clone_matrix_cf32(A_lu, n, n, lda);
+    if (!A_ci) { free(A_lu); free(ipiv); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            (void)cand->cgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    if (cand->cgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    /* Treat complex elements as float pairs to avoid <complex.h> incompatibility */
+    const float *A_oi_r = (const float *)A_oi;
+    const float *A_ci_r = (const float *)A_ci;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            double dr = (double)A_oi_r[base]   - (double)A_ci_r[base];
+            double di = (double)A_oi_r[base+1] - (double)A_ci_r[base+1];
+            norm_diff += dr*dr + di*di;
+            double ar = (double)A_oi_r[base];
+            double ai = (double)A_oi_r[base+1];
+            norm_inv += ar*ar + ai*ai;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZGETRI — invert complex double-precision matrix from LU factors
+ * ========================================================================= */
+static fb_judge_status_t run_zgetri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->zgetri || !cand->zgetri || !oracle->zgetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    const fb_complex_double_t *A_orig = (const fb_complex_double_t *)tc->A;
+    if (n <= 0 || !A_orig) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    fb_complex_double_t *A_lu = clone_matrix_cf64(A_orig, n, n, lda);
+    if (!A_lu) return FB_JUDGE_ERR_ALLOC;
+    int *ipiv = (int *)malloc((size_t)n * sizeof(int));
+    if (!ipiv) { free(A_lu); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->zgetrf(FB_LAYOUT_ROW_MAJOR, n, n, A_lu, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_double_t *A_oi = clone_matrix_cf64(A_lu, n, n, lda);
+    if (!A_oi) { free(A_lu); free(ipiv); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->zgetri(FB_LAYOUT_ROW_MAJOR, n, A_oi, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi);
+        mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_double_t *A_ci = clone_matrix_cf64(A_lu, n, n, lda);
+    if (!A_ci) { free(A_lu); free(ipiv); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            (void)cand->zgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_lu, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+    if (cand->zgetri(FB_LAYOUT_ROW_MAJOR, n, A_ci, lda, ipiv) != 0) {
+        free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    /* Treat complex elements as double pairs to avoid <complex.h> incompatibility */
+    const double *A_oi_r = (const double *)A_oi;
+    const double *A_ci_r = (const double *)A_ci;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            double dr = A_oi_r[base]   - A_ci_r[base];
+            double di = A_oi_r[base+1] - A_ci_r[base+1];
+            norm_diff += dr*dr + di*di;
+            double ar = A_oi_r[base];
+            double ai = A_oi_r[base+1];
+            norm_inv += ar*ar + ai*ai;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_lu); free(ipiv); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * SPOTRI — invert single-precision SPD matrix from Cholesky factor (spotrf)
+ * ========================================================================= */
+static fb_judge_status_t run_spotri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->spotri || !cand->spotri) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    if (n <= 0) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* Build a synthetic upper triangular Cholesky factor: diagonal entries
+     * forced > 0 (required for a valid Cholesky factor), upper off-diagonal
+     * scaled from tc->A to give non-trivial but well-conditioned input. */
+    float *A_chol = (float *)calloc((size_t)n * (size_t)lda, sizeof(float));
+    if (!A_chol) return FB_JUDGE_ERR_ALLOC;
+    const float *A_orig = (const float *)tc->A;
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++)
+            A_chol[i*lda + j] = A_orig ? A_orig[i*lda + j] * 0.05f : 0.0f;
+        A_chol[i*lda + i] = (float)(i + 2);  /* positive diagonal */
+    }
+    /* Oracle: compute inverse of (A_chol^T * A_chol) via POTRI */
+    float *A_oi = clone_matrix_f32(A_chol, n, n, lda);
+    if (!A_oi) { free(A_chol); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->spotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_oi, lda) != 0) {
+        free(A_chol); free(A_oi); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    /* Candidate: compute same inverse (with optional timing) */
+    float *A_ci = clone_matrix_f32(A_chol, n, n, lda);
+    if (!A_ci) { free(A_chol); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(float));
+            (void)cand->spotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->spotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(float));
+    if (cand->spotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda) != 0) {
+        free(A_chol); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            double d = (double)A_oi[i*lda + j] - (double)A_ci[i*lda + j];
+            norm_diff += d * d;
+            double a = (double)A_oi[i*lda + j];
+            norm_inv += a * a;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_chol); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * DPOTRI — invert double-precision SPD matrix from Cholesky factor (dpotrf)
+ * ========================================================================= */
+static fb_judge_status_t run_dpotri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->dpotri || !cand->dpotri) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    if (n <= 0) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* Synthetic upper triangular Cholesky factor with forced positive diagonal */
+    double *A_chol = (double *)calloc((size_t)n * (size_t)lda, sizeof(double));
+    if (!A_chol) return FB_JUDGE_ERR_ALLOC;
+    const double *A_orig = (const double *)tc->A;
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++)
+            A_chol[i*lda + j] = A_orig ? A_orig[i*lda + j] * 0.05 : 0.0;
+        A_chol[i*lda + i] = (double)(i + 2);
+    }
+    double *A_oi = clone_matrix_f64(A_chol, n, n, lda);
+    if (!A_oi) { free(A_chol); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->dpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_oi, lda) != 0) {
+        free(A_chol); free(A_oi); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    double *A_ci = clone_matrix_f64(A_chol, n, n, lda);
+    if (!A_ci) { free(A_chol); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(double));
+            (void)cand->dpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->dpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(double));
+    if (cand->dpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda) != 0) {
+        free(A_chol); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            double d = A_oi[i*lda + j] - A_ci[i*lda + j];
+            norm_diff += d * d;
+            double a = A_oi[i*lda + j];
+            norm_inv += a * a;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_chol); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * CPOTRI — invert complex single-precision HPD matrix from Cholesky factor
+ * ========================================================================= */
+static fb_judge_status_t run_cpotri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->cpotri || !cand->cpotri) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    if (n <= 0) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    /* Synthetic upper triangular Cholesky factor: real positive diagonal,
+     * small complex off-diagonals to keep the matrix well-conditioned. */
+    fb_complex_float_t *A_chol =
+        (fb_complex_float_t *)calloc((size_t)n * (size_t)lda,
+                                     sizeof(fb_complex_float_t));
+    if (!A_chol) return FB_JUDGE_ERR_ALLOC;
+    const float *A_orig_r = tc->A ? (const float *)tc->A : NULL;
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            /* small off-diagonal complex elements */
+            ((float *)A_chol)[base]   = A_orig_r ? A_orig_r[base]   * 0.05f : 0.0f;
+            ((float *)A_chol)[base+1] = A_orig_r ? A_orig_r[base+1] * 0.05f : 0.0f;
+        }
+        int diag_base = 2 * (i*lda + i);
+        ((float *)A_chol)[diag_base]   = (float)(i + 2);  /* real positive diagonal */
+        ((float *)A_chol)[diag_base+1] = 0.0f;            /* zero imaginary part */
+    }
+    fb_complex_float_t *A_oi = clone_matrix_cf32(A_chol, n, n, lda);
+    if (!A_oi) { free(A_chol); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->cpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_oi, lda) != 0) {
+        free(A_chol); free(A_oi); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_float_t *A_ci = clone_matrix_cf32(A_chol, n, n, lda);
+    if (!A_ci) { free(A_chol); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            (void)cand->cpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->cpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+    if (cand->cpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda) != 0) {
+        free(A_chol); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    const float *A_oi_r = (const float *)A_oi;
+    const float *A_ci_r = (const float *)A_ci;
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            double dr = (double)A_oi_r[base]   - (double)A_ci_r[base];
+            double di = (double)A_oi_r[base+1] - (double)A_ci_r[base+1];
+            norm_diff += dr*dr + di*di;
+            double ar = (double)A_oi_r[base];
+            double ai = (double)A_oi_r[base+1];
+            norm_inv += ar*ar + ai*ai;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < (double)FLT_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_chol); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
+ * ZPOTRI — invert complex double-precision HPD matrix from Cholesky factor
+ * ========================================================================= */
+static fb_judge_status_t run_zpotri(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    if (!oracle->zpotri || !cand->zpotri) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, lda = (int)tc->lda;
+    if (n <= 0) { mark_oracle_fatal(res); return FB_JUDGE_OK; }
+    fb_complex_double_t *A_chol =
+        (fb_complex_double_t *)calloc((size_t)n * (size_t)lda,
+                                      sizeof(fb_complex_double_t));
+    if (!A_chol) return FB_JUDGE_ERR_ALLOC;
+    const double *A_orig_r = tc->A ? (const double *)tc->A : NULL;
+    for (int i = 0; i < n; i++) {
+        for (int j = i + 1; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            ((double *)A_chol)[base]   = A_orig_r ? A_orig_r[base]   * 0.05 : 0.0;
+            ((double *)A_chol)[base+1] = A_orig_r ? A_orig_r[base+1] * 0.05 : 0.0;
+        }
+        int diag_base = 2 * (i*lda + i);
+        ((double *)A_chol)[diag_base]   = (double)(i + 2);
+        ((double *)A_chol)[diag_base+1] = 0.0;
+    }
+    fb_complex_double_t *A_oi = clone_matrix_cf64(A_chol, n, n, lda);
+    if (!A_oi) { free(A_chol); return FB_JUDGE_ERR_ALLOC; }
+    if (oracle->zpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_oi, lda) != 0) {
+        free(A_chol); free(A_oi); mark_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+    fb_complex_double_t *A_ci = clone_matrix_cf64(A_chol, n, n, lda);
+    if (!A_ci) { free(A_chol); free(A_oi); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            (void)cand->zpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)cand->zpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(A_ci, A_chol, (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+    if (cand->zpotri(FB_LAYOUT_ROW_MAJOR, FB_UPPER, n, A_ci, lda) != 0) {
+        free(A_chol); free(A_oi); free(A_ci);
+        mark_cand_fatal(res); return FB_JUDGE_OK;
+    }
+    double norm_diff = 0.0, norm_inv = 0.0;
+    const double *A_oi_r = (const double *)A_oi;
+    const double *A_ci_r = (const double *)A_ci;
+    for (int i = 0; i < n; i++) {
+        for (int j = i; j < n; j++) {
+            int base = 2 * (i*lda + j);
+            double dr = A_oi_r[base]   - A_ci_r[base];
+            double di = A_oi_r[base+1] - A_ci_r[base+1];
+            norm_diff += dr*dr + di*di;
+            double ar = A_oi_r[base];
+            double ai = A_oi_r[base+1];
+            norm_inv += ar*ar + ai*ai;
+        }
+    }
+    result_from_relerr(&res->reconstruction,
+        (norm_inv < DBL_EPSILON) ? 0.0 : sqrt(norm_diff / norm_inv));
+    free(A_chol); free(A_oi); free(A_ci);
+    return FB_JUDGE_OK;
+}
+
 /**
  * Dispatch table for FACTORIZATION archetype operations.
  * Indexed by op_id; covers LU, Cholesky, QR variants.
@@ -2501,6 +3045,10 @@ static const fb_factorization_runner_fn fb_factorization_dispatch[] = {
     [FB_OP_CUNMQR] = run_cunmqr, [FB_OP_ZUNMQR] = run_zunmqr,
     [FB_OP_STRTRI] = run_strtri, [FB_OP_DTRTRI] = run_dtrtri,
     [FB_OP_CTRTRI] = run_ctrtri, [FB_OP_ZTRTRI] = run_ztrtri,
+    [FB_OP_SGETRI] = run_sgetri, [FB_OP_DGETRI] = run_dgetri,
+    [FB_OP_CGETRI] = run_cgetri, [FB_OP_ZGETRI] = run_zgetri,
+    [FB_OP_SPOTRI] = run_spotri, [FB_OP_DPOTRI] = run_dpotri,
+    [FB_OP_CPOTRI] = run_cpotri, [FB_OP_ZPOTRI] = run_zpotri,
 };
 
 #define FB_FACTORIZATION_DISPATCH_SIZE \
