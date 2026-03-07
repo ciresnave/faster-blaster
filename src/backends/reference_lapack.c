@@ -912,6 +912,38 @@ static int ref_ztrtri(fb_layout_t l, fb_uplo_t uplo, fb_diag_t diag,
 }
 
 /* =========================================================================
+ * TRTRS wrappers — triangular system solve  (T·x = B, T already triangular)
+ * ========================================================================= */
+static int ref_strtrs(fb_layout_t l, fb_uplo_t uplo, fb_transpose_t trans,
+                      fb_diag_t diag, int n, int nrhs,
+                      const float *A, int lda, float *B, int ldb) {
+    (void)l;
+    char up = FU(uplo), tr = FC(trans), dg = FD(diag);
+    return strtrs_ref(&up, &tr, &dg, n, nrhs, A, lda, B, ldb);
+}
+static int ref_dtrtrs(fb_layout_t l, fb_uplo_t uplo, fb_transpose_t trans,
+                      fb_diag_t diag, int n, int nrhs,
+                      const double *A, int lda, double *B, int ldb) {
+    (void)l;
+    char up = FU(uplo), tr = FC(trans), dg = FD(diag);
+    return dtrtrs_ref(&up, &tr, &dg, n, nrhs, A, lda, B, ldb);
+}
+static int ref_ctrtrs(fb_layout_t l, fb_uplo_t uplo, fb_transpose_t trans,
+                      fb_diag_t diag, int n, int nrhs,
+                      const float _Complex *A, int lda, float _Complex *B, int ldb) {
+    (void)l;
+    char up = FU(uplo), tr = FC(trans), dg = FD(diag);
+    return ctrtrs_ref(&up, &tr, &dg, n, nrhs, A, lda, B, ldb);
+}
+static int ref_ztrtrs(fb_layout_t l, fb_uplo_t uplo, fb_transpose_t trans,
+                      fb_diag_t diag, int n, int nrhs,
+                      const double _Complex *A, int lda, double _Complex *B, int ldb) {
+    (void)l;
+    char up = FU(uplo), tr = FC(trans), dg = FD(diag);
+    return ztrtrs_ref(&up, &tr, &dg, n, nrhs, A, lda, B, ldb);
+}
+
+/* =========================================================================
  * GETRI wrappers — LU-based full matrix inversion.
  * Caller pre-factors A with GETRF; we just forward (layout stripped).
  * ========================================================================= */

@@ -386,6 +386,12 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     FACTOR_ENTRY(FB_OP_CTRTRI, 4, 10),
     FACTOR_ENTRY(FB_OP_ZTRTRI, 4, 10),
 
+    /* Triangular system solve (TRTRS) */
+    SOLVE_ENTRY(FB_OP_STRTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_DTRTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_CTRTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZTRTRS, 4, 10),
+
     /* LU-based full matrix inversion (GETRI) */
     FACTOR_ENTRY(FB_OP_SGETRI, 4, 10),
     FACTOR_ENTRY(FB_OP_DGETRI, 4, 10),

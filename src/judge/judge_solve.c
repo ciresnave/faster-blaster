@@ -1731,6 +1731,289 @@ static fb_judge_status_t run_zgelsy(
 }
 
 /* =========================================================================
+ * STRTRS / DTRTRS / CTRTRS / ZTRTRS
+ * Triangular system solve: T·x = B  (T already triangular — no pre-factor)
+ * Synthetic upper triangular T: forced positive diagonal + scaled off-diag
+ * ========================================================================= */
+
+static fb_judge_status_t run_strtrs(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    typedef int (*fb_strtrs_fn_t)(fb_layout_t, fb_uplo_t, fb_transpose_t,
+                                  fb_diag_t, int, int, const float *, int, float *, int);
+    if (!oracle->strtrs || !cand->strtrs) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const float *A0 = (const float *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const float *b0 = (const float *)tc->B;
+    if (n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(float);
+    size_t Bsz = tc->B_elems * sizeof(float);
+    /* Build synthetic upper triangular T: forced diagonal, bounded off-diag.
+     * Off-diagonal uses deterministic 0.5/(j-i+1) — independent of corpus
+     * scale — to avoid float overflow in extreme-scale corpus cases. */
+    float *T = (float *)malloc(Asz);
+    if (!T) return FB_JUDGE_ERR_ALLOC;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < lda; j++) {
+            if (j > i && j < n) T[i*lda+j] = 0.5f / (float)(j - i + 1);
+            else if (j == i)    T[i*lda+j] = (float)(i + 2);
+            else                T[i*lda+j] = 0.0f;
+        }
+    }
+    float *To = (float *)malloc(Asz), *Bo = (float *)malloc(Bsz);
+    if (!To || !Bo) { free(T); free(To); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    memcpy(To, T, Asz); memcpy(Bo, b0, Bsz);
+    if (((fb_strtrs_fn_t)oracle->strtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, To, lda, Bo, ldb) != 0) {
+        free(T); free(To); free(Bo); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(To);
+    float *Tc = (float *)malloc(Asz), *Bc = (float *)malloc(Bsz);
+    if (!Tc || !Bc) { free(T); free(Tc); free(Bc); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            (void)((fb_strtrs_fn_t)cand->strtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_strtrs_fn_t)cand->strtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+    if (((fb_strtrs_fn_t)cand->strtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, Tc, lda, Bc, ldb) != 0) {
+        free(T); free(Tc); free(Bc); free(Bo); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_f32(T, n, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(T); free(Tc); free(Bc); free(Bo);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dtrtrs(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    typedef int (*fb_dtrtrs_fn_t)(fb_layout_t, fb_uplo_t, fb_transpose_t,
+                                  fb_diag_t, int, int, const double *, int, double *, int);
+    if (!oracle->dtrtrs || !cand->dtrtrs) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const double *A0 = (const double *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const double *b0 = (const double *)tc->B;
+    if (n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(double);
+    size_t Bsz = tc->B_elems * sizeof(double);
+    double *T = (double *)malloc(Asz);
+    if (!T) return FB_JUDGE_ERR_ALLOC;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < lda; j++) {
+            if (j > i && j < n) T[i*lda+j] = 0.5 / (double)(j - i + 1);
+            else if (j == i)    T[i*lda+j] = (double)(i + 2);
+            else                T[i*lda+j] = 0.0;
+        }
+    }
+    double *To = (double *)malloc(Asz), *Bo = (double *)malloc(Bsz);
+    if (!To || !Bo) { free(T); free(To); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    memcpy(To, T, Asz); memcpy(Bo, b0, Bsz);
+    if (((fb_dtrtrs_fn_t)oracle->dtrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, To, lda, Bo, ldb) != 0) {
+        free(T); free(To); free(Bo); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(To);
+    double *Tc = (double *)malloc(Asz), *Bc = (double *)malloc(Bsz);
+    if (!Tc || !Bc) { free(T); free(Tc); free(Bc); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            (void)((fb_dtrtrs_fn_t)cand->dtrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_dtrtrs_fn_t)cand->dtrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+    if (((fb_dtrtrs_fn_t)cand->dtrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, Tc, lda, Bc, ldb) != 0) {
+        free(T); free(Tc); free(Bc); free(Bo); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_f64(T, n, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(T); free(Tc); free(Bc); free(Bo);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_ctrtrs(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    typedef int (*fb_ctrtrs_fn_t)(fb_layout_t, fb_uplo_t, fb_transpose_t,
+                                  fb_diag_t, int, int,
+                                  const fb_complex_float_t *, int,
+                                  fb_complex_float_t *, int);
+    if (!oracle->ctrtrs || !cand->ctrtrs) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_float_t *A0 =
+        (const fb_complex_float_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_float_t *b0 = (const fb_complex_float_t *)tc->B;
+    if (n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_float_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_float_t);
+    fb_complex_float_t *T = (fb_complex_float_t *)malloc(Asz);
+    if (!T) return FB_JUDGE_ERR_ALLOC;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < lda; j++) {
+            if (j > i && j < n) T[i*lda+j] = (fb_complex_float_t)(0.5f / (float)(j - i + 1));
+            else if (j == i)    T[i*lda+j] = (fb_complex_float_t)(float)(i + 2);
+            else                T[i*lda+j] = (fb_complex_float_t)0.0f;
+        }
+    }
+    fb_complex_float_t *To = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bo = (fb_complex_float_t *)malloc(Bsz);
+    if (!To || !Bo) { free(T); free(To); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    memcpy(To, T, Asz); memcpy(Bo, b0, Bsz);
+    if (((fb_ctrtrs_fn_t)oracle->ctrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, To, lda, Bo, ldb) != 0) {
+        free(T); free(To); free(Bo); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(To);
+    fb_complex_float_t *Tc = (fb_complex_float_t *)malloc(Asz);
+    fb_complex_float_t *Bc = (fb_complex_float_t *)malloc(Bsz);
+    if (!Tc || !Bc) { free(T); free(Tc); free(Bc); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            (void)((fb_ctrtrs_fn_t)cand->ctrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_ctrtrs_fn_t)cand->ctrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+    if (((fb_ctrtrs_fn_t)cand->ctrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, Tc, lda, Bc, ldb) != 0) {
+        free(T); free(Tc); free(Bc); free(Bo); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf32(T, n, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(T); free(Tc); free(Bc); free(Bo);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_ztrtrs(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_solve_result_t *res, uint64_t *ns_out)
+{
+    typedef int (*fb_ztrtrs_fn_t)(fb_layout_t, fb_uplo_t, fb_transpose_t,
+                                  fb_diag_t, int, int,
+                                  const fb_complex_double_t *, int,
+                                  fb_complex_double_t *, int);
+    if (!oracle->ztrtrs || !cand->ztrtrs) return FB_JUDGE_ERR_NOT_IMPL;
+    int n = (int)tc->n, nrhs = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb;
+    const fb_complex_double_t *A0 =
+        (const fb_complex_double_t *)(tc->A_snapshot ? tc->A_snapshot : tc->A);
+    const fb_complex_double_t *b0 = (const fb_complex_double_t *)tc->B;
+    if (n <= 0 || nrhs <= 0 || !A0 || !b0) { mark_oc_fatal(res); return FB_JUDGE_OK; }
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_double_t);
+    size_t Bsz = tc->B_elems * sizeof(fb_complex_double_t);
+    fb_complex_double_t *T = (fb_complex_double_t *)malloc(Asz);
+    if (!T) return FB_JUDGE_ERR_ALLOC;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < lda; j++) {
+            if (j > i && j < n) T[i*lda+j] = (fb_complex_double_t)(0.5 / (double)(j - i + 1));
+            else if (j == i)    T[i*lda+j] = (fb_complex_double_t)(double)(i + 2);
+            else                T[i*lda+j] = (fb_complex_double_t)0.0;
+        }
+    }
+    fb_complex_double_t *To = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bo = (fb_complex_double_t *)malloc(Bsz);
+    if (!To || !Bo) { free(T); free(To); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    memcpy(To, T, Asz); memcpy(Bo, b0, Bsz);
+    if (((fb_ztrtrs_fn_t)oracle->ztrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, To, lda, Bo, ldb) != 0) {
+        free(T); free(To); free(Bo); mark_oc_fatal(res); return FB_JUDGE_OK;
+    }
+    free(To);
+    fb_complex_double_t *Tc = (fb_complex_double_t *)malloc(Asz);
+    fb_complex_double_t *Bc = (fb_complex_double_t *)malloc(Bsz);
+    if (!Tc || !Bc) { free(T); free(Tc); free(Bc); free(Bo); return FB_JUDGE_ERR_ALLOC; }
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_SOLVE_WARMUP_RUNS; w++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            (void)((fb_ztrtrs_fn_t)cand->ztrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+        }
+        for (int t = 0; t < FB_SOLVE_TIMING_RUNS; t++) {
+            memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_ztrtrs_fn_t)cand->ztrtrs)(
+                FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+                n, nrhs, Tc, lda, Bc, ldb);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+    memcpy(Tc, T, Asz); memcpy(Bc, b0, Bsz);
+    if (((fb_ztrtrs_fn_t)cand->ztrtrs)(
+            FB_LAYOUT_ROW_MAJOR, FB_UPPER, FB_NO_TRANS, FB_NON_UNIT,
+            n, nrhs, Tc, lda, Bc, ldb) != 0) {
+        free(T); free(Tc); free(Bc); free(Bo); mark_ca_fatal(res); return FB_JUDGE_OK;
+    }
+    res->residual       = make_result(bwerr_cf64(T, n, n, lda, b0, ldb, Bc, ldb, nrhs));
+    res->orthogonality  = (fb_judge_case_result_t){.digits = 16};
+    res->kappa_estimate = (double)(n * 10);
+    free(T); free(Tc); free(Bc); free(Bo);
+    return FB_JUDGE_OK;
+}
+
+/* =========================================================================
  * Dispatch table
  * ========================================================================= */
 
@@ -1759,6 +2042,10 @@ static const fb_solve_runner_fn fb_solve_dispatch[] = {
     [FB_OP_DPOTRS] = run_dpotrs,
     [FB_OP_CPOTRS] = run_cpotrs,
     [FB_OP_ZPOTRS] = run_zpotrs,
+    [FB_OP_STRTRS] = run_strtrs,
+    [FB_OP_DTRTRS] = run_dtrtrs,
+    [FB_OP_CTRTRS] = run_ctrtrs,
+    [FB_OP_ZTRTRS] = run_ztrtrs,
     [FB_OP_SGELSD] = run_sgelsd,
     [FB_OP_DGELSD] = run_dgelsd,
     [FB_OP_CGELSD] = run_cgelsd,
