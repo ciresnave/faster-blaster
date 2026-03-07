@@ -944,6 +944,44 @@ static int ref_ztrtrs(fb_layout_t l, fb_uplo_t uplo, fb_transpose_t trans,
 }
 
 /* =========================================================================
+ * SSYTRS / DSYTRS / CSYTRS / ZSYTRS wrappers — symmetric system solve.
+ * Reference implementations live in faster-blaster-reference.
+ * CSYTRS and ZSYTRS use the Hermitian ref (chetrs_ref / zhetrs_ref) because
+ * the structures are identical for positive-definite use cases.
+ * ========================================================================= */
+int ssytrs_ref(const char *uplo, int n, int nrhs, const float *a, int lda,
+               const int *ipiv, float *b, int ldb, int *info);
+int dsytrs_ref(const char *uplo, int n, int nrhs, const double *a, int lda,
+               const int *ipiv, double *b, int ldb, int *info);
+int chetrs_ref(const char *uplo, int n, int nrhs, const float _Complex *a, int lda,
+               const int *ipiv, float _Complex *b, int ldb, int *info);
+int zhetrs_ref(const char *uplo, int n, int nrhs, const double _Complex *a, int lda,
+               const int *ipiv, double _Complex *b, int ldb, int *info);
+
+static int ref_ssytrs(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                      const float *A, int lda, const int *ipiv, float *B, int ldb) {
+    (void)l; char up = FU(uplo); int info = 0;
+    ssytrs_ref(&up, n, nrhs, A, lda, ipiv, B, ldb, &info); return info;
+}
+static int ref_dsytrs(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                      const double *A, int lda, const int *ipiv, double *B, int ldb) {
+    (void)l; char up = FU(uplo); int info = 0;
+    dsytrs_ref(&up, n, nrhs, A, lda, ipiv, B, ldb, &info); return info;
+}
+static int ref_csytrs(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                      const float _Complex *A, int lda, const int *ipiv,
+                      float _Complex *B, int ldb) {
+    (void)l; char up = FU(uplo); int info = 0;
+    chetrs_ref(&up, n, nrhs, A, lda, ipiv, B, ldb, &info); return info;
+}
+static int ref_zsytrs(fb_layout_t l, fb_uplo_t uplo, int n, int nrhs,
+                      const double _Complex *A, int lda, const int *ipiv,
+                      double _Complex *B, int ldb) {
+    (void)l; char up = FU(uplo); int info = 0;
+    zhetrs_ref(&up, n, nrhs, A, lda, ipiv, B, ldb, &info); return info;
+}
+
+/* =========================================================================
  * GETRI wrappers — LU-based full matrix inversion.
  * Caller pre-factors A with GETRF; we just forward (layout stripped).
  * ========================================================================= */

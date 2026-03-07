@@ -1211,6 +1211,8 @@ const fb_backend_vtable_t *fb_reference_backend(void) {
     vt.ctrtri = (fb_ctrtri_fn)ref_ctrtri;  vt.ztrtri = (fb_ztrtri_fn)ref_ztrtri;
     vt.strtrs = (fb_generic_fn)ref_strtrs; vt.dtrtrs = (fb_generic_fn)ref_dtrtrs;
     vt.ctrtrs = (fb_generic_fn)ref_ctrtrs; vt.ztrtrs = (fb_generic_fn)ref_ztrtrs;
+    vt.ssytrs = (fb_generic_fn)ref_ssytrs; vt.dsytrs = (fb_generic_fn)ref_dsytrs;
+    vt.csytrs = (fb_generic_fn)ref_csytrs; vt.zsytrs = (fb_generic_fn)ref_zsytrs;
     vt.sgetri = (fb_sgetri_fn)ref_sgetri;  vt.dgetri = (fb_dgetri_fn)ref_dgetri;
     vt.cgetri = (fb_cgetri_fn)ref_cgetri;  vt.zgetri = (fb_zgetri_fn)ref_zgetri;
     vt.spotri = (fb_spotri_fn)ref_spotri;  vt.dpotri = (fb_dpotri_fn)ref_dpotri;
