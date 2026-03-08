@@ -85,12 +85,21 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
     /* These use standard C calling convention (scalars by value), identical
        to CBLAS ABI — no thunk needed, slot directly into FB_CONV_CBLAS.    */
     if (len > 3 && memcmp(name, "fb_", 3) == 0) {
-        const char *stem = name + 3;
-        uint32_t id = fb_stem_to_op_id(stem);
-        if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
-            *out_op_id = id;
-            return FB_CONV_CBLAS;
-        }
+      /* Try stripped form first: "dnn_conv2d_forward" (BLAS/basic fb_ ops). */
+      const char *stem = name + 3;
+      uint32_t id = fb_stem_to_op_id(stem);
+      if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+        *out_op_id = id;
+        return FB_CONV_CBLAS;
+      }
+      /* Try full name including prefix: "fb_dnn_conv2d_forward".
+         Extended ops (DNN, FFT, sparse, tensor, etc.) are stored in the
+         stem map with the "fb_" prefix intact.                           */
+      id = fb_stem_to_op_id(name);
+      if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+        *out_op_id = id;
+        return FB_CONV_CBLAS;
+      }
         return FB_CONV_COUNT;
     }
 
