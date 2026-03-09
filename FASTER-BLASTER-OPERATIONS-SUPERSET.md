@@ -3148,7 +3148,67 @@ thrust::equal(begin1, end1, begin2)                 // Check equality
 | **Select**         | `rocprim::select_if`       | `cub::DeviceSelect::If`               | `thrust::copy_if`        |
 | **Partition**      | `rocprim::partition`       | `cub::DevicePartition::If`            | `thrust::partition`      |
 
-**PARALLEL PRIMITIVES TOTAL**: ~**70 operations**
+### 11.8 Extended Primitives (New Operations)
+
+These operations are implemented in faster-blaster-reference but were absent from the original spec. All typed variants follow the standard suffix convention: `_s` = float, `_d` = double, `_i32` = int32, `_u32` = uint32.
+
+**Argument Reduction** (typed variants: s/d):
+```c
+fb_reduce_argmin_s(input, size, result_index)       // Index of minimum element (float)
+fb_reduce_argmin_d(input, size, result_index)       // Index of minimum element (double)
+fb_reduce_argmax_s(input, size, result_index)       // Index of maximum element (float)
+fb_reduce_argmax_d(input, size, result_index)       // Index of maximum element (double)
+```
+
+**Norm Reductions** (typed variants: s/d):
+```c
+fb_reduce_norm1_s(input, size, result)              // L1 norm: Σ|x_i| (float)
+fb_reduce_norm1_d(input, size, result)              // L1 norm: Σ|x_i| (double)
+fb_reduce_norm2_s(input, size, result)              // L2 norm: √(Σx_i²) (float)
+fb_reduce_norm2_d(input, size, result)              // L2 norm: √(Σx_i²) (double)
+fb_reduce_norminf_s(input, size, result)            // Infinity norm: max|x_i| (float)
+fb_reduce_norminf_d(input, size, result)            // Infinity norm: max|x_i| (double)
+```
+
+**Top-K and Index Sort** (typed variants: s/d):
+```c
+fb_topk_s(input, output, indices, size, k)          // Top-k largest elements + indices (float)
+fb_topk_d(input, output, indices, size, k)          // Top-k largest elements + indices (double)
+fb_argsort_s(input, indices_out, size)              // Sorted index permutation (float)
+fb_argsort_d(input, indices_out, size)              // Sorted index permutation (double)
+```
+
+**Axis Reductions** (2-D tensor-like; typed variants: s/d):
+```c
+fb_reduce_axis_sum_s(input, output, rows, cols, axis)   // Sum along axis 0 or 1 (float)
+fb_reduce_axis_sum_d(input, output, rows, cols, axis)   // Sum along axis 0 or 1 (double)
+fb_reduce_axis_max_s(input, output, rows, cols, axis)   // Max along axis 0 or 1 (float)
+fb_reduce_axis_max_d(input, output, rows, cols, axis)   // Max along axis 0 or 1 (double)
+fb_reduce_axis_min_s(input, output, rows, cols, axis)   // Min along axis 0 or 1 (float)
+fb_reduce_axis_min_d(input, output, rows, cols, axis)   // Min along axis 0 or 1 (double)
+```
+
+**Prefix Scan Variants** (beyond inclusive/exclusive sum; typed: s/d):
+```c
+fb_scan_min_s(input, output, size)                  // Prefix minimum (running min, float)
+fb_scan_min_d(input, output, size)                  // Prefix minimum (running min, double)
+fb_scan_max_s(input, output, size)                  // Prefix maximum (running max, float)
+fb_scan_max_d(input, output, size)                  // Prefix maximum (running max, double)
+fb_scan_prod_s(input, output, size)                 // Prefix product (running product, float)
+fb_scan_prod_d(input, output, size)                 // Prefix product (running product, double)
+```
+
+**Scatter / Stream Compaction / Clamp** (typed: s/d):
+```c
+fb_scatter_add_s(values, indices, output, size, output_size)  // output[indices[i]] += values[i] (float)
+fb_scatter_add_d(values, indices, output, size, output_size)  // output[indices[i]] += values[i] (double)
+fb_compress_s(input, mask, output, out_size, size)            // Stream compaction; keep where mask[i]!=0 (float)
+fb_compress_d(input, mask, output, out_size, size)            // Stream compaction (double)
+fb_clamp_s(input, output, size, min_val, max_val)             // Clamp to [min, max] (float)
+fb_clamp_d(input, output, size, min_val, max_val)             // Clamp to [min, max] (double)
+```
+
+**PARALLEL PRIMITIVES TOTAL**: ~**70 operations** (original) + **32 new operations (Section 11.8)** = ~**102 operations**
 
 ---
 
@@ -3334,7 +3394,14 @@ fb_dnn_softplus(input, output)                      // Softplus: log(1 + e^x)
 **Backward** (gradients):
 ```c
 fb_dnn_relu_backward(input, grad_output, grad_input)
-// ... backward variants for each activation
+fb_dnn_leaky_relu_backward(input, grad_output, grad_input, negative_slope)
+fb_dnn_elu_backward(input, grad_output, grad_input, alpha)
+fb_dnn_gelu_backward(input, grad_output, grad_input)
+fb_dnn_swish_backward(input, grad_output, grad_input, beta)
+fb_dnn_mish_backward(input, grad_output, grad_input)
+fb_dnn_sigmoid_backward(output, grad_output, grad_input)   // Uses output (not input) from forward pass
+fb_dnn_tanh_backward(output, grad_output, grad_input)      // Uses output from forward pass
+fb_dnn_softplus_backward(input, grad_output, grad_input)
 ```
 
 ### 13.4 Normalization Operations (12 aliases)
@@ -3751,7 +3818,29 @@ fb_gemm_bias_layernorm_bf16(...)  // Alias → fb_gemm_unified(FB_PREC_BF16, ...
 
 **Backend**: AOCL-DLP (AMD EPYC), with future support for NVIDIA's INT8 Tensor Core operations, Intel AMX, ARM SVE
 
-**LOW-PRECISION GEMM TOTAL**: **30 aliases** (1 unified implementation in Section 6)
+### 16.3 Extended Precision & Fusion GEMM (7 new operations)
+
+These are **genuine new operations** (not aliases to `fb_gemm_unified()`) — they implement precision formats and fusion patterns not expressible via existing unified flags.
+
+```c
+// FP8 GEMM (H100 / MI300X tensor core format; stored as uint8)
+fb_gemm_fp8_e4m3(A, B, C, m, n, k, alpha, beta)            // FP8 E4M3 inputs, FP8 output
+fb_gemm_fp8_e4m3_fp32_out(A, B, C_fp32, m, n, k)           // FP8 compute, FP32 accumulation + output
+
+// INT4 GEMM (GPTQ/AWQ quantized LLM inference)
+fb_gemm_int4(A_int4, B_fp32, C, m, n, k, scales, zeros)    // 4-bit packed weights, FP32 activations
+fb_gemm_int4_group_quant(A, B, C, m, n, k, scales, zeros, group_size)  // Per-group quantization
+
+// SiLU gate fusion (LLaMA/Mistral FFN: output = A_gate * SiLU(A_up))
+fb_gemm_fused_silu(A_gate, A_up, C, m, n, k)               // Element-wise SiLU gate fusion (float)
+fb_gemm_fused_silu_bf16(A_gate, A_up, C, m, n, k)          // BF16 variant
+
+// Generic GEMM + per-channel scale + activation dispatcher
+fb_gemm_fused_scale_act(A, B, C, m, n, k, scale, activation_type)
+// activation_type: FB_FUSION_RELU | FB_FUSION_GELU | FB_FUSION_SILU | FB_FUSION_SIGMOID | FB_FUSION_NONE
+```
+
+**LOW-PRECISION GEMM TOTAL**: **30 aliases + 7 new implementations = 37 total** (1 unified implementation in Section 6)
 
 ---
 
@@ -3915,20 +4004,20 @@ fb_coulomb_direct_forces(positions[], charges[], n_atoms, forces[][])
 | **Random Number Generation**          | 48          | 48              | 0       | ⚠️ **Recommended extension** (initialization, stochastic methods)                                       |
 | **Fast Fourier Transform (FFT)**      | 68          | 68              | 0       | ⚠️ **Recommended extension** (audio, time-series, spectral methods)                                     |
 | **Tensor Operations**                 | 40          | 34              | 6       | ⚠️ **Recommended extension** (6 reduction aliases, 34 other ops)                                        |
-| **Parallel Primitives**               | 70          | 55              | 15      | ⚠️ **Recommended extension** (15 reduction/scan aliases, 55 other ops)                                  |
+| **Parallel Primitives**               | 102         | 87              | 15      | ⚠️ **Recommended extension** (15 reduction/scan aliases, 55 original + 32 new Section 11.8 ops)         |
 | **Collective Communications**         | 15          | 12              | 3       | ⚠️ **Recommended extension** (3 reduction aliases, 12 data movement ops)                                |
-| **Deep Learning Primitives**          | 100         | 88              | 12      | ⚠️ **Recommended extension** (12 normalization aliases, 88 other ops)                                   |
+| **Deep Learning Primitives**          | 108         | 96              | 12      | ⚠️ **Recommended extension** (12 normalization aliases, 88 original + 8 new backward passes)            |
 | **Data Fitting & Statistics**         | 48          | 46              | 2       | ⚠️ **Recommended extension** (2 z-score aliases, 46 other ops)                                          |
 | **Data Analytics & ML Algorithms**    | 50          | 47              | 3       | ⚠️ **Recommended extension** (3 normalization aliases, 47 other ops)                                    |
-| **Low-Precision GEMM & Quantization** | 30          | 0               | 30      | ⚠️ **All GEMM aliases** (aliased to unified implementation)                                             |
+| **Low-Precision GEMM & Quantization** | 37          | 7               | 30      | ⚠️ **30 GEMM aliases + 7 new FP8/INT4/SiLU implementations** (Section 16.3)                            |
 | **Geometric Deep Learning**           | 20          | 20              | 0       | ⚠️ **Recommended extension** (equivariant networks, molecular ML)                                       |
 | **Computational Chemistry**           | 15          | 15              | 0       | ⚠️ **Recommended extension** (atomistic simulations, materials science)                                 |
 | **ScaLAPACK**                         | 588         | 588             | 0       | ⏸️ **Optional module** (distributed computing, requires MPI)                                            |
-| **GRAND TOTAL**                       | **3442**    | **3279**        | **163** | **Total API Surface: 3442 operations** (3279 implementations + 163 zero-cost aliases)                  |
+| **GRAND TOTAL**                       | **3489**    | **3326**        | **163** | **Total API Surface: 3489 operations** (3326 implementations + 163 zero-cost aliases)                  |
 
 **Key Metrics**:
-- **Total API Surface**: 3442 operations (what users can call)
-- **Unique Implementations**: 3279 operations (actual code to maintain)
+- **Total API Surface**: 3489 operations (what users can call) — *+47 added in Phase 4 spec expansion*
+- **Unique Implementations**: 3326 operations (actual code to maintain)
 - **Zero-Cost Aliases**: 163 operations (inline wrappers, zero overhead)
 - **Duplication Eliminated**: 163 redundant implementations removed via unification pattern
   - GEMM unification: 81 aliases → 1 implementation (Section 6.1)
