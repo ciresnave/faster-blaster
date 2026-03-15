@@ -665,42 +665,53 @@ faster-blaster-reference fills the gap: **a readable, trustworthy, pure-C refere
 
 ## Code Completeness Requirements
 
-**REQUIREMENT**: Before marking ANY operation (BLAS, LAPACK, statistics, DNN, parallel primitives, tensor ops — the full superset) as "complete," the internal implementation and its CBLAS-convention export MUST both exist, compile, and pass all tests.
+**REQUIREMENT**: Before marking ANY operation (BLAS, LAPACK, statistics, DNN, parallel primitives, tensor ops — the full superset) as "complete," the internal implementation and its natural-convention export MUST both exist, compile, and pass all tests.
 
-> **Architecture note**: faster-blaster-reference exports **one calling convention**: CBLAS (`cblas_*`). `_ref` functions are internal implementations called by those wrappers — they are not a second exported convention. faster-blaster's `conv_thunks.c` / `fb_enumerate_and_populate()` automatically generates Fortran↔CBLAS thunks at runtime when a backend is loaded, so **faster-blaster-reference does NOT need to export any Fortran (`*_`) symbols**. Do NOT add Fortran wrapper bodies anywhere in faster-blaster-reference.
+> **Architecture note**: faster-blaster-reference exports operations in their **natural calling convention** — the one most developers expect to use for that category. BLAS operations export as `cblas_*` (the standard C BLAS interface). LAPACK operations export as `*_` (Fortran-style trailing underscore — the universal LAPACK standard). Extended `fb_*` operations export under their `fb_*` name. There are **no convention-conversion wrapper files** inside faster-blaster-reference. When faster-blaster loads this DLL, `fb_enumerate_and_populate()` scans the exports and `fb_finalize_plugin_vtable()` + `conv_thunks.c` generate any missing alternate-convention slots at runtime.
 
-### One Exported Convention Per Operation
+### Natural Convention Per Operation
 
-For each operation (e.g., `saxpy`, `sgemv`, `csymv`, `fb_batch_norm`, `fb_reduce_sum`), provide:
+Each operation is exported in the calling convention most developers would naturally use for that category. There are **no convention-conversion wrapper files** inside faster-blaster-reference:
 
-1. **Internal Implementation (`*_ref`)**
+| Category | Exported Convention | Example |
+|---|---|---|
+| BLAS (all levels) | `cblas_*` | `cblas_saxpy(n, alpha, x, incx, y, incy)` |
+| LAPACK | `*_` (Fortran trailing underscore) | `dgetrf_(&m, &n, A, &lda, ipiv, &info)` |
+| Extended (`fb_*`) | `fb_*` | `fb_dnn_relu(...)` |
+
+For each operation, provide:
+
+1. **Internal Implementation (`*_ref` for BLAS L2/L3; optional for LAPACK)**
    - **Signature**: `void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy)`
    - **Location**: Source file (e.g., `src/blas/level1/saxpy.c`)
    - **Purpose**: Portable, correctness-focused implementation body
-   - **Visibility**: May be `static inline` (file-local) or exported — callers use `cblas_*`, not `_ref` directly
+   - **Visibility**: `static` or unexported — callers use the exported-convention function, not `_ref` directly
+   - **Note**: BLAS L1 co-locates implementation directly in the exported `cblas_*` function (no `_ref` layer needed)
 
-2. **CBLAS-Convention Export (`cblas_*`)**
-   - **Signature**: `void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy)`
-   - **Location**: Consolidated wrappers file (e.g., `src/blas/level1/blas_l1_cblas_wrappers.c`)
-   - **Purpose**: The **one** exported public API for this operation
+2. **Natural-Convention Export**
+   - **BLAS example**: `void cblas_saxpy(n, alpha, x, incx, y, incy)` in `blas_l1_cblas_wrappers.c`
+   - **LAPACK example**: `void dgetrf_(int* m, int* n, double* A, int* lda, int* ipiv, int* info)` directly in the implementation file
    - **Header Declaration**: Must be in appropriate `*_reference.h` header file
 
-### Fortran ABI — Not faster-blaster-reference's responsibility
+### No Convention-Conversion Wrappers
 
-faster-blaster-reference does **not** export Fortran `*_` symbols. When faster-blaster loads faster-blaster-reference as a backend, `fb_enumerate_and_populate()` scans the exported `cblas_*` symbols and `fb_finalize_plugin_vtable()` Strategy 5 installs Fortran thunks automatically via `conv_thunks.c`. No `saxpy_` or similar trailing-underscore symbols should exist in faster-blaster-reference.
+faster-blaster-reference does **not** contain any files whose sole purpose is converting one calling convention to another. When faster-blaster loads this DLL, `fb_enumerate_and_populate()` scans the exported symbols by convention (`cblas_*` → `FB_CONV_CBLAS`, `*_` → `FB_CONV_FORTRAN`, `fb_*` → `FB_CONV_REF`) and `fb_finalize_plugin_vtable()` + `conv_thunks.c` fill any missing alternate-convention slots automatically.
 
-Do NOT add Fortran wrapper `.c` files to this project.
+**Do NOT add these to faster-blaster-reference:**
+- `cblas_*` wrapper files for LAPACK operations (LAPACK exports `*_` directly — faster-blaster generates `cblas_*` at load time)
+- `*_` Fortran wrapper files for BLAS operations (BLAS exports `cblas_*` directly — faster-blaster generates `*_` at load time)
+- Any `LAPACKE_*` wrapper files (a 3rd convention handled entirely by faster-blaster)
 
 ### Verification Checklist
 
 Before declaring operation complete:
 
-- [ ] `*_ref` implementation exists and compiles
-- [ ] `cblas_*` wrapper exists and compiles
+- [ ] `*_ref` implementation exists and compiles (where applicable)
+- [ ] Natural-convention export exists and compiles (`cblas_*` for BLAS, `*_` for LAPACK, `fb_*` for extended)
 - [ ] Both declarations in header file match implementations
 - [ ] No "undeclared identifier" compiler errors
 - [ ] All precision variants (S/D/C/Z where applicable) implemented
-- [ ] Unit tests exist for the CBLAS variant
+- [ ] Unit tests exist for the exported convention
 - [ ] **ALL tests passing** (0 failures, 100% pass rate)
 - [ ] Integration tests pass (cross-module dependencies)
 - [ ] Changes committed to Git with clear commit message
@@ -708,8 +719,8 @@ Before declaring operation complete:
 ### Red Flags (Operation Incomplete If)
 
 ❌ `_ref` implementation missing  
-❌ `cblas_*` wrapper missing  
-❌ Fortran `*_` body added to an individual operation `.c` file (use consolidated wrapper file instead)  
+❌ Natural-convention export missing (`cblas_*` for BLAS, `*_` for LAPACK, `fb_*` for extended)  
+❌ Convention-conversion wrapper file added to faster-blaster-reference (e.g. `cblas_*` wrappers for LAPACK ops, or `*_` wrappers for BLAS ops)  
 ❌ Function declared in header but not implemented  
 ❌ Tests pass locally but fail in CI  
 ❌ Partial coverage (e.g., S/D precisions but not C/Z)  
@@ -719,29 +730,36 @@ Before declaring operation complete:
 
 ### Example: Complete Implementation
 
-For `saxpy` (single-precision AXPY):
+**BLAS operation** (`saxpy` — natural convention is `cblas_*`):
 
 ```c
-// src/blas/level1/saxpy.c
-BLAS_L1_KERNEL void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy) {
-    // Reference implementation
-}
-
-// src/blas/level1/blas_l1_cblas_wrappers.c
-void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy) {
-    saxpy_ref(n, alpha, x, incx, y, incy);
+// src/blas/level1/saxpy.c  (BLAS L1: implementation co-located with export)
+FBR_EXPORT void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy) {
+    // Reference implementation directly in the exported function
 }
 
 // include/blas_l1_reference.h
-BLAS_L1_KERNEL void saxpy_ref(int n, float alpha, const float *x, int incx, float *y, int incy);
-void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy);
-// Note: saxpy_ is NOT in faster-blaster-reference — faster-blaster generates it via conv_thunks.c
+FBR_EXPORT void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int incy);
+// Note: saxpy_ is generated at load time by faster-blaster's conv_thunks.c
+```
+
+**LAPACK operation** (`dgetrf` — natural convention is `*_` Fortran-style):
+
+```c
+// src/lapack/auxiliary/dgetrf.c  (LAPACK: exported directly as *_)
+LAPACK_AUX FBR_EXPORT void dgetrf_(int *m, int *n, double *A, int *lda, int *ipiv, int *info) {
+    // Reference implementation directly in the exported function
+}
+
+// include/lapack_auxiliary_reference.h
+FBR_EXPORT void dgetrf_(int *m, int *n, double *A, int *lda, int *ipiv, int *info);
+// Note: cblas_dgetrf is generated at load time by faster-blaster's conv_thunks.c
 ```
 
 ### Project-Specific Notes
 
-- **faster-blaster-reference**: CBLAS is the only exported API; Fortran symbols are NOT exported — faster-blaster's runtime thunk system handles that
-- **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle; provides Fortran↔CBLAS thunks automatically via `conv_thunks.c`
+- **faster-blaster-reference**: Exports operations in their natural convention — `cblas_*` for BLAS, `*_` for LAPACK, `fb_*` for extended ops. No convention-conversion wrapper files exist inside this project; faster-blaster generates all alternate conventions at DLL load time.
+- **faster-blaster (main)**: References faster-blaster-reference as the correctness oracle; `fb_enumerate_and_populate()` + `conv_thunks.c` generate alternate-convention symbols (`*_` from `cblas_*` for BLAS, `cblas_*` from `*_` for LAPACK) automatically at plugin load time.
 - **Build verification**: `cd build-extended && ninja 2>&1 | Where-Object { $_ -match 'error:' }` must produce no output
 - **C23 standard**: All code must compile with `-std=c23` flag
 
@@ -749,11 +767,19 @@ void cblas_saxpy(int n, float alpha, const float *x, int incx, float *y, int inc
 
 ## Critical Constraints
 
-1. **C23/C++20 Standards**: Core is C23, GPU backends may use C++20 for SYCL/Metal
-2. **No Global State**: Each plugin has isolated context (thread-safe)
-3. **Zero Runtime Overhead Goal**: Function pointers resolve once at init, not per-call
-4. **LAPACK Support**: Only MKL, AOCL (libFLAME), OpenBLAS, rocSOLVER have LAPACK — BLIS is BLAS-only
-5. **Windows Quirks**: 
+1. **Build Toolchain (MANDATORY — no exceptions)**:
+   - **Generator**: Ninja only (`-G Ninja`). MSBuild/Visual Studio generators are prohibited.
+   - **Compiler**: Clang/clang-cl only. MSVC (`cl.exe`) is strictly prohibited.
+   - **Linker**: LLD only (`-fuse-ld=lld`). MSVC `link.exe` is strictly prohibited — it has a 131,071-char RSP file line limit (`LNK1170`) that breaks builds with large object file lists.
+   - Both `faster-blaster` (`build-clang/`) and `faster-blaster-reference` (`build-extended/`) must use this toolchain.
+   - CMake must pass `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl` (Windows) or `-DCMAKE_C_COMPILER=clang` (Linux/macOS).
+   - All shared libraries must add `target_link_options(... PRIVATE "-fuse-ld=lld")` to guarantee LLD is used regardless of system defaults.
+
+2. **C23/C++20 Standards**: Core is C23, GPU backends may use C++20 for SYCL/Metal
+3. **No Global State**: Each plugin has isolated context (thread-safe)
+4. **Zero Runtime Overhead Goal**: Function pointers resolve once at init, not per-call
+5. **LAPACK Support**: Only MKL, AOCL (libFLAME), OpenBLAS, rocSOLVER have LAPACK — BLIS is BLAS-only
+6. **Windows Quirks**: 
    - OpenBLAS requires clang-cl (not MSVC) due to inline assembly
    - BLIS requires Cygwin/WSL for configure script
    - ROCm not officially supported on Windows (HIP works via CUDA backend)
