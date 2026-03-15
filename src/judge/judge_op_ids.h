@@ -30,9 +30,9 @@
  *    2218 –  2233 : Spline interpolation (fb_spline_*)
  *    2234 –  2265 : GEMM / LPGEMM fused extensions
  *
- * FB_JUDGE_MAX_OPERATIONS: 2400
+ * FB_JUDGE_MAX_OPERATIONS: 3200
  *
- * Total concrete operation names covered: 2266
+ * Total concrete operation names covered: 3054
  * (see FASTER-BLASTER-OPERATIONS-LIST-APPENDIX.md)
  *
  * Use the FB_OP__*_BEGIN / _END sentinels (not raw numbers) wherever
@@ -46,7 +46,7 @@
 #define FB_JUDGE_OP_IDS_H
 
 #ifndef FB_JUDGE_MAX_OPERATIONS
-#define FB_JUDGE_MAX_OPERATIONS 2400
+#define FB_JUDGE_MAX_OPERATIONS 3200
 #endif
 
 /* Section boundary sentinels — use these instead of raw numbers. */
@@ -3731,4 +3731,866 @@
 
 #define FB_OP_FB_QGEMM_INT8_ASYMMETRIC               2265
 
+
+/* ------------------------------------------------------------------------
+ * Extended DNN operations  (2266 - 2317)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_ADAPTIVEAVGPOOL2D_FORWARD                      2266
+#define FB_OP_FB_AVGPOOL2D_FORWARD                              2267
+#define FB_OP_FB_BATCH_NORM_FORWARD                             2268
+#define FB_OP_FB_CONV2D_BACKWARD_BIAS                           2269
+#define FB_OP_FB_CONV2D_BACKWARD_DATA                           2270
+#define FB_OP_FB_CONV2D_BACKWARD_WEIGHT                         2271
+#define FB_OP_FB_CONV2D_DEPTHWISE_FORWARD                       2272
+#define FB_OP_FB_CONV2D_DILATED_FORWARD                         2273
+#define FB_OP_FB_CONV2D_FORWARD                                 2274
+#define FB_OP_FB_CONV2D_GROUPED_FORWARD                         2275
+#define FB_OP_FB_CONV2D_TRANSPOSED_FORWARD                      2276
+#define FB_OP_FB_CONV3D_FORWARD                                 2277
+#define FB_OP_FB_DROPOUT_FORWARD                                2278
+#define FB_OP_FB_ELU_BACKWARD                                   2279
+#define FB_OP_FB_ELU_FORWARD                                    2280
+#define FB_OP_FB_FLASH_ATTENTION_BACKWARD                       2281
+#define FB_OP_FB_FLASH_ATTENTION_FORWARD                        2282
+#define FB_OP_FB_FUSED_CONV_BATCHNORM_RELU                      2283
+#define FB_OP_FB_FUSED_CONV_BIAS_RELU                           2284
+#define FB_OP_FB_FUSED_LINEAR_GELU                              2285
+#define FB_OP_FB_FUSED_LINEAR_RELU                              2286
+#define FB_OP_FB_FUSED_RESIDUAL_BLOCK                           2287
+#define FB_OP_FB_GELU_BACKWARD                                  2288
+#define FB_OP_FB_GELU_FORWARD                                   2289
+#define FB_OP_FB_GLOBALAVGPOOL2D_FORWARD                        2290
+#define FB_OP_FB_GROUP_NORM_FORWARD                             2291
+#define FB_OP_FB_GRU_BACKWARD                                   2292
+#define FB_OP_FB_GRU_FORWARD                                    2293
+#define FB_OP_FB_INSTANCE_NORM_FORWARD                          2294
+#define FB_OP_FB_LAYER_NORM_FORWARD                             2295
+#define FB_OP_FB_LEAKY_RELU_BACKWARD                            2296
+#define FB_OP_FB_LEAKY_RELU_FORWARD                             2297
+#define FB_OP_FB_LOG_SOFTMAX_FORWARD                            2298
+#define FB_OP_FB_LSTM_BACKWARD                                  2299
+#define FB_OP_FB_LSTM_FORWARD                                   2300
+#define FB_OP_FB_MAXPOOL2D_FORWARD                              2301
+#define FB_OP_FB_MISH_BACKWARD                                  2302
+#define FB_OP_FB_MISH_FORWARD                                   2303
+#define FB_OP_FB_MULTI_HEAD_ATTENTION                           2304
+#define FB_OP_FB_RELU_BACKWARD                                  2305
+#define FB_OP_FB_RELU_FORWARD                                   2306
+#define FB_OP_FB_RNN_FORWARD                                    2307
+#define FB_OP_FB_SCALED_DOT_PRODUCT_ATTENTION                   2308
+#define FB_OP_FB_SIGMOID_BACKWARD                               2309
+#define FB_OP_FB_SIGMOID_FORWARD                                2310
+#define FB_OP_FB_SOFTMAX_FORWARD                                2311
+#define FB_OP_FB_SOFTPLUS_BACKWARD                              2312
+#define FB_OP_FB_SOFTPLUS_FORWARD                               2313
+#define FB_OP_FB_SWISH_BACKWARD                                 2314
+#define FB_OP_FB_SWISH_FORWARD                                  2315
+#define FB_OP_FB_TANH_BACKWARD                                  2316
+#define FB_OP_FB_TANH_FORWARD                                   2317
+
+/* ------------------------------------------------------------------------
+ * WMMA Primitives (NVIDIA)  (2318 - 2333)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_WMMA_FILL_BF16                                 2318
+#define FB_OP_FB_WMMA_FILL_F16                                  2319
+#define FB_OP_FB_WMMA_FILL_F32                                  2320
+#define FB_OP_FB_WMMA_FILL_F64                                  2321
+#define FB_OP_FB_WMMA_LOAD_BF16                                 2322
+#define FB_OP_FB_WMMA_LOAD_F16                                  2323
+#define FB_OP_FB_WMMA_LOAD_F32                                  2324
+#define FB_OP_FB_WMMA_LOAD_F64                                  2325
+#define FB_OP_FB_WMMA_MMA_SYNC_BF16                             2326
+#define FB_OP_FB_WMMA_MMA_SYNC_F16                              2327
+#define FB_OP_FB_WMMA_MMA_SYNC_F32                              2328
+#define FB_OP_FB_WMMA_MMA_SYNC_F64                              2329
+#define FB_OP_FB_WMMA_STORE_BF16                                2330
+#define FB_OP_FB_WMMA_STORE_F16                                 2331
+#define FB_OP_FB_WMMA_STORE_F32                                 2332
+#define FB_OP_FB_WMMA_STORE_F64                                 2333
+
+/* ------------------------------------------------------------------------
+ * rocWMMA Primitives (AMD)  (2334 - 2349)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_ROCWMMA_FILL_BF16                              2334
+#define FB_OP_FB_ROCWMMA_FILL_F16                               2335
+#define FB_OP_FB_ROCWMMA_FILL_F32                               2336
+#define FB_OP_FB_ROCWMMA_FILL_F64                               2337
+#define FB_OP_FB_ROCWMMA_LOAD_BF16                              2338
+#define FB_OP_FB_ROCWMMA_LOAD_F16                               2339
+#define FB_OP_FB_ROCWMMA_LOAD_F32                               2340
+#define FB_OP_FB_ROCWMMA_LOAD_F64                               2341
+#define FB_OP_FB_ROCWMMA_MMA_SYNC_BF16                          2342
+#define FB_OP_FB_ROCWMMA_MMA_SYNC_F16                           2343
+#define FB_OP_FB_ROCWMMA_MMA_SYNC_F32                           2344
+#define FB_OP_FB_ROCWMMA_MMA_SYNC_F64                           2345
+#define FB_OP_FB_ROCWMMA_STORE_BF16                             2346
+#define FB_OP_FB_ROCWMMA_STORE_F16                              2347
+#define FB_OP_FB_ROCWMMA_STORE_F32                              2348
+#define FB_OP_FB_ROCWMMA_STORE_F64                              2349
+
+/* ------------------------------------------------------------------------
+ * Extended Sparse linear algebra  (2350 - 2453)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_SPARSE_ADD_C                                   2350
+#define FB_OP_FB_SPARSE_ADD_D                                   2351
+#define FB_OP_FB_SPARSE_ADD_S                                   2352
+#define FB_OP_FB_SPARSE_ADD_Z                                   2353
+#define FB_OP_FB_SPARSE_BICG_C                                  2354
+#define FB_OP_FB_SPARSE_BICG_D                                  2355
+#define FB_OP_FB_SPARSE_BICG_S                                  2356
+#define FB_OP_FB_SPARSE_BICG_Z                                  2357
+#define FB_OP_FB_SPARSE_BICGSTAB_C                              2358
+#define FB_OP_FB_SPARSE_BICGSTAB_D                              2359
+#define FB_OP_FB_SPARSE_BICGSTAB_S                              2360
+#define FB_OP_FB_SPARSE_BICGSTAB_Z                              2361
+#define FB_OP_FB_SPARSE_C_CREATE_BSR                            2362
+#define FB_OP_FB_SPARSE_C_CREATE_COO                            2363
+#define FB_OP_FB_SPARSE_C_CREATE_CSC                            2364
+#define FB_OP_FB_SPARSE_C_CREATE_CSR                            2365
+#define FB_OP_FB_SPARSE_C_HERMM                                 2366
+#define FB_OP_FB_SPARSE_C_HERMV                                 2367
+#define FB_OP_FB_SPARSE_C_MM                                    2368
+#define FB_OP_FB_SPARSE_C_MV                                    2369
+#define FB_OP_FB_SPARSE_C_SV                                    2370
+#define FB_OP_FB_SPARSE_C_SYMM                                  2371
+#define FB_OP_FB_SPARSE_C_SYMV                                  2372
+#define FB_OP_FB_SPARSE_C_SYR2K                                 2373
+#define FB_OP_FB_SPARSE_C_SYRK                                  2374
+#define FB_OP_FB_SPARSE_C_TRSM                                  2375
+#define FB_OP_FB_SPARSE_C_TRSV                                  2376
+#define FB_OP_FB_SPARSE_CG_C                                    2377
+#define FB_OP_FB_SPARSE_CG_D                                    2378
+#define FB_OP_FB_SPARSE_CG_S                                    2379
+#define FB_OP_FB_SPARSE_CG_Z                                    2380
+#define FB_OP_FB_SPARSE_COO_TO_CSR                              2381
+#define FB_OP_FB_SPARSE_CSR_TO_COO                              2382
+#define FB_OP_FB_SPARSE_D_CREATE_BSR                            2383
+#define FB_OP_FB_SPARSE_D_CREATE_COO                            2384
+#define FB_OP_FB_SPARSE_D_CREATE_CSC                            2385
+#define FB_OP_FB_SPARSE_D_CREATE_CSR                            2386
+#define FB_OP_FB_SPARSE_D_MM                                    2387
+#define FB_OP_FB_SPARSE_D_MV                                    2388
+#define FB_OP_FB_SPARSE_D_SM                                    2389
+#define FB_OP_FB_SPARSE_D_SV                                    2390
+#define FB_OP_FB_SPARSE_D_SYMM                                  2391
+#define FB_OP_FB_SPARSE_D_SYMV                                  2392
+#define FB_OP_FB_SPARSE_D_SYR2K                                 2393
+#define FB_OP_FB_SPARSE_D_SYRK                                  2394
+#define FB_OP_FB_SPARSE_D_TRSM                                  2395
+#define FB_OP_FB_SPARSE_D_TRSV                                  2396
+#define FB_OP_FB_SPARSE_EXPORT_CSR_D                            2397
+#define FB_OP_FB_SPARSE_EXPORT_CSR_S                            2398
+#define FB_OP_FB_SPARSE_FGMRES_C                                2399
+#define FB_OP_FB_SPARSE_FGMRES_D                                2400
+#define FB_OP_FB_SPARSE_FGMRES_S                                2401
+#define FB_OP_FB_SPARSE_FGMRES_Z                                2402
+#define FB_OP_FB_SPARSE_GMRES_C                                 2403
+#define FB_OP_FB_SPARSE_GMRES_D                                 2404
+#define FB_OP_FB_SPARSE_GMRES_S                                 2405
+#define FB_OP_FB_SPARSE_GMRES_Z                                 2406
+#define FB_OP_FB_SPARSE_MINRES_C                                2407
+#define FB_OP_FB_SPARSE_MINRES_D                                2408
+#define FB_OP_FB_SPARSE_MINRES_S                                2409
+#define FB_OP_FB_SPARSE_MINRES_Z                                2410
+#define FB_OP_FB_SPARSE_PRECOND_APPLY_C                         2411
+#define FB_OP_FB_SPARSE_PRECOND_APPLY_D                         2412
+#define FB_OP_FB_SPARSE_PRECOND_APPLY_S                         2413
+#define FB_OP_FB_SPARSE_PRECOND_APPLY_Z                         2414
+#define FB_OP_FB_SPARSE_PRUNE_TO_2_4_D                          2415
+#define FB_OP_FB_SPARSE_PRUNE_TO_2_4_S                          2416
+#define FB_OP_FB_SPARSE_QMR_C                                   2417
+#define FB_OP_FB_SPARSE_QMR_D                                   2418
+#define FB_OP_FB_SPARSE_QMR_S                                   2419
+#define FB_OP_FB_SPARSE_QMR_Z                                   2420
+#define FB_OP_FB_SPARSE_S_CREATE_BSR                            2421
+#define FB_OP_FB_SPARSE_S_CREATE_COO                            2422
+#define FB_OP_FB_SPARSE_S_CREATE_CSC                            2423
+#define FB_OP_FB_SPARSE_S_CREATE_CSR                            2424
+#define FB_OP_FB_SPARSE_S_MM                                    2425
+#define FB_OP_FB_SPARSE_S_MV                                    2426
+#define FB_OP_FB_SPARSE_S_SM                                    2427
+#define FB_OP_FB_SPARSE_S_SV                                    2428
+#define FB_OP_FB_SPARSE_S_SYMM                                  2429
+#define FB_OP_FB_SPARSE_S_SYMV                                  2430
+#define FB_OP_FB_SPARSE_S_SYR2K                                 2431
+#define FB_OP_FB_SPARSE_S_SYRK                                  2432
+#define FB_OP_FB_SPARSE_S_TRSM                                  2433
+#define FB_OP_FB_SPARSE_S_TRSV                                  2434
+#define FB_OP_FB_SPARSE_TFQMR_C                                 2435
+#define FB_OP_FB_SPARSE_TFQMR_D                                 2436
+#define FB_OP_FB_SPARSE_TFQMR_S                                 2437
+#define FB_OP_FB_SPARSE_TFQMR_Z                                 2438
+#define FB_OP_FB_SPARSE_Z_CREATE_BSR                            2439
+#define FB_OP_FB_SPARSE_Z_CREATE_COO                            2440
+#define FB_OP_FB_SPARSE_Z_CREATE_CSC                            2441
+#define FB_OP_FB_SPARSE_Z_CREATE_CSR                            2442
+#define FB_OP_FB_SPARSE_Z_HERMM                                 2443
+#define FB_OP_FB_SPARSE_Z_HERMV                                 2444
+#define FB_OP_FB_SPARSE_Z_MM                                    2445
+#define FB_OP_FB_SPARSE_Z_MV                                    2446
+#define FB_OP_FB_SPARSE_Z_SV                                    2447
+#define FB_OP_FB_SPARSE_Z_SYMM                                  2448
+#define FB_OP_FB_SPARSE_Z_SYMV                                  2449
+#define FB_OP_FB_SPARSE_Z_SYR2K                                 2450
+#define FB_OP_FB_SPARSE_Z_SYRK                                  2451
+#define FB_OP_FB_SPARSE_Z_TRSM                                  2452
+#define FB_OP_FB_SPARSE_Z_TRSV                                  2453
+
+/* ------------------------------------------------------------------------
+ * Extended FFT (double-precision)  (2454 - 2481)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_FFT_AUTOCORRELATION                            2454
+#define FB_OP_FB_FFT_BLUESTEIN_C2C                              2455
+#define FB_OP_FB_FFT_BLUESTEIN_R2C                              2456
+#define FB_OP_FB_FFT_C2C_1D                                     2457
+#define FB_OP_FB_FFT_CHIRPZ                                     2458
+#define FB_OP_FB_FFT_CONVOLVE                                   2459
+#define FB_OP_FB_FFT_CROSS_CORRELATION                          2460
+#define FB_OP_FB_FFT_EXECUTE                                    2461
+#define FB_OP_FB_FFT_EXECUTE_C2C                                2462
+#define FB_OP_FB_FFT_EXECUTE_C2R                                2463
+#define FB_OP_FB_FFT_EXECUTE_R2C                                2464
+#define FB_OP_FB_FFT_NEXT_FAST_SIZE                             2465
+#define FB_OP_FB_FFT_PLAN_C2C_1D                                2466
+#define FB_OP_FB_FFT_PLAN_C2C_1D_BATCH                          2467
+#define FB_OP_FB_FFT_PLAN_C2C_2D                                2468
+#define FB_OP_FB_FFT_PLAN_C2C_3D                                2469
+#define FB_OP_FB_FFT_PLAN_C2C_ND                                2470
+#define FB_OP_FB_FFT_PLAN_C2R_1D                                2471
+#define FB_OP_FB_FFT_PLAN_C2R_2D                                2472
+#define FB_OP_FB_FFT_PLAN_C2R_3D                                2473
+#define FB_OP_FB_FFT_PLAN_C2R_ND                                2474
+#define FB_OP_FB_FFT_PLAN_DESTROY                               2475
+#define FB_OP_FB_FFT_PLAN_R2C_1D                                2476
+#define FB_OP_FB_FFT_PLAN_R2C_2D                                2477
+#define FB_OP_FB_FFT_PLAN_R2C_3D                                2478
+#define FB_OP_FB_FFT_PLAN_R2C_ND                                2479
+#define FB_OP_FB_FFT_POWER_SPECTRUM                             2480
+#define FB_OP_FB_FFT_SET_NORMALISE                              2481
+
+/* ------------------------------------------------------------------------
+ * Extended FFT (single-precision / ffts)  (2482 - 2506)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_FFTS_AUTOCORRELATION                           2482
+#define FB_OP_FB_FFTS_BLUESTEIN_C2C                             2483
+#define FB_OP_FB_FFTS_BLUESTEIN_R2C                             2484
+#define FB_OP_FB_FFTS_C2C_1D                                    2485
+#define FB_OP_FB_FFTS_CHIRPZ                                    2486
+#define FB_OP_FB_FFTS_CONVOLVE                                  2487
+#define FB_OP_FB_FFTS_CROSS_CORRELATION                         2488
+#define FB_OP_FB_FFTS_EXECUTE_C2C                               2489
+#define FB_OP_FB_FFTS_EXECUTE_C2R                               2490
+#define FB_OP_FB_FFTS_EXECUTE_R2C                               2491
+#define FB_OP_FB_FFTS_PLAN_C2C_1D                               2492
+#define FB_OP_FB_FFTS_PLAN_C2C_1D_BATCH                         2493
+#define FB_OP_FB_FFTS_PLAN_C2C_2D                               2494
+#define FB_OP_FB_FFTS_PLAN_C2C_3D                               2495
+#define FB_OP_FB_FFTS_PLAN_C2C_ND                               2496
+#define FB_OP_FB_FFTS_PLAN_C2R_1D                               2497
+#define FB_OP_FB_FFTS_PLAN_C2R_2D                               2498
+#define FB_OP_FB_FFTS_PLAN_C2R_3D                               2499
+#define FB_OP_FB_FFTS_PLAN_C2R_ND                               2500
+#define FB_OP_FB_FFTS_PLAN_R2C_1D                               2501
+#define FB_OP_FB_FFTS_PLAN_R2C_1D_BATCH                         2502
+#define FB_OP_FB_FFTS_PLAN_R2C_2D                               2503
+#define FB_OP_FB_FFTS_PLAN_R2C_3D                               2504
+#define FB_OP_FB_FFTS_PLAN_R2C_ND                               2505
+#define FB_OP_FB_FFTS_POWER_SPECTRUM                            2506
+
+/* ------------------------------------------------------------------------
+ * Extended RNG distributions  (2507 - 2596)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_RNG_C_BERNOULLI                                2507
+#define FB_OP_FB_RNG_C_BETA                                     2508
+#define FB_OP_FB_RNG_C_BINOMIAL                                 2509
+#define FB_OP_FB_RNG_C_CAUCHY                                   2510
+#define FB_OP_FB_RNG_C_EXPONENTIAL                              2511
+#define FB_OP_FB_RNG_C_GAMMA_DIST                               2512
+#define FB_OP_FB_RNG_C_GAUSSIAN                                 2513
+#define FB_OP_FB_RNG_C_LOGNORMAL                                2514
+#define FB_OP_FB_RNG_C_POISSON                                  2515
+#define FB_OP_FB_RNG_C_UNIFORM                                  2516
+#define FB_OP_FB_RNG_CBERNOULLI                                 2517
+#define FB_OP_FB_RNG_CBETA                                      2518
+#define FB_OP_FB_RNG_CBINOMIAL                                  2519
+#define FB_OP_FB_RNG_CCAUCHY                                    2520
+#define FB_OP_FB_RNG_CEXPONENTIAL                               2521
+#define FB_OP_FB_RNG_CGAMMA                                     2522
+#define FB_OP_FB_RNG_CGAMMA_DIST                                2523
+#define FB_OP_FB_RNG_CGAUSSIAN                                  2524
+#define FB_OP_FB_RNG_CLOGNORMAL                                 2525
+#define FB_OP_FB_RNG_CPOISSON                                   2526
+#define FB_OP_FB_RNG_CREATE                                     2527
+#define FB_OP_FB_RNG_CREATE_MT19937                             2528
+#define FB_OP_FB_RNG_CREATE_PCG                                 2529
+#define FB_OP_FB_RNG_CUNIFORM                                   2530
+#define FB_OP_FB_RNG_D_BERNOULLI                                2531
+#define FB_OP_FB_RNG_D_BETA                                     2532
+#define FB_OP_FB_RNG_D_BINOMIAL                                 2533
+#define FB_OP_FB_RNG_D_CAUCHY                                   2534
+#define FB_OP_FB_RNG_D_EXPONENTIAL                              2535
+#define FB_OP_FB_RNG_D_GAMMA_DIST                               2536
+#define FB_OP_FB_RNG_D_GAUSSIAN                                 2537
+#define FB_OP_FB_RNG_D_LOGNORMAL                                2538
+#define FB_OP_FB_RNG_D_POISSON                                  2539
+#define FB_OP_FB_RNG_D_UNIFORM                                  2540
+#define FB_OP_FB_RNG_DBERNOULLI                                 2541
+#define FB_OP_FB_RNG_DBETA                                      2542
+#define FB_OP_FB_RNG_DBINOMIAL                                  2543
+#define FB_OP_FB_RNG_DCAUCHY                                    2544
+#define FB_OP_FB_RNG_DEXPONENTIAL                               2545
+#define FB_OP_FB_RNG_DGAMMA                                     2546
+#define FB_OP_FB_RNG_DGAMMA_DIST                                2547
+#define FB_OP_FB_RNG_DGAUSSIAN                                  2548
+#define FB_OP_FB_RNG_DLOGNORMAL                                 2549
+#define FB_OP_FB_RNG_DPOISSON                                   2550
+#define FB_OP_FB_RNG_DUNIFORM                                   2551
+#define FB_OP_FB_RNG_NEXT_DOUBLE                                2552
+#define FB_OP_FB_RNG_NEXT_FLOAT                                 2553
+#define FB_OP_FB_RNG_PHILOX_NEXT4                               2554
+#define FB_OP_FB_RNG_S_BERNOULLI                                2555
+#define FB_OP_FB_RNG_S_BETA                                     2556
+#define FB_OP_FB_RNG_S_BINOMIAL                                 2557
+#define FB_OP_FB_RNG_S_CAUCHY                                   2558
+#define FB_OP_FB_RNG_S_EXPONENTIAL                              2559
+#define FB_OP_FB_RNG_S_GAMMA_DIST                               2560
+#define FB_OP_FB_RNG_S_GAUSSIAN                                 2561
+#define FB_OP_FB_RNG_S_LOGNORMAL                                2562
+#define FB_OP_FB_RNG_S_POISSON                                  2563
+#define FB_OP_FB_RNG_S_UNIFORM                                  2564
+#define FB_OP_FB_RNG_SBERNOULLI                                 2565
+#define FB_OP_FB_RNG_SBETA                                      2566
+#define FB_OP_FB_RNG_SBINOMIAL                                  2567
+#define FB_OP_FB_RNG_SCAUCHY                                    2568
+#define FB_OP_FB_RNG_SEXPONENTIAL                               2569
+#define FB_OP_FB_RNG_SGAMMA                                     2570
+#define FB_OP_FB_RNG_SGAMMA_DIST                                2571
+#define FB_OP_FB_RNG_SGAUSSIAN                                  2572
+#define FB_OP_FB_RNG_SLOGNORMAL                                 2573
+#define FB_OP_FB_RNG_SPOISSON                                   2574
+#define FB_OP_FB_RNG_SUNIFORM                                   2575
+#define FB_OP_FB_RNG_Z_BERNOULLI                                2576
+#define FB_OP_FB_RNG_Z_BETA                                     2577
+#define FB_OP_FB_RNG_Z_BINOMIAL                                 2578
+#define FB_OP_FB_RNG_Z_CAUCHY                                   2579
+#define FB_OP_FB_RNG_Z_EXPONENTIAL                              2580
+#define FB_OP_FB_RNG_Z_GAMMA_DIST                               2581
+#define FB_OP_FB_RNG_Z_GAUSSIAN                                 2582
+#define FB_OP_FB_RNG_Z_LOGNORMAL                                2583
+#define FB_OP_FB_RNG_Z_POISSON                                  2584
+#define FB_OP_FB_RNG_Z_UNIFORM                                  2585
+#define FB_OP_FB_RNG_ZBERNOULLI                                 2586
+#define FB_OP_FB_RNG_ZBETA                                      2587
+#define FB_OP_FB_RNG_ZBINOMIAL                                  2588
+#define FB_OP_FB_RNG_ZCAUCHY                                    2589
+#define FB_OP_FB_RNG_ZEXPONENTIAL                               2590
+#define FB_OP_FB_RNG_ZGAMMA                                     2591
+#define FB_OP_FB_RNG_ZGAMMA_DIST                                2592
+#define FB_OP_FB_RNG_ZGAUSSIAN                                  2593
+#define FB_OP_FB_RNG_ZLOGNORMAL                                 2594
+#define FB_OP_FB_RNG_ZPOISSON                                   2595
+#define FB_OP_FB_RNG_ZUNIFORM                                   2596
+
+/* ------------------------------------------------------------------------
+ * Extended parallel reductions  (2597 - 2627)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_REDUCE_ARGMAX_D                                2597
+#define FB_OP_FB_REDUCE_ARGMAX_S                                2598
+#define FB_OP_FB_REDUCE_ARGMIN_D                                2599
+#define FB_OP_FB_REDUCE_ARGMIN_S                                2600
+#define FB_OP_FB_REDUCE_AXIS_MAX_D                              2601
+#define FB_OP_FB_REDUCE_AXIS_MAX_S                              2602
+#define FB_OP_FB_REDUCE_AXIS_MIN_S                              2603
+#define FB_OP_FB_REDUCE_AXIS_SUM_D                              2604
+#define FB_OP_FB_REDUCE_AXIS_SUM_S                              2605
+#define FB_OP_FB_REDUCE_MAX_D                                   2606
+#define FB_OP_FB_REDUCE_MAX_I32                                 2607
+#define FB_OP_FB_REDUCE_MAX_S                                   2608
+#define FB_OP_FB_REDUCE_MIN_D                                   2609
+#define FB_OP_FB_REDUCE_MIN_I32                                 2610
+#define FB_OP_FB_REDUCE_MIN_S                                   2611
+#define FB_OP_FB_REDUCE_NORM1_D                                 2612
+#define FB_OP_FB_REDUCE_NORM1_S                                 2613
+#define FB_OP_FB_REDUCE_NORM2_D                                 2614
+#define FB_OP_FB_REDUCE_NORM2_S                                 2615
+#define FB_OP_FB_REDUCE_NORMINF_D                               2616
+#define FB_OP_FB_REDUCE_NORMINF_S                               2617
+#define FB_OP_FB_REDUCE_PROD_D                                  2618
+#define FB_OP_FB_REDUCE_PROD_S                                  2619
+#define FB_OP_FB_REDUCE_STD_D                                   2620
+#define FB_OP_FB_REDUCE_STD_S                                   2621
+#define FB_OP_FB_REDUCE_SUM_D                                   2622
+#define FB_OP_FB_REDUCE_SUM_I32                                 2623
+#define FB_OP_FB_REDUCE_SUM_S                                   2624
+#define FB_OP_FB_REDUCE_SUM_U32                                 2625
+#define FB_OP_FB_REDUCE_VAR_D                                   2626
+#define FB_OP_FB_REDUCE_VAR_S                                   2627
+
+/* ------------------------------------------------------------------------
+ * Extended parallel scans  (2628 - 2639)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_SCAN_MAX_D                                     2628
+#define FB_OP_FB_SCAN_MAX_S                                     2629
+#define FB_OP_FB_SCAN_MIN_D                                     2630
+#define FB_OP_FB_SCAN_MIN_S                                     2631
+#define FB_OP_FB_SCAN_PROD_D                                    2632
+#define FB_OP_FB_SCAN_PROD_S                                    2633
+#define FB_OP_FB_SCAN_SEGMENTED_SUM_D                           2634
+#define FB_OP_FB_SCAN_SEGMENTED_SUM_S                           2635
+#define FB_OP_FB_SCAN_SUM_D                                     2636
+#define FB_OP_FB_SCAN_SUM_I32                                   2637
+#define FB_OP_FB_SCAN_SUM_S                                     2638
+#define FB_OP_FB_SCAN_SUM_U32                                   2639
+
+/* ------------------------------------------------------------------------
+ * Extended parallel sort / gather / scatter  (2640 - 2667)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_ARGSORT_D                                      2640
+#define FB_OP_FB_ARGSORT_S                                      2641
+#define FB_OP_FB_CLAMP_D                                        2642
+#define FB_OP_FB_CLAMP_S                                        2643
+#define FB_OP_FB_COMPRESS_D                                     2644
+#define FB_OP_FB_COMPRESS_S                                     2645
+#define FB_OP_FB_GATHER_D                                       2646
+#define FB_OP_FB_GATHER_I32                                     2647
+#define FB_OP_FB_GATHER_S                                       2648
+#define FB_OP_FB_SCATTER_ADD_D                                  2649
+#define FB_OP_FB_SCATTER_ADD_S                                  2650
+#define FB_OP_FB_SCATTER_D                                      2651
+#define FB_OP_FB_SCATTER_I32                                    2652
+#define FB_OP_FB_SCATTER_S                                      2653
+#define FB_OP_FB_SORT_BY_KEY_D                                  2654
+#define FB_OP_FB_SORT_BY_KEY_I32                                2655
+#define FB_OP_FB_SORT_BY_KEY_S                                  2656
+#define FB_OP_FB_SORT_BY_KEY_U32                                2657
+#define FB_OP_FB_SORT_U32                                       2658
+#define FB_OP_FB_SORT_U64                                       2659
+#define FB_OP_FB_TOPK_D                                         2660
+#define FB_OP_FB_TOPK_S                                         2661
+#define FB_OP_FB_TRANSFORM2_D                                   2662
+#define FB_OP_FB_TRANSFORM2_S                                   2663
+#define FB_OP_FB_TRANSFORM_D                                    2664
+#define FB_OP_FB_TRANSFORM_S                                    2665
+#define FB_OP_FB_UNIQUE_I32                                     2666
+#define FB_OP_FB_UNIQUE_U32                                     2667
+
+/* ------------------------------------------------------------------------
+ * Parallel Primitives (prim_*)  (2668 - 2683)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_PRIM_BINARY_SEARCH                             2668
+#define FB_OP_FB_PRIM_COUNT                                     2669
+#define FB_OP_FB_PRIM_COUNT_IF                                  2670
+#define FB_OP_FB_PRIM_EQUAL                                     2671
+#define FB_OP_FB_PRIM_FILL                                      2672
+#define FB_OP_FB_PRIM_FIND                                      2673
+#define FB_OP_FB_PRIM_GENERATE                                  2674
+#define FB_OP_FB_PRIM_LOWER_BOUND                               2675
+#define FB_OP_FB_PRIM_MISMATCH                                  2676
+#define FB_OP_FB_PRIM_SEQUENCE                                  2677
+#define FB_OP_FB_PRIM_SET_DIFFERENCE                            2678
+#define FB_OP_FB_PRIM_SET_INTERSECTION                          2679
+#define FB_OP_FB_PRIM_SET_UNION                                 2680
+#define FB_OP_FB_PRIM_SHUFFLE_DOWN                              2681
+#define FB_OP_FB_PRIM_SHUFFLE_XOR                               2682
+#define FB_OP_FB_PRIM_UPPER_BOUND                               2683
+
+/* ------------------------------------------------------------------------
+ * Extended Tensor operations  (2684 - 2701)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_EINSUM_D                                       2684
+#define FB_OP_FB_TENSOR_ADD_D                                   2685
+#define FB_OP_FB_TENSOR_CONTRACT_BATCHED_D                      2686
+#define FB_OP_FB_TENSOR_CONTRACT_D                              2687
+#define FB_OP_FB_TENSOR_COPY_D                                  2688
+#define FB_OP_FB_TENSOR_CP_DECOMP                               2689
+#define FB_OP_FB_TENSOR_CP_DECOMP_D                             2690
+#define FB_OP_FB_TENSOR_GEMM_D                                  2691
+#define FB_OP_FB_TENSOR_HADAMARD_D                              2692
+#define FB_OP_FB_TENSOR_PERMUTE_D                               2693
+#define FB_OP_FB_TENSOR_REDUCE_SUM_D                            2694
+#define FB_OP_FB_TENSOR_SCALE_D                                 2695
+#define FB_OP_FB_TENSOR_TRANSPOSE_D                             2696
+#define FB_OP_FB_TENSOR_TRANSPOSE_SCALE_D                       2697
+#define FB_OP_FB_TENSOR_TTM_D                                   2698
+#define FB_OP_FB_TENSOR_TTV_D                                   2699
+#define FB_OP_FB_TENSOR_TUCKER_DECOMP                           2700
+#define FB_OP_FB_TENSOR_TUCKER_DECOMP_D                         2701
+
+/* ------------------------------------------------------------------------
+ * Extended Statistics and ML  (2702 - 2734)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_AGGLOMERATIVE_CLUSTERING                       2702
+#define FB_OP_FB_BSPLINE_EVAL                                   2703
+#define FB_OP_FB_DBSCAN                                         2704
+#define FB_OP_FB_DECISION_TREE_DESTROY                          2705
+#define FB_OP_FB_DECISION_TREE_PRUNE                            2706
+#define FB_OP_FB_ELASTIC_NET_REGRESSION                         2707
+#define FB_OP_FB_GMM_FIT                                        2708
+#define FB_OP_FB_GRADIENT_BOOSTING_FIT                          2709
+#define FB_OP_FB_HIERARCHICAL_CLUSTERING                        2710
+#define FB_OP_FB_HISTOGRAM_D                                    2711
+#define FB_OP_FB_HISTOGRAM_S                                    2712
+#define FB_OP_FB_HISTOGRAM_U32                                  2713
+#define FB_OP_FB_KMEANS                                         2714
+#define FB_OP_FB_LASSO_REGRESSION                               2715
+#define FB_OP_FB_LINEAR_REGRESSION                              2716
+#define FB_OP_FB_LOGISTIC_REGRESSION                            2717
+#define FB_OP_FB_NORMALIZE_L2                                   2718
+#define FB_OP_FB_PCA_DESTROY                                    2719
+#define FB_OP_FB_PCA_INCREMENTAL_FIT                            2720
+#define FB_OP_FB_PCA_KERNEL_FIT                                 2721
+#define FB_OP_FB_POLYNOMIAL_SPLINE_EVAL                         2722
+#define FB_OP_FB_POLYNOMIAL_SPLINE_FIT                          2723
+#define FB_OP_FB_RANDOM_FOREST_FIT                              2724
+#define FB_OP_FB_RIDGE_REGRESSION                               2725
+#define FB_OP_FB_SGD_LINEAR_FIT                                 2726
+#define FB_OP_FB_SILHOUETTE_SCORE                               2727
+#define FB_OP_FB_SPECTRAL_CLUSTERING_FIT                        2728
+#define FB_OP_FB_SPLINE_EVAL_KTH_DERIVATIVE                     2729
+#define FB_OP_FB_SPLINE_EVAL_PARAMETRIC                         2730
+#define FB_OP_FB_SPLINE_FIND_ROOTS                              2731
+#define FB_OP_FB_SPLINE_MIN_MAX                                 2732
+#define FB_OP_FB_STATS_IQR                                      2733
+#define FB_OP_FB_STATS_MOMENTS                                  2734
+
+/* ------------------------------------------------------------------------
+ * Extended vector math (complex / Bessel / special)  (2735 - 2862)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_VCACOS                                         2735
+#define FB_OP_FB_VCACOSH                                        2736
+#define FB_OP_FB_VCASIN                                         2737
+#define FB_OP_FB_VCASINH                                        2738
+#define FB_OP_FB_VCATAN                                         2739
+#define FB_OP_FB_VCATANH                                        2740
+#define FB_OP_FB_VCCBRT                                         2741
+#define FB_OP_FB_VCCOS                                          2742
+#define FB_OP_FB_VCCOSH                                         2743
+#define FB_OP_FB_VCERF                                          2744
+#define FB_OP_FB_VCERFC                                         2745
+#define FB_OP_FB_VCERFINV                                       2746
+#define FB_OP_FB_VCEXP                                          2747
+#define FB_OP_FB_VCEXP2                                         2748
+#define FB_OP_FB_VCGAMMA                                        2749
+#define FB_OP_FB_VCINVCBRT                                      2750
+#define FB_OP_FB_VCINVSQRT                                      2751
+#define FB_OP_FB_VCJ0                                           2752
+#define FB_OP_FB_VCJ1                                           2753
+#define FB_OP_FB_VCLGAMMA                                       2754
+#define FB_OP_FB_VCLOG                                          2755
+#define FB_OP_FB_VCLOG10                                        2756
+#define FB_OP_FB_VCLOG2                                         2757
+#define FB_OP_FB_VCPOW                                          2758
+#define FB_OP_FB_VCPOW2O3                                       2759
+#define FB_OP_FB_VCPOW3O2                                       2760
+#define FB_OP_FB_VCSIN                                          2761
+#define FB_OP_FB_VCSINH                                         2762
+#define FB_OP_FB_VCSQRT                                         2763
+#define FB_OP_FB_VCTAN                                          2764
+#define FB_OP_FB_VCTANH                                         2765
+#define FB_OP_FB_VDACOS                                         2766
+#define FB_OP_FB_VDACOSH                                        2767
+#define FB_OP_FB_VDASIN                                         2768
+#define FB_OP_FB_VDASINH                                        2769
+#define FB_OP_FB_VDATAN                                         2770
+#define FB_OP_FB_VDATANH                                        2771
+#define FB_OP_FB_VDCBRT                                         2772
+#define FB_OP_FB_VDCOS                                          2773
+#define FB_OP_FB_VDCOSH                                         2774
+#define FB_OP_FB_VDERF                                          2775
+#define FB_OP_FB_VDERFC                                         2776
+#define FB_OP_FB_VDERFINV                                       2777
+#define FB_OP_FB_VDEXP                                          2778
+#define FB_OP_FB_VDEXP2                                         2779
+#define FB_OP_FB_VDGAMMA                                        2780
+#define FB_OP_FB_VDINVCBRT                                      2781
+#define FB_OP_FB_VDINVSQRT                                      2782
+#define FB_OP_FB_VDJ0                                           2783
+#define FB_OP_FB_VDJ1                                           2784
+#define FB_OP_FB_VDLGAMMA                                       2785
+#define FB_OP_FB_VDLOG                                          2786
+#define FB_OP_FB_VDLOG10                                        2787
+#define FB_OP_FB_VDLOG2                                         2788
+#define FB_OP_FB_VDPOW                                          2789
+#define FB_OP_FB_VDPOW2O3                                       2790
+#define FB_OP_FB_VDPOW3O2                                       2791
+#define FB_OP_FB_VDSIN                                          2792
+#define FB_OP_FB_VDSINH                                         2793
+#define FB_OP_FB_VDSQRT                                         2794
+#define FB_OP_FB_VDTAN                                          2795
+#define FB_OP_FB_VDTANH                                         2796
+#define FB_OP_FB_VDY0                                           2797
+#define FB_OP_FB_VDY1                                           2798
+#define FB_OP_FB_VSACOS                                         2799
+#define FB_OP_FB_VSACOSH                                        2800
+#define FB_OP_FB_VSASIN                                         2801
+#define FB_OP_FB_VSASINH                                        2802
+#define FB_OP_FB_VSATAN                                         2803
+#define FB_OP_FB_VSATANH                                        2804
+#define FB_OP_FB_VSCBRT                                         2805
+#define FB_OP_FB_VSCOS                                          2806
+#define FB_OP_FB_VSCOSH                                         2807
+#define FB_OP_FB_VSERF                                          2808
+#define FB_OP_FB_VSERFC                                         2809
+#define FB_OP_FB_VSERFINV                                       2810
+#define FB_OP_FB_VSEXP                                          2811
+#define FB_OP_FB_VSEXP2                                         2812
+#define FB_OP_FB_VSGAMMA                                        2813
+#define FB_OP_FB_VSINVCBRT                                      2814
+#define FB_OP_FB_VSINVSQRT                                      2815
+#define FB_OP_FB_VSJ0                                           2816
+#define FB_OP_FB_VSJ1                                           2817
+#define FB_OP_FB_VSLGAMMA                                       2818
+#define FB_OP_FB_VSLOG                                          2819
+#define FB_OP_FB_VSLOG10                                        2820
+#define FB_OP_FB_VSLOG2                                         2821
+#define FB_OP_FB_VSPOW                                          2822
+#define FB_OP_FB_VSPOW2O3                                       2823
+#define FB_OP_FB_VSPOW3O2                                       2824
+#define FB_OP_FB_VSSIN                                          2825
+#define FB_OP_FB_VSSINH                                         2826
+#define FB_OP_FB_VSSQRT                                         2827
+#define FB_OP_FB_VSTAN                                          2828
+#define FB_OP_FB_VSTANH                                         2829
+#define FB_OP_FB_VSY0                                           2830
+#define FB_OP_FB_VSY1                                           2831
+#define FB_OP_FB_VZACOS                                         2832
+#define FB_OP_FB_VZACOSH                                        2833
+#define FB_OP_FB_VZASIN                                         2834
+#define FB_OP_FB_VZASINH                                        2835
+#define FB_OP_FB_VZATAN                                         2836
+#define FB_OP_FB_VZATANH                                        2837
+#define FB_OP_FB_VZCBRT                                         2838
+#define FB_OP_FB_VZCOS                                          2839
+#define FB_OP_FB_VZCOSH                                         2840
+#define FB_OP_FB_VZERF                                          2841
+#define FB_OP_FB_VZERFC                                         2842
+#define FB_OP_FB_VZERFINV                                       2843
+#define FB_OP_FB_VZEXP                                          2844
+#define FB_OP_FB_VZEXP2                                         2845
+#define FB_OP_FB_VZGAMMA                                        2846
+#define FB_OP_FB_VZINVCBRT                                      2847
+#define FB_OP_FB_VZINVSQRT                                      2848
+#define FB_OP_FB_VZJ0                                           2849
+#define FB_OP_FB_VZJ1                                           2850
+#define FB_OP_FB_VZLGAMMA                                       2851
+#define FB_OP_FB_VZLOG                                          2852
+#define FB_OP_FB_VZLOG10                                        2853
+#define FB_OP_FB_VZLOG2                                         2854
+#define FB_OP_FB_VZPOW                                          2855
+#define FB_OP_FB_VZPOW2O3                                       2856
+#define FB_OP_FB_VZPOW3O2                                       2857
+#define FB_OP_FB_VZSIN                                          2858
+#define FB_OP_FB_VZSINH                                         2859
+#define FB_OP_FB_VZSQRT                                         2860
+#define FB_OP_FB_VZTAN                                          2861
+#define FB_OP_FB_VZTANH                                         2862
+
+/* ------------------------------------------------------------------------
+ * Extended LP-GEMM and quantization  (2863 - 2870)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_GEMM_FP8_E4M3_FP32_OUT                         2863
+#define FB_OP_FB_GEMM_FP8_E5M2                                  2864
+#define FB_OP_FB_GEMM_FP8_E5M2_FP32_OUT                         2865
+#define FB_OP_FB_GEMM_FUSED_GELU_BF16                           2866
+#define FB_OP_FB_GEMM_FUSED_RELU_BF16                           2867
+#define FB_OP_FB_GEMM_FUSED_SILU_BF16                           2868
+#define FB_OP_FB_GEMM_FUSED_SWISH_BF16                          2869
+#define FB_OP_FB_GEMM_INT4_GROUP_QUANT                          2870
+
+/* ------------------------------------------------------------------------
+ * Extended NCCL / RCCL collectives  (2871 - 2872)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_NCCL_REDUCESCATTER_SEGMENTED                   2871
+#define FB_OP_FB_NCCL_SENDRECV                                  2872
+
+/* ------------------------------------------------------------------------
+ * Miscellaneous extensions (precision, mpfr, ieee754)  (2873 - 2899)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_FB_COPYSIGN                                       2873
+#define FB_OP_FB_GMP_VERSION                                    2874
+#define FB_OP_FB_ISDENORMAL                                     2875
+#define FB_OP_FB_ISFINITE                                       2876
+#define FB_OP_FB_ISINF                                          2877
+#define FB_OP_FB_ISNAN                                          2878
+#define FB_OP_FB_ISNORMAL                                       2879
+#define FB_OP_FB_MPFR_CONFIG_CUSTOM                             2880
+#define FB_OP_FB_MPFR_CONFIG_DEFAULT                            2881
+#define FB_OP_FB_MPFR_CONFIG_HIGH                               2882
+#define FB_OP_FB_MPFR_CONFIG_VALIDATE                           2883
+#define FB_OP_FB_MPFR_VERSION                                   2884
+#define FB_OP_FB_NEXTAFTER                                      2885
+#define FB_OP_FB_NORM_UNIFIED                                   2886
+#define FB_OP_FB_OPERATION_CONFIG_CUSTOM                        2887
+#define FB_OP_FB_OPERATION_CONFIG_DEFAULT                       2888
+#define FB_OP_FB_OPERATION_CONFIG_VALIDATE                      2889
+#define FB_OP_FB_PRECISION_BASE                                 2890
+#define FB_OP_FB_PRECISION_CLEANUP                              2891
+#define FB_OP_FB_PRECISION_GET_PRESET                           2892
+#define FB_OP_FB_PRECISION_INIT                                 2893
+#define FB_OP_FB_PRECISION_IS_COMPLEX                           2894
+#define FB_OP_FB_PRECISION_IS_GMP_MPFR_ENABLED                  2895
+#define FB_OP_FB_PRECISION_IS_INITIALIZED                       2896
+#define FB_OP_FB_PRECISION_LIST_PRESETS                         2897
+#define FB_OP_FB_PRECISION_SIZE                                 2898
+#define FB_OP_FB_REDUCTION_UNIFIED                              2899
+
+/* ------------------------------------------------------------------------
+ * ScaLAPACK additions (distributed LAPACK)  (2900 - 3053)
+ * ------------------------------------------------------------------------ */
+#define FB_OP_PCDOTC                                            2900
+#define FB_OP_PCDOTU                                            2901
+#define FB_OP_PCGEEV                                            2902
+#define FB_OP_PCGEQRF                                           2903
+#define FB_OP_PCGERC                                            2904
+#define FB_OP_PCGERU                                            2905
+#define FB_OP_PCGGEV                                            2906
+#define FB_OP_PCGGEVX                                           2907
+#define FB_OP_PCHEGVD                                           2908
+#define FB_OP_PCHEGVX                                           2909
+#define FB_OP_PCHEMM                                            2910
+#define FB_OP_PCHEMV                                            2911
+#define FB_OP_PCHER                                             2912
+#define FB_OP_PCHER2                                            2913
+#define FB_OP_PCHER2K                                           2914
+#define FB_OP_PCHERK                                            2915
+#define FB_OP_PCHSEQR                                           2916
+#define FB_OP_PCIAMAX                                           2917
+#define FB_OP_PCLACPY                                           2918
+#define FB_OP_PCLANGB                                           2919
+#define FB_OP_PCLANGE                                           2920
+#define FB_OP_PCLANHB                                           2921
+#define FB_OP_PCLANHE                                           2922
+#define FB_OP_PCLANHS                                           2923
+#define FB_OP_PCLANSY                                           2924
+#define FB_OP_PCLANTB                                           2925
+#define FB_OP_PCLANTR                                           2926
+#define FB_OP_PCLAP2D                                           2927
+#define FB_OP_PCLAP2E                                           2928
+#define FB_OP_PCLAPIV                                           2929
+#define FB_OP_PCLARF                                            2930
+#define FB_OP_PCLARFB                                           2931
+#define FB_OP_PCLARFG                                           2932
+#define FB_OP_PCLARFT                                           2933
+#define FB_OP_PCLARTG                                           2934
+#define FB_OP_PCLASCL                                           2935
+#define FB_OP_PCLASET                                           2936
+#define FB_OP_PCLAUUM                                           2937
+#define FB_OP_PCUNGLQ                                           2938
+#define FB_OP_PCUNGQL                                           2939
+#define FB_OP_PCUNGRQ                                           2940
+#define FB_OP_PCUNMLQ                                           2941
+#define FB_OP_PCUNMQL                                           2942
+#define FB_OP_PCUNMRQ                                           2943
+#define FB_OP_PDGEEV                                            2944
+#define FB_OP_PDGEQRF                                           2945
+#define FB_OP_PDGGEV                                            2946
+#define FB_OP_PDGGEVX                                           2947
+#define FB_OP_PDHSEQR                                           2948
+#define FB_OP_PDIAMAX                                           2949
+#define FB_OP_PDLACPY                                           2950
+#define FB_OP_PDLANGB                                           2951
+#define FB_OP_PDLANGE                                           2952
+#define FB_OP_PDLANHS                                           2953
+#define FB_OP_PDLANSY                                           2954
+#define FB_OP_PDLANTB                                           2955
+#define FB_OP_PDLANTR                                           2956
+#define FB_OP_PDLAP2D                                           2957
+#define FB_OP_PDLAP2E                                           2958
+#define FB_OP_PDLAPIV                                           2959
+#define FB_OP_PDLARF                                            2960
+#define FB_OP_PDLARFB                                           2961
+#define FB_OP_PDLARFG                                           2962
+#define FB_OP_PDLARFT                                           2963
+#define FB_OP_PDLARTG                                           2964
+#define FB_OP_PDLASCL                                           2965
+#define FB_OP_PDLASET                                           2966
+#define FB_OP_PDLAUUM                                           2967
+#define FB_OP_PDORGLQ                                           2968
+#define FB_OP_PDORGQL                                           2969
+#define FB_OP_PDORGRQ                                           2970
+#define FB_OP_PDORMLQ                                           2971
+#define FB_OP_PDORMQL                                           2972
+#define FB_OP_PDORMRQ                                           2973
+#define FB_OP_PDROT                                             2974
+#define FB_OP_PDSYGVD                                           2975
+#define FB_OP_PDSYGVX                                           2976
+#define FB_OP_PSGEEV                                            2977
+#define FB_OP_PSGEQRF                                           2978
+#define FB_OP_PSGGEV                                            2979
+#define FB_OP_PSGGEVX                                           2980
+#define FB_OP_PSHSEQR                                           2981
+#define FB_OP_PSIAMAX                                           2982
+#define FB_OP_PSLACPY                                           2983
+#define FB_OP_PSLANGB                                           2984
+#define FB_OP_PSLANGE                                           2985
+#define FB_OP_PSLANHS                                           2986
+#define FB_OP_PSLANSY                                           2987
+#define FB_OP_PSLANTB                                           2988
+#define FB_OP_PSLANTR                                           2989
+#define FB_OP_PSLAP2D                                           2990
+#define FB_OP_PSLAP2E                                           2991
+#define FB_OP_PSLAPIV                                           2992
+#define FB_OP_PSLARF                                            2993
+#define FB_OP_PSLARFB                                           2994
+#define FB_OP_PSLARFG                                           2995
+#define FB_OP_PSLARFT                                           2996
+#define FB_OP_PSLARTG                                           2997
+#define FB_OP_PSLASCL                                           2998
+#define FB_OP_PSLASET                                           2999
+#define FB_OP_PSLAUUM                                           3000
+#define FB_OP_PSORGLQ                                           3001
+#define FB_OP_PSORGQL                                           3002
+#define FB_OP_PSORGRQ                                           3003
+#define FB_OP_PSORMLQ                                           3004
+#define FB_OP_PSORMQL                                           3005
+#define FB_OP_PSORMRQ                                           3006
+#define FB_OP_PSROT                                             3007
+#define FB_OP_PSSYGVD                                           3008
+#define FB_OP_PSSYGVX                                           3009
+#define FB_OP_PZDOTC                                            3010
+#define FB_OP_PZDOTU                                            3011
+#define FB_OP_PZGEEV                                            3012
+#define FB_OP_PZGEQRF                                           3013
+#define FB_OP_PZGERC                                            3014
+#define FB_OP_PZGERU                                            3015
+#define FB_OP_PZGGEV                                            3016
+#define FB_OP_PZGGEVX                                           3017
+#define FB_OP_PZHEGVD                                           3018
+#define FB_OP_PZHEGVX                                           3019
+#define FB_OP_PZHEMM                                            3020
+#define FB_OP_PZHEMV                                            3021
+#define FB_OP_PZHER                                             3022
+#define FB_OP_PZHER2                                            3023
+#define FB_OP_PZHER2K                                           3024
+#define FB_OP_PZHERK                                            3025
+#define FB_OP_PZHSEQR                                           3026
+#define FB_OP_PZIAMAX                                           3027
+#define FB_OP_PZLACPY                                           3028
+#define FB_OP_PZLANGB                                           3029
+#define FB_OP_PZLANGE                                           3030
+#define FB_OP_PZLANHB                                           3031
+#define FB_OP_PZLANHE                                           3032
+#define FB_OP_PZLANHS                                           3033
+#define FB_OP_PZLANSY                                           3034
+#define FB_OP_PZLANTB                                           3035
+#define FB_OP_PZLANTR                                           3036
+#define FB_OP_PZLAP2D                                           3037
+#define FB_OP_PZLAP2E                                           3038
+#define FB_OP_PZLAPIV                                           3039
+#define FB_OP_PZLARF                                            3040
+#define FB_OP_PZLARFB                                           3041
+#define FB_OP_PZLARFG                                           3042
+#define FB_OP_PZLARFT                                           3043
+#define FB_OP_PZLARTG                                           3044
+#define FB_OP_PZLASCL                                           3045
+#define FB_OP_PZLASET                                           3046
+#define FB_OP_PZLAUUM                                           3047
+#define FB_OP_PZUNGLQ                                           3048
+#define FB_OP_PZUNGQL                                           3049
+#define FB_OP_PZUNGRQ                                           3050
+#define FB_OP_PZUNMLQ                                           3051
+#define FB_OP_PZUNMQL                                           3052
+#define FB_OP_PZUNMRQ                                           3053
+
+/* Total IDs after expansion: 3054  (2266 new entries added) */
 #endif /* FB_JUDGE_OP_IDS_H */
