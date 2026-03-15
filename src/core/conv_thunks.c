@@ -680,6 +680,655 @@ static void thunk_dgemm_fortran_to_cblas(
 }
 
 /* ============================================================================
+ * LAPACK-operation thunks
+ *
+ * Each entry covers one LAPACK driver or computational routine that the
+ * reference DLL exports with Fortran ABI (*_ suffix, all-pointer) but
+ * callers may request via CBLAS-style ABI (scalars by value, layout first).
+ *
+ * Convention mapping:
+ *   Fortran:  all arguments are pointers, including chars and ints.
+ *   CBLAS:    'layout' (int) is prepended; char and int scalars are by value.
+ *             Array/output arguments remain pointers in both conventions.
+ *
+ * Complex arrays are typed 'void *' in both thunk signatures; the calling
+ * code casts and only the raw pointer value is forwarded, so the type tag
+ * is irrelevant here.
+ * ========================================================================== */
+
+/* ---- SSTEV / DSTEV  (FB_OP_SSTEV=1119, FB_OP_DSTEV=1120) --------------- */
+
+static void thunk_sstev_fortran_to_cblas(char *jobz, int *n, float *d, float *e,
+                                         float *z, int *ldz, float *work,
+                                         int *info) {
+  if (!g_cblas_fn[FB_OP_SSTEV]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  /* CBLAS: (int layout, char jobz, int n, float *d, float *e,
+   *         float *z, int ldz, float *work, int *info) */
+  ((void (*)(int, char, int, float *, float *, float *, int, float *,
+             int *))g_cblas_fn[FB_OP_SSTEV])(102 /*LAPACK_COL_MAJOR*/, *jobz,
+                                             *n, d, e, z, *ldz, work, info);
+}
+
+static void thunk_sstev_cblas_to_fortran(int layout, char jobz, int n, float *d,
+                                         float *e, float *z, int ldz,
+                                         float *work, int *info) {
+  (void)layout; /* Fortran LAPACK is always column-major */
+  if (!g_fortran_fn[FB_OP_SSTEV]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int ldz_ = ldz;
+  ((void (*)(char *, int *, float *, float *, float *, int *, float *,
+             int *))g_fortran_fn[FB_OP_SSTEV])(&jobz, &n, d, e, z, &ldz_, work,
+                                               info);
+}
+
+static void thunk_dstev_fortran_to_cblas(char *jobz, int *n, double *d,
+                                         double *e, double *z, int *ldz,
+                                         double *work, int *info) {
+  if (!g_cblas_fn[FB_OP_DSTEV]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, int, double *, double *, double *, int, double *,
+             int *))g_cblas_fn[FB_OP_DSTEV])(102, *jobz, *n, d, e, z, *ldz,
+                                             work, info);
+}
+
+static void thunk_dstev_cblas_to_fortran(int layout, char jobz, int n,
+                                         double *d, double *e, double *z,
+                                         int ldz, double *work, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DSTEV]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int ldz_ = ldz;
+  ((void (*)(char *, int *, double *, double *, double *, int *, double *,
+             int *))g_fortran_fn[FB_OP_DSTEV])(&jobz, &n, d, e, z, &ldz_, work,
+                                               info);
+}
+
+/* ---- SGEES / DGEES  (FB_OP_SGEES=221, FB_OP_DGEES=222) ----------------- */
+
+static void thunk_sgees_fortran_to_cblas(char *jobvs, char *sort, void *select,
+                                         int *n, float *a, int *lda, int *sdim,
+                                         float *wr, float *wi, float *vs,
+                                         int *ldvs, float *work, int *lwork,
+                                         int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_SGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  /* CBLAS: (int layout, char jobvs, char sort, void *select, int n,
+   *         float *a, int lda, int *sdim, float *wr, float *wi,
+   *         float *vs, int ldvs, float *work, int lwork, int *bwork, int *info)
+   */
+  ((void (*)(int, char, char, void *, int, float *, int, int *, float *,
+             float *, float *, int, float *, int, int *,
+             int *))g_cblas_fn[FB_OP_SGEES])(102, *jobvs, *sort, select, *n, a,
+                                             *lda, sdim, wr, wi, vs, *ldvs,
+                                             work, *lwork, bwork, info);
+}
+
+static void thunk_sgees_cblas_to_fortran(int layout, char jobvs, char sort,
+                                         void *select, int n, float *a, int lda,
+                                         int *sdim, float *wr, float *wi,
+                                         float *vs, int ldvs, float *work,
+                                         int lwork, int *bwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_SGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = lwork;
+  ((void (*)(char *, char *, void *, int *, float *, int *, int *, float *,
+             float *, float *, int *, float *, int *, int *,
+             int *))g_fortran_fn[FB_OP_SGEES])(&jobvs, &sort, select, &n, a,
+                                               &lda_, sdim, wr, wi, vs, &ldvs_,
+                                               work, &lwork_, bwork, info);
+}
+
+static void thunk_dgees_fortran_to_cblas(char *jobvs, char *sort, void *select,
+                                         int *n, double *a, int *lda, int *sdim,
+                                         double *wr, double *wi, double *vs,
+                                         int *ldvs, double *work, int *lwork,
+                                         int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, int, double *, int, int *, double *,
+             double *, double *, int, double *, int, int *,
+             int *))g_cblas_fn[FB_OP_DGEES])(102, *jobvs, *sort, select, *n, a,
+                                             *lda, sdim, wr, wi, vs, *ldvs,
+                                             work, *lwork, bwork, info);
+}
+
+static void thunk_dgees_cblas_to_fortran(int layout, char jobvs, char sort,
+                                         void *select, int n, double *a,
+                                         int lda, int *sdim, double *wr,
+                                         double *wi, double *vs, int ldvs,
+                                         double *work, int lwork, int *bwork,
+                                         int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = lwork;
+  ((void (*)(char *, char *, void *, int *, double *, int *, int *, double *,
+             double *, double *, int *, double *, int *, int *,
+             int *))g_fortran_fn[FB_OP_DGEES])(&jobvs, &sort, select, &n, a,
+                                               &lda_, sdim, wr, wi, vs, &ldvs_,
+                                               work, &lwork_, bwork, info);
+}
+
+/* ---- SGTSVX / DGTSVX  (FB_OP_SGTSVX=397, FB_OP_DGTSVX=398) ------------ */
+
+static void thunk_sgtsvx_fortran_to_cblas(
+    char *fact, char *trans, int *n, int *nrhs, float *dl, float *d, float *du,
+    float *dlf, float *df, float *duf, float *du2, int *ipiv, float *b,
+    int *ldb, float *x, int *ldx, float *rcond, float *ferr, float *berr,
+    float *work, int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_SGTSVX]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, int, int, float *, float *, float *, float *,
+             float *, float *, float *, int *, float *, int, float *, int,
+             float *, float *, float *, float *, int *,
+             int *))g_cblas_fn[FB_OP_SGTSVX])(
+      102, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+      *ldb, x, *ldx, rcond, ferr, berr, work, iwork, info);
+}
+
+static void thunk_sgtsvx_cblas_to_fortran(
+    int layout, char fact, char trans, int n, int nrhs, float *dl, float *d,
+    float *du, float *dlf, float *df, float *duf, float *du2, int *ipiv,
+    float *b, int ldb, float *x, int ldx, float *rcond, float *ferr,
+    float *berr, float *work, int *iwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_SGTSVX]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int ldb_ = ldb, ldx_ = ldx;
+  ((void (*)(char *, char *, int *, int *, float *, float *, float *, float *,
+             float *, float *, float *, int *, float *, int *, float *, int *,
+             float *, float *, float *, float *, int *,
+             int *))g_fortran_fn[FB_OP_SGTSVX])(
+      &fact, &trans, &n, &nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b, &ldb_, x,
+      &ldx_, rcond, ferr, berr, work, iwork, info);
+}
+
+static void thunk_dgtsvx_fortran_to_cblas(
+    char *fact, char *trans, int *n, int *nrhs, double *dl, double *d,
+    double *du, double *dlf, double *df, double *duf, double *du2, int *ipiv,
+    double *b, int *ldb, double *x, int *ldx, double *rcond, double *ferr,
+    double *berr, double *work, int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DGTSVX]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, int, int, double *, double *, double *, double *,
+             double *, double *, double *, int *, double *, int, double *, int,
+             double *, double *, double *, double *, int *,
+             int *))g_cblas_fn[FB_OP_DGTSVX])(
+      102, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+      *ldb, x, *ldx, rcond, ferr, berr, work, iwork, info);
+}
+
+static void thunk_dgtsvx_cblas_to_fortran(
+    int layout, char fact, char trans, int n, int nrhs, double *dl, double *d,
+    double *du, double *dlf, double *df, double *duf, double *du2, int *ipiv,
+    double *b, int ldb, double *x, int ldx, double *rcond, double *ferr,
+    double *berr, double *work, int *iwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DGTSVX]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int ldb_ = ldb, ldx_ = ldx;
+  ((void (*)(char *, char *, int *, int *, double *, double *, double *,
+             double *, double *, double *, double *, int *, double *, int *,
+             double *, int *, double *, double *, double *, double *, int *,
+             int *))g_fortran_fn[FB_OP_DGTSVX])(
+      &fact, &trans, &n, &nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b, &ldb_, x,
+      &ldx_, rcond, ferr, berr, work, iwork, info);
+}
+
+/* ---- SORMHR  (FB_OP_SORMHR=897) ---------------------------------------- */
+
+static void thunk_sormhr_fortran_to_cblas(char *side, char *trans, int *m,
+                                          int *n, int *ilo, int *ihi, float *a,
+                                          int *lda, float *tau, float *c,
+                                          int *ldc, float *work, int *lwork,
+                                          int *info) {
+  if (!g_cblas_fn[FB_OP_SORMHR]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  /* CBLAS: (int layout, char side, char trans, int m, int n,
+   *         int ilo, int ihi, float *a, int lda, float *tau,
+   *         float *c, int ldc, float *work, int lwork, int *info) */
+  ((void (*)(int, char, char, int, int, int, int, float *, int, float *,
+             float *, int, float *, int, int *))g_cblas_fn[FB_OP_SORMHR])(
+      102, *side, *trans, *m, *n, *ilo, *ihi, a, *lda, tau, c, *ldc, work,
+      *lwork, info);
+}
+
+static void thunk_sormhr_cblas_to_fortran(int layout, char side, char trans,
+                                          int m, int n, int ilo, int ihi,
+                                          float *a, int lda, float *tau,
+                                          float *c, int ldc, float *work,
+                                          int lwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_SORMHR]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldc_ = ldc, lwork_ = lwork;
+  ((void (*)(char *, char *, int *, int *, int *, int *, float *, int *,
+             float *, float *, int *, float *, int *,
+             int *))g_fortran_fn[FB_OP_SORMHR])(&side, &trans, &m, &n, &ilo,
+                                                &ihi, a, &lda_, tau, c, &ldc_,
+                                                work, &lwork_, info);
+}
+
+/* ---- DSPRFS  (FB_OP_DSPRFS=1076) --------------------------------------- */
+
+static void thunk_dsprfs_fortran_to_cblas(char *uplo, int *n, int *nrhs,
+                                          double *ap, double *afp, int *ipiv,
+                                          double *b, int *ldb, double *x,
+                                          int *ldx, double *ferr, double *berr,
+                                          double *work, int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DSPRFS]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  /* CBLAS: (int layout, char uplo, int n, int nrhs,
+   *         double *ap, double *afp, int *ipiv,
+   *         double *b, int ldb, double *x, int ldx,
+   *         double *ferr, double *berr, double *work, int *iwork, int *info) */
+  ((void (*)(int, char, int, int, double *, double *, int *, double *, int,
+             double *, int, double *, double *, double *, int *,
+             int *))g_cblas_fn[FB_OP_DSPRFS])(102, *uplo, *n, *nrhs, ap, afp,
+                                              ipiv, b, *ldb, x, *ldx, ferr,
+                                              berr, work, iwork, info);
+}
+
+static void thunk_dsprfs_cblas_to_fortran(int layout, char uplo, int n,
+                                          int nrhs, double *ap, double *afp,
+                                          int *ipiv, double *b, int ldb,
+                                          double *x, int ldx, double *ferr,
+                                          double *berr, double *work,
+                                          int *iwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DSPRFS]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int ldb_ = ldb, ldx_ = ldx;
+  ((void (*)(char *, int *, int *, double *, double *, int *, double *, int *,
+             double *, int *, double *, double *, double *, int *,
+             int *))g_fortran_fn[FB_OP_DSPRFS])(&uplo, &n, &nrhs, ap, afp, ipiv,
+                                                b, &ldb_, x, &ldx_, ferr, berr,
+                                                work, iwork, info);
+}
+
+/* ---- STGSEN/DTGSEN  (FB_OP_STGSEN=1225, FB_OP_DTGSEN=1226) ------------- */
+
+static void thunk_stgsen_fortran_to_cblas(
+    int *ijob, int *wantq, int *wantz, const int *select, int *n, float *a,
+    int *lda, float *b, int *ldb, float *alphar, float *alphai, float *beta,
+    float *q, int *ldq, float *z, int *ldz, int *m, float *pl, float *pr,
+    float *dif, float *work, int *lwork, int *iwork, int *liwork, int *info) {
+  if (!g_cblas_fn[FB_OP_STGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, int, int, int, const int *, int, float *, int, float *, int,
+             float *, float *, float *, float *, int, float *, int, int *,
+             float *, float *, float *, float *, int, int *, int,
+             int *))g_cblas_fn[FB_OP_STGSEN])(
+      102, *ijob, *wantq, *wantz, select, *n, a, *lda, b, *ldb, alphar, alphai,
+      beta, q, *ldq, z, *ldz, m, pl, pr, dif, work, *lwork, iwork, *liwork,
+      info);
+}
+
+static void thunk_stgsen_cblas_to_fortran(
+    int layout, int ijob, int wantq, int wantz, const int *select, int n,
+    float *a, int lda, float *b, int ldb, float *alphar, float *alphai,
+    float *beta, float *q, int ldq, float *z, int ldz, int *m, float *pl,
+    float *pr, float *dif, float *work, int lwork, int *iwork, int liwork,
+    int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_STGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldq_ = ldq, ldz_ = ldz, lwork_ = lwork,
+      liwork_ = liwork;
+  ((void (*)(int *, int *, int *, const int *, int *, float *, int *, float *,
+             int *, float *, float *, float *, float *, int *, float *, int *,
+             int *, float *, float *, float *, float *, int *, int *, int *,
+             int *))g_fortran_fn[FB_OP_STGSEN])(
+      &ijob, &wantq, &wantz, select, &n, a, &lda_, b, &ldb_, alphar, alphai,
+      beta, q, &ldq_, z, &ldz_, m, pl, pr, dif, work, &lwork_, iwork, &liwork_,
+      info);
+}
+
+static void thunk_dtgsen_fortran_to_cblas(
+    int *ijob, int *wantq, int *wantz, const int *select, int *n, double *a,
+    int *lda, double *b, int *ldb, double *alphar, double *alphai, double *beta,
+    double *q, int *ldq, double *z, int *ldz, int *m, double *pl, double *pr,
+    double *dif, double *work, int *lwork, int *iwork, int *liwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, int, int, int, const int *, int, double *, int, double *, int,
+             double *, double *, double *, double *, int, double *, int, int *,
+             double *, double *, double *, double *, int, int *, int,
+             int *))g_cblas_fn[FB_OP_DTGSEN])(
+      102, *ijob, *wantq, *wantz, select, *n, a, *lda, b, *ldb, alphar, alphai,
+      beta, q, *ldq, z, *ldz, m, pl, pr, dif, work, *lwork, iwork, *liwork,
+      info);
+}
+
+static void thunk_dtgsen_cblas_to_fortran(
+    int layout, int ijob, int wantq, int wantz, const int *select, int n,
+    double *a, int lda, double *b, int ldb, double *alphar, double *alphai,
+    double *beta, double *q, int ldq, double *z, int ldz, int *m, double *pl,
+    double *pr, double *dif, double *work, int lwork, int *iwork, int liwork,
+    int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldq_ = ldq, ldz_ = ldz, lwork_ = lwork,
+      liwork_ = liwork;
+  ((void (*)(int *, int *, int *, const int *, int *, double *, int *, double *,
+             int *, double *, double *, double *, double *, int *, double *,
+             int *, int *, double *, double *, double *, double *, int *, int *,
+             int *, int *))g_fortran_fn[FB_OP_DTGSEN])(
+      &ijob, &wantq, &wantz, select, &n, a, &lda_, b, &ldb_, alphar, alphai,
+      beta, q, &ldq_, z, &ldz_, m, pl, pr, dif, work, &lwork_, iwork, &liwork_,
+      info);
+}
+
+/* ---- CTGSEN/ZTGSEN  (FB_OP_CTGSEN=1227, FB_OP_ZTGSEN=1228) ------------- */
+/* Complex arrays are typed void* — only the pointer value is forwarded.    */
+
+static void thunk_ctgsen_fortran_to_cblas(
+    int *ijob, int *wantq, int *wantz, const int *select, int *n, void *a,
+    int *lda, void *b, int *ldb, void *alpha, void *beta, void *q, int *ldq,
+    void *z, int *ldz, int *m, float *pl, float *pr, float *dif, void *work,
+    int *lwork, int *iwork, int *liwork, int *info) {
+  if (!g_cblas_fn[FB_OP_CTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, int, int, int, const int *, int, void *, int, void *, int,
+             void *, void *, void *, int, void *, int, int *, float *, float *,
+             float *, void *, int, int *, int, int *))g_cblas_fn[FB_OP_CTGSEN])(
+      102, *ijob, *wantq, *wantz, select, *n, a, *lda, b, *ldb, alpha, beta, q,
+      *ldq, z, *ldz, m, pl, pr, dif, work, *lwork, iwork, *liwork, info);
+}
+
+static void thunk_ctgsen_cblas_to_fortran(
+    int layout, int ijob, int wantq, int wantz, const int *select, int n,
+    void *a, int lda, void *b, int ldb, void *alpha, void *beta, void *q,
+    int ldq, void *z, int ldz, int *m, float *pl, float *pr, float *dif,
+    void *work, int lwork, int *iwork, int liwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_CTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldq_ = ldq, ldz_ = ldz, lwork_ = lwork,
+      liwork_ = liwork;
+  int ldb_tmp = ldb_; /* avoid -Wshadow with ldb_ used below */
+  (void)ldb_tmp;
+  ((void (*)(int *, int *, int *, const int *, int *, void *, int *, void *,
+             int *, void *, void *, void *, int *, void *, int *, int *,
+             float *, float *, float *, void *, int *, int *, int *,
+             int *))g_fortran_fn[FB_OP_CTGSEN])(
+      &ijob, &wantq, &wantz, select, &n, a, &lda_, b, &ldb_, alpha, beta, q,
+      &ldq_, z, &ldz_, m, pl, pr, dif, work, &lwork_, iwork, &liwork_, info);
+}
+
+static void thunk_ztgsen_fortran_to_cblas(
+    int *ijob, int *wantq, int *wantz, const int *select, int *n, void *a,
+    int *lda, void *b, int *ldb, void *alpha, void *beta, void *q, int *ldq,
+    void *z, int *ldz, int *m, double *pl, double *pr, double *dif, void *work,
+    int *lwork, int *iwork, int *liwork, int *info) {
+  if (!g_cblas_fn[FB_OP_ZTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, int, int, int, const int *, int, void *, int, void *, int,
+             void *, void *, void *, int, void *, int, int *, double *,
+             double *, double *, void *, int, int *, int,
+             int *))g_cblas_fn[FB_OP_ZTGSEN])(
+      102, *ijob, *wantq, *wantz, select, *n, a, *lda, b, *ldb, alpha, beta, q,
+      *ldq, z, *ldz, m, pl, pr, dif, work, *lwork, iwork, *liwork, info);
+}
+
+static void thunk_ztgsen_cblas_to_fortran(
+    int layout, int ijob, int wantq, int wantz, const int *select, int n,
+    void *a, int lda, void *b, int ldb, void *alpha, void *beta, void *q,
+    int ldq, void *z, int ldz, int *m, double *pl, double *pr, double *dif,
+    void *work, int lwork, int *iwork, int liwork, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_ZTGSEN]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldq_ = ldq, ldz_ = ldz, lwork_ = lwork,
+      liwork_ = liwork;
+  int ldb_tmp = ldb_;
+  (void)ldb_tmp;
+  ((void (*)(int *, int *, int *, const int *, int *, void *, int *, void *,
+             int *, void *, void *, void *, int *, void *, int *, int *,
+             double *, double *, double *, void *, int *, int *, int *,
+             int *))g_fortran_fn[FB_OP_ZTGSEN])(
+      &ijob, &wantq, &wantz, select, &n, a, &lda_, b, &ldb_, alpha, beta, q,
+      &ldq_, z, &ldz_, m, pl, pr, dif, work, &lwork_, iwork, &liwork_, info);
+}
+
+/* ---- STGSJA/DTGSJA  (FB_OP_STGSJA=1229, FB_OP_DTGSJA=1230) ------------ */
+
+static void thunk_stgsja_fortran_to_cblas(
+    char *jobu, char *jobv, char *jobq, int *m, int *p, int *n, int *k, int *l,
+    float *a, int *lda, float *b, int *ldb, float *tola, float *tolb,
+    float *alpha, float *beta, float *u, int *ldu, float *v, int *ldv, float *q,
+    int *ldq, float *work, int *ncycle, int *info) {
+  if (!g_cblas_fn[FB_OP_STGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  /* CBLAS: (int layout, char jobu, char jobv, char jobq,
+   *         int m, int p, int n, int k, int l,
+   *         float *a, int lda, float *b, int ldb,
+   *         float tola, float tolb, float *alpha, float *beta,
+   *         float *u, int ldu, float *v, int ldv,
+   *         float *q, int ldq, float *work, int *ncycle, int *info) */
+  ((void (*)(int, char, char, char, int, int, int, int, int, float *, int,
+             float *, int, float, float, float *, float *, float *, int,
+             float *, int, float *, int, float *, int *,
+             int *))g_cblas_fn[FB_OP_STGSJA])(
+      102, *jobu, *jobv, *jobq, *m, *p, *n, *k, *l, a, *lda, b, *ldb, *tola,
+      *tolb, alpha, beta, u, *ldu, v, *ldv, q, *ldq, work, ncycle, info);
+}
+
+static void thunk_stgsja_cblas_to_fortran(
+    int layout, char jobu, char jobv, char jobq, int m, int p, int n, int k,
+    int l, float *a, int lda, float *b, int ldb, float tola, float tolb,
+    float *alpha, float *beta, float *u, int ldu, float *v, int ldv, float *q,
+    int ldq, float *work, int *ncycle, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_STGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldu_ = ldu, ldv_ = ldv, ldq_ = ldq;
+  ((void (*)(char *, char *, char *, int *, int *, int *, int *, int *, float *,
+             int *, float *, int *, float *, float *, float *, float *, float *,
+             int *, float *, int *, float *, int *, float *, int *,
+             int *))g_fortran_fn[FB_OP_STGSJA])(
+      &jobu, &jobv, &jobq, &m, &p, &n, &k, &l, a, &lda_, b, &ldb_, &tola, &tolb,
+      alpha, beta, u, &ldu_, v, &ldv_, q, &ldq_, work, ncycle, info);
+}
+
+static void thunk_dtgsja_fortran_to_cblas(
+    char *jobu, char *jobv, char *jobq, int *m, int *p, int *n, int *k, int *l,
+    double *a, int *lda, double *b, int *ldb, double *tola, double *tolb,
+    double *alpha, double *beta, double *u, int *ldu, double *v, int *ldv,
+    double *q, int *ldq, double *work, int *ncycle, int *info) {
+  if (!g_cblas_fn[FB_OP_DTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, char, int, int, int, int, int, double *, int,
+             double *, int, double, double, double *, double *, double *, int,
+             double *, int, double *, int, double *, int *,
+             int *))g_cblas_fn[FB_OP_DTGSJA])(
+      102, *jobu, *jobv, *jobq, *m, *p, *n, *k, *l, a, *lda, b, *ldb, *tola,
+      *tolb, alpha, beta, u, *ldu, v, *ldv, q, *ldq, work, ncycle, info);
+}
+
+static void thunk_dtgsja_cblas_to_fortran(
+    int layout, char jobu, char jobv, char jobq, int m, int p, int n, int k,
+    int l, double *a, int lda, double *b, int ldb, double tola, double tolb,
+    double *alpha, double *beta, double *u, int ldu, double *v, int ldv,
+    double *q, int ldq, double *work, int *ncycle, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_DTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldu_ = ldu, ldv_ = ldv, ldq_ = ldq;
+  ((void (*)(char *, char *, char *, int *, int *, int *, int *, int *,
+             double *, int *, double *, int *, double *, double *, double *,
+             double *, double *, int *, double *, int *, double *, int *,
+             double *, int *, int *))g_fortran_fn[FB_OP_DTGSJA])(
+      &jobu, &jobv, &jobq, &m, &p, &n, &k, &l, a, &lda_, b, &ldb_, &tola, &tolb,
+      alpha, beta, u, &ldu_, v, &ldv_, q, &ldq_, work, ncycle, info);
+}
+
+/* ---- CTGSJA/ZTGSJA  (FB_OP_CTGSJA=1231, FB_OP_ZTGSJA=1232) ------------ */
+/* Complex matrices as void*; tola/tolb/alpha/beta are real (float/double). */
+
+static void thunk_ctgsja_fortran_to_cblas(
+    char *jobu, char *jobv, char *jobq, int *m, int *p, int *n, int *k, int *l,
+    void *a, int *lda, void *b, int *ldb, float *tola, float *tolb,
+    float *alpha, float *beta, void *u, int *ldu, void *v, int *ldv, void *q,
+    int *ldq, void *work, int *ncycle, int *info) {
+  if (!g_cblas_fn[FB_OP_CTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, char, int, int, int, int, int, void *, int,
+             void *, int, float, float, float *, float *, void *, int, void *,
+             int, void *, int, void *, int *, int *))g_cblas_fn[FB_OP_CTGSJA])(
+      102, *jobu, *jobv, *jobq, *m, *p, *n, *k, *l, a, *lda, b, *ldb, *tola,
+      *tolb, alpha, beta, u, *ldu, v, *ldv, q, *ldq, work, ncycle, info);
+}
+
+static void thunk_ctgsja_cblas_to_fortran(
+    int layout, char jobu, char jobv, char jobq, int m, int p, int n, int k,
+    int l, void *a, int lda, void *b, int ldb, float tola, float tolb,
+    float *alpha, float *beta, void *u, int ldu, void *v, int ldv, void *q,
+    int ldq, void *work, int *ncycle, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_CTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldu_ = ldu, ldv_ = ldv, ldq_ = ldq;
+  ((void (*)(char *, char *, char *, int *, int *, int *, int *, int *, void *,
+             int *, void *, int *, float *, float *, float *, float *, void *,
+             int *, void *, int *, void *, int *, void *, int *,
+             int *))g_fortran_fn[FB_OP_CTGSJA])(
+      &jobu, &jobv, &jobq, &m, &p, &n, &k, &l, a, &lda_, b, &ldb_, &tola, &tolb,
+      alpha, beta, u, &ldu_, v, &ldv_, q, &ldq_, work, ncycle, info);
+}
+
+static void thunk_ztgsja_fortran_to_cblas(
+    char *jobu, char *jobv, char *jobq, int *m, int *p, int *n, int *k, int *l,
+    void *a, int *lda, void *b, int *ldb, double *tola, double *tolb,
+    double *alpha, double *beta, void *u, int *ldu, void *v, int *ldv, void *q,
+    int *ldq, void *work, int *ncycle, int *info) {
+  if (!g_cblas_fn[FB_OP_ZTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, char, int, int, int, int, int, void *, int,
+             void *, int, double, double, double *, double *, void *, int,
+             void *, int, void *, int, void *, int *,
+             int *))g_cblas_fn[FB_OP_ZTGSJA])(
+      102, *jobu, *jobv, *jobq, *m, *p, *n, *k, *l, a, *lda, b, *ldb, *tola,
+      *tolb, alpha, beta, u, *ldu, v, *ldv, q, *ldq, work, ncycle, info);
+}
+
+static void thunk_ztgsja_cblas_to_fortran(
+    int layout, char jobu, char jobv, char jobq, int m, int p, int n, int k,
+    int l, void *a, int lda, void *b, int ldb, double tola, double tolb,
+    double *alpha, double *beta, void *u, int ldu, void *v, int ldv, void *q,
+    int ldq, void *work, int *ncycle, int *info) {
+  (void)layout;
+  if (!g_fortran_fn[FB_OP_ZTGSJA]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, ldu_ = ldu, ldv_ = ldv, ldq_ = ldq;
+  ((void (*)(char *, char *, char *, int *, int *, int *, int *, int *, void *,
+             int *, void *, int *, double *, double *, double *, double *,
+             void *, int *, void *, int *, void *, int *, void *, int *,
+             int *))g_fortran_fn[FB_OP_ZTGSJA])(
+      &jobu, &jobv, &jobq, &m, &p, &n, &k, &l, a, &lda_, b, &ldb_, &tola, &tolb,
+      alpha, beta, u, &ldu_, v, &ldv_, q, &ldq_, work, ncycle, info);
+}
+
+/* ============================================================================
  * Thunk dispatch tables
  *
  * All positions default to NULL; the explicit entries are filled by the
@@ -703,118 +1352,152 @@ fb_generic_fn const k_fortran_to_cblas_thunks[FB_JUDGE_MAX_OPERATIONS];
 
 fb_generic_fn const k_cblas_to_fortran_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     /* Level 1 */
-    [FB_OP_SAXPY]   = C2F(thunk_saxpy_cblas_to_fortran),
-    [FB_OP_DAXPY]   = C2F(thunk_daxpy_cblas_to_fortran),
-    [FB_OP_CAXPY]   = C2F(thunk_caxpy_cblas_to_fortran),
-    [FB_OP_ZAXPY]   = C2F(thunk_zaxpy_cblas_to_fortran),
-    [FB_OP_SSCAL]   = C2F(thunk_sscal_cblas_to_fortran),
-    [FB_OP_DSCAL]   = C2F(thunk_dscal_cblas_to_fortran),
-    [FB_OP_SCOPY]   = C2F(thunk_scopy_cblas_to_fortran),
-    [FB_OP_DCOPY]   = C2F(thunk_dcopy_cblas_to_fortran),
-    [FB_OP_SSWAP]   = C2F(thunk_sswap_cblas_to_fortran),
-    [FB_OP_DSWAP]   = C2F(thunk_dswap_cblas_to_fortran),
-    [FB_OP_SNRM2]   = C2F(thunk_snrm2_cblas_to_fortran),
-    [FB_OP_DNRM2]   = C2F(thunk_dnrm2_cblas_to_fortran),
-    [FB_OP_SCNRM2]  = C2F(thunk_scnrm2_cblas_to_fortran),
-    [FB_OP_DZNRM2]  = C2F(thunk_dznrm2_cblas_to_fortran),
-    [FB_OP_SASUM]   = C2F(thunk_sasum_cblas_to_fortran),
-    [FB_OP_DASUM]   = C2F(thunk_dasum_cblas_to_fortran),
-    [FB_OP_SCASUM]  = C2F(thunk_scasum_cblas_to_fortran),
-    [FB_OP_DZASUM]  = C2F(thunk_dzasum_cblas_to_fortran),
-    [FB_OP_SDOT]    = C2F(thunk_sdot_cblas_to_fortran),
-    [FB_OP_DDOT]    = C2F(thunk_ddot_cblas_to_fortran),
-    [FB_OP_SROT]    = C2F(thunk_srot_cblas_to_fortran),
-    [FB_OP_DROT]    = C2F(thunk_drot_cblas_to_fortran),
-    [FB_OP_ISAMAX]  = C2F(thunk_isamax_cblas_to_fortran),
-    [FB_OP_IDAMAX]  = C2F(thunk_idamax_cblas_to_fortran),
+    [FB_OP_SAXPY] = C2F(thunk_saxpy_cblas_to_fortran),
+    [FB_OP_DAXPY] = C2F(thunk_daxpy_cblas_to_fortran),
+    [FB_OP_CAXPY] = C2F(thunk_caxpy_cblas_to_fortran),
+    [FB_OP_ZAXPY] = C2F(thunk_zaxpy_cblas_to_fortran),
+    [FB_OP_SSCAL] = C2F(thunk_sscal_cblas_to_fortran),
+    [FB_OP_DSCAL] = C2F(thunk_dscal_cblas_to_fortran),
+    [FB_OP_SCOPY] = C2F(thunk_scopy_cblas_to_fortran),
+    [FB_OP_DCOPY] = C2F(thunk_dcopy_cblas_to_fortran),
+    [FB_OP_SSWAP] = C2F(thunk_sswap_cblas_to_fortran),
+    [FB_OP_DSWAP] = C2F(thunk_dswap_cblas_to_fortran),
+    [FB_OP_SNRM2] = C2F(thunk_snrm2_cblas_to_fortran),
+    [FB_OP_DNRM2] = C2F(thunk_dnrm2_cblas_to_fortran),
+    [FB_OP_SCNRM2] = C2F(thunk_scnrm2_cblas_to_fortran),
+    [FB_OP_DZNRM2] = C2F(thunk_dznrm2_cblas_to_fortran),
+    [FB_OP_SASUM] = C2F(thunk_sasum_cblas_to_fortran),
+    [FB_OP_DASUM] = C2F(thunk_dasum_cblas_to_fortran),
+    [FB_OP_SCASUM] = C2F(thunk_scasum_cblas_to_fortran),
+    [FB_OP_DZASUM] = C2F(thunk_dzasum_cblas_to_fortran),
+    [FB_OP_SDOT] = C2F(thunk_sdot_cblas_to_fortran),
+    [FB_OP_DDOT] = C2F(thunk_ddot_cblas_to_fortran),
+    [FB_OP_SROT] = C2F(thunk_srot_cblas_to_fortran),
+    [FB_OP_DROT] = C2F(thunk_drot_cblas_to_fortran),
+    [FB_OP_ISAMAX] = C2F(thunk_isamax_cblas_to_fortran),
+    [FB_OP_IDAMAX] = C2F(thunk_idamax_cblas_to_fortran),
     /* Level 2 */
-    [FB_OP_SGEMV]   = C2F(thunk_sgemv_cblas_to_fortran),
-    [FB_OP_DGEMV]   = C2F(thunk_dgemv_cblas_to_fortran),
-    [FB_OP_SGER]    = C2F(thunk_sger_cblas_to_fortran),
-    [FB_OP_DGER]    = C2F(thunk_dger_cblas_to_fortran),
-    [FB_OP_SSYR]    = C2F(thunk_ssyr_cblas_to_fortran),
-    [FB_OP_DSYR]    = C2F(thunk_dsyr_cblas_to_fortran),
-    [FB_OP_SSYR2]   = C2F(thunk_ssyr2_cblas_to_fortran),
-    [FB_OP_DSYR2]   = C2F(thunk_dsyr2_cblas_to_fortran),
-    [FB_OP_SSYMV]   = C2F(thunk_ssymv_cblas_to_fortran),
-    [FB_OP_DSYMV]   = C2F(thunk_dsymv_cblas_to_fortran),
-    [FB_OP_STRMV]   = C2F(thunk_strmv_cblas_to_fortran),
-    [FB_OP_DTRMV]   = C2F(thunk_dtrmv_cblas_to_fortran),
-    [FB_OP_STRSV]   = C2F(thunk_strsv_cblas_to_fortran),
-    [FB_OP_DTRSV]   = C2F(thunk_dtrsv_cblas_to_fortran),
+    [FB_OP_SGEMV] = C2F(thunk_sgemv_cblas_to_fortran),
+    [FB_OP_DGEMV] = C2F(thunk_dgemv_cblas_to_fortran),
+    [FB_OP_SGER] = C2F(thunk_sger_cblas_to_fortran),
+    [FB_OP_DGER] = C2F(thunk_dger_cblas_to_fortran),
+    [FB_OP_SSYR] = C2F(thunk_ssyr_cblas_to_fortran),
+    [FB_OP_DSYR] = C2F(thunk_dsyr_cblas_to_fortran),
+    [FB_OP_SSYR2] = C2F(thunk_ssyr2_cblas_to_fortran),
+    [FB_OP_DSYR2] = C2F(thunk_dsyr2_cblas_to_fortran),
+    [FB_OP_SSYMV] = C2F(thunk_ssymv_cblas_to_fortran),
+    [FB_OP_DSYMV] = C2F(thunk_dsymv_cblas_to_fortran),
+    [FB_OP_STRMV] = C2F(thunk_strmv_cblas_to_fortran),
+    [FB_OP_DTRMV] = C2F(thunk_dtrmv_cblas_to_fortran),
+    [FB_OP_STRSV] = C2F(thunk_strsv_cblas_to_fortran),
+    [FB_OP_DTRSV] = C2F(thunk_dtrsv_cblas_to_fortran),
     /* Level 3 */
-    [FB_OP_SGEMM]   = C2F(thunk_sgemm_cblas_to_fortran),
-    [FB_OP_DGEMM]   = C2F(thunk_dgemm_cblas_to_fortran),
-    [FB_OP_CGEMM]   = C2F(thunk_cgemm_cblas_to_fortran),
-    [FB_OP_ZGEMM]   = C2F(thunk_zgemm_cblas_to_fortran),
-    [FB_OP_SSYMM]   = C2F(thunk_ssymm_cblas_to_fortran),
-    [FB_OP_DSYMM]   = C2F(thunk_dsymm_cblas_to_fortran),
-    [FB_OP_SSYRK]   = C2F(thunk_ssyrk_cblas_to_fortran),
-    [FB_OP_DSYRK]   = C2F(thunk_dsyrk_cblas_to_fortran),
-    [FB_OP_SSYR2K]  = C2F(thunk_ssyr2k_cblas_to_fortran),
-    [FB_OP_DSYR2K]  = C2F(thunk_dsyr2k_cblas_to_fortran),
-    [FB_OP_STRMM]   = C2F(thunk_strmm_cblas_to_fortran),
-    [FB_OP_DTRMM]   = C2F(thunk_dtrmm_cblas_to_fortran),
-    [FB_OP_STRSM]   = C2F(thunk_strsm_cblas_to_fortran),
-    [FB_OP_DTRSM]   = C2F(thunk_dtrsm_cblas_to_fortran),
+    [FB_OP_SGEMM] = C2F(thunk_sgemm_cblas_to_fortran),
+    [FB_OP_DGEMM] = C2F(thunk_dgemm_cblas_to_fortran),
+    [FB_OP_CGEMM] = C2F(thunk_cgemm_cblas_to_fortran),
+    [FB_OP_ZGEMM] = C2F(thunk_zgemm_cblas_to_fortran),
+    [FB_OP_SSYMM] = C2F(thunk_ssymm_cblas_to_fortran),
+    [FB_OP_DSYMM] = C2F(thunk_dsymm_cblas_to_fortran),
+    [FB_OP_SSYRK] = C2F(thunk_ssyrk_cblas_to_fortran),
+    [FB_OP_DSYRK] = C2F(thunk_dsyrk_cblas_to_fortran),
+    [FB_OP_SSYR2K] = C2F(thunk_ssyr2k_cblas_to_fortran),
+    [FB_OP_DSYR2K] = C2F(thunk_dsyr2k_cblas_to_fortran),
+    [FB_OP_STRMM] = C2F(thunk_strmm_cblas_to_fortran),
+    [FB_OP_DTRMM] = C2F(thunk_dtrmm_cblas_to_fortran),
+    [FB_OP_STRSM] = C2F(thunk_strsm_cblas_to_fortran),
+    [FB_OP_DTRSM] = C2F(thunk_dtrsm_cblas_to_fortran),
+    /* LAPACK driver ops */
+    [FB_OP_SGEES] = C2F(thunk_sgees_cblas_to_fortran),
+    [FB_OP_DGEES] = C2F(thunk_dgees_cblas_to_fortran),
+    [FB_OP_SGTSVX] = C2F(thunk_sgtsvx_cblas_to_fortran),
+    [FB_OP_DGTSVX] = C2F(thunk_dgtsvx_cblas_to_fortran),
+    [FB_OP_SORMHR] = C2F(thunk_sormhr_cblas_to_fortran),
+    [FB_OP_DSPRFS] = C2F(thunk_dsprfs_cblas_to_fortran),
+    [FB_OP_SSTEV] = C2F(thunk_sstev_cblas_to_fortran),
+    [FB_OP_DSTEV] = C2F(thunk_dstev_cblas_to_fortran),
+    [FB_OP_STGSEN] = C2F(thunk_stgsen_cblas_to_fortran),
+    [FB_OP_DTGSEN] = C2F(thunk_dtgsen_cblas_to_fortran),
+    [FB_OP_CTGSEN] = C2F(thunk_ctgsen_cblas_to_fortran),
+    [FB_OP_ZTGSEN] = C2F(thunk_ztgsen_cblas_to_fortran),
+    [FB_OP_STGSJA] = C2F(thunk_stgsja_cblas_to_fortran),
+    [FB_OP_DTGSJA] = C2F(thunk_dtgsja_cblas_to_fortran),
+    [FB_OP_CTGSJA] = C2F(thunk_ctgsja_cblas_to_fortran),
+    [FB_OP_ZTGSJA] = C2F(thunk_ztgsja_cblas_to_fortran),
 };
 
 fb_generic_fn const k_fortran_to_cblas_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     /* Level 1 */
-    [FB_OP_SAXPY]   = F2C(thunk_saxpy_fortran_to_cblas),
-    [FB_OP_DAXPY]   = F2C(thunk_daxpy_fortran_to_cblas),
-    [FB_OP_CAXPY]   = F2C(thunk_caxpy_fortran_to_cblas),
-    [FB_OP_ZAXPY]   = F2C(thunk_zaxpy_fortran_to_cblas),
-    [FB_OP_SSCAL]   = F2C(thunk_sscal_fortran_to_cblas),
-    [FB_OP_DSCAL]   = F2C(thunk_dscal_fortran_to_cblas),
-    [FB_OP_SCOPY]   = F2C(thunk_scopy_fortran_to_cblas),
-    [FB_OP_DCOPY]   = F2C(thunk_dcopy_fortran_to_cblas),
-    [FB_OP_SSWAP]   = F2C(thunk_sswap_fortran_to_cblas),
-    [FB_OP_DSWAP]   = F2C(thunk_dswap_fortran_to_cblas),
-    [FB_OP_SNRM2]   = F2C(thunk_snrm2_fortran_to_cblas),
-    [FB_OP_DNRM2]   = F2C(thunk_dnrm2_fortran_to_cblas),
-    [FB_OP_SCNRM2]  = F2C(thunk_scnrm2_fortran_to_cblas),
-    [FB_OP_DZNRM2]  = F2C(thunk_dznrm2_fortran_to_cblas),
-    [FB_OP_SASUM]   = F2C(thunk_sasum_fortran_to_cblas),
-    [FB_OP_DASUM]   = F2C(thunk_dasum_fortran_to_cblas),
-    [FB_OP_SCASUM]  = F2C(thunk_scasum_fortran_to_cblas),
-    [FB_OP_DZASUM]  = F2C(thunk_dzasum_fortran_to_cblas),
-    [FB_OP_SDOT]    = F2C(thunk_sdot_fortran_to_cblas),
-    [FB_OP_DDOT]    = F2C(thunk_ddot_fortran_to_cblas),
-    [FB_OP_SROT]    = F2C(thunk_srot_fortran_to_cblas),
-    [FB_OP_DROT]    = F2C(thunk_drot_fortran_to_cblas),
-    [FB_OP_ISAMAX]  = F2C(thunk_isamax_fortran_to_cblas),
-    [FB_OP_IDAMAX]  = F2C(thunk_idamax_fortran_to_cblas),
+    [FB_OP_SAXPY] = F2C(thunk_saxpy_fortran_to_cblas),
+    [FB_OP_DAXPY] = F2C(thunk_daxpy_fortran_to_cblas),
+    [FB_OP_CAXPY] = F2C(thunk_caxpy_fortran_to_cblas),
+    [FB_OP_ZAXPY] = F2C(thunk_zaxpy_fortran_to_cblas),
+    [FB_OP_SSCAL] = F2C(thunk_sscal_fortran_to_cblas),
+    [FB_OP_DSCAL] = F2C(thunk_dscal_fortran_to_cblas),
+    [FB_OP_SCOPY] = F2C(thunk_scopy_fortran_to_cblas),
+    [FB_OP_DCOPY] = F2C(thunk_dcopy_fortran_to_cblas),
+    [FB_OP_SSWAP] = F2C(thunk_sswap_fortran_to_cblas),
+    [FB_OP_DSWAP] = F2C(thunk_dswap_fortran_to_cblas),
+    [FB_OP_SNRM2] = F2C(thunk_snrm2_fortran_to_cblas),
+    [FB_OP_DNRM2] = F2C(thunk_dnrm2_fortran_to_cblas),
+    [FB_OP_SCNRM2] = F2C(thunk_scnrm2_fortran_to_cblas),
+    [FB_OP_DZNRM2] = F2C(thunk_dznrm2_fortran_to_cblas),
+    [FB_OP_SASUM] = F2C(thunk_sasum_fortran_to_cblas),
+    [FB_OP_DASUM] = F2C(thunk_dasum_fortran_to_cblas),
+    [FB_OP_SCASUM] = F2C(thunk_scasum_fortran_to_cblas),
+    [FB_OP_DZASUM] = F2C(thunk_dzasum_fortran_to_cblas),
+    [FB_OP_SDOT] = F2C(thunk_sdot_fortran_to_cblas),
+    [FB_OP_DDOT] = F2C(thunk_ddot_fortran_to_cblas),
+    [FB_OP_SROT] = F2C(thunk_srot_fortran_to_cblas),
+    [FB_OP_DROT] = F2C(thunk_drot_fortran_to_cblas),
+    [FB_OP_ISAMAX] = F2C(thunk_isamax_fortran_to_cblas),
+    [FB_OP_IDAMAX] = F2C(thunk_idamax_fortran_to_cblas),
     /* Level 2 */
-    [FB_OP_SGEMV]   = F2C(thunk_sgemv_fortran_to_cblas),
-    [FB_OP_DGEMV]   = F2C(thunk_dgemv_fortran_to_cblas),
-    [FB_OP_SGER]    = F2C(thunk_sger_fortran_to_cblas),
-    [FB_OP_DGER]    = F2C(thunk_dger_fortran_to_cblas),
-    [FB_OP_SSYR]    = F2C(thunk_ssyr_fortran_to_cblas),
-    [FB_OP_DSYR]    = F2C(thunk_dsyr_fortran_to_cblas),
-    [FB_OP_SSYR2]   = F2C(thunk_ssyr2_fortran_to_cblas),
-    [FB_OP_DSYR2]   = F2C(thunk_dsyr2_fortran_to_cblas),
-    [FB_OP_SSYMV]   = F2C(thunk_ssymv_fortran_to_cblas),
-    [FB_OP_DSYMV]   = F2C(thunk_dsymv_fortran_to_cblas),
-    [FB_OP_STRMV]   = F2C(thunk_strmv_fortran_to_cblas),
-    [FB_OP_DTRMV]   = F2C(thunk_dtrmv_fortran_to_cblas),
-    [FB_OP_STRSV]   = F2C(thunk_strsv_fortran_to_cblas),
-    [FB_OP_DTRSV]   = F2C(thunk_dtrsv_fortran_to_cblas),
+    [FB_OP_SGEMV] = F2C(thunk_sgemv_fortran_to_cblas),
+    [FB_OP_DGEMV] = F2C(thunk_dgemv_fortran_to_cblas),
+    [FB_OP_SGER] = F2C(thunk_sger_fortran_to_cblas),
+    [FB_OP_DGER] = F2C(thunk_dger_fortran_to_cblas),
+    [FB_OP_SSYR] = F2C(thunk_ssyr_fortran_to_cblas),
+    [FB_OP_DSYR] = F2C(thunk_dsyr_fortran_to_cblas),
+    [FB_OP_SSYR2] = F2C(thunk_ssyr2_fortran_to_cblas),
+    [FB_OP_DSYR2] = F2C(thunk_dsyr2_fortran_to_cblas),
+    [FB_OP_SSYMV] = F2C(thunk_ssymv_fortran_to_cblas),
+    [FB_OP_DSYMV] = F2C(thunk_dsymv_fortran_to_cblas),
+    [FB_OP_STRMV] = F2C(thunk_strmv_fortran_to_cblas),
+    [FB_OP_DTRMV] = F2C(thunk_dtrmv_fortran_to_cblas),
+    [FB_OP_STRSV] = F2C(thunk_strsv_fortran_to_cblas),
+    [FB_OP_DTRSV] = F2C(thunk_dtrsv_fortran_to_cblas),
     /* Level 3 */
-    [FB_OP_SGEMM]   = F2C(thunk_sgemm_fortran_to_cblas),
-    [FB_OP_DGEMM]   = F2C(thunk_dgemm_fortran_to_cblas),
-    [FB_OP_CGEMM]   = F2C(thunk_cgemm_fortran_to_cblas),
-    [FB_OP_ZGEMM]   = F2C(thunk_zgemm_fortran_to_cblas),
-    [FB_OP_SSYMM]   = F2C(thunk_ssymm_fortran_to_cblas),
-    [FB_OP_DSYMM]   = F2C(thunk_dsymm_fortran_to_cblas),
-    [FB_OP_SSYRK]   = F2C(thunk_ssyrk_fortran_to_cblas),
-    [FB_OP_DSYRK]   = F2C(thunk_dsyrk_fortran_to_cblas),
-    [FB_OP_SSYR2K]  = F2C(thunk_ssyr2k_fortran_to_cblas),
-    [FB_OP_DSYR2K]  = F2C(thunk_dsyr2k_fortran_to_cblas),
-    [FB_OP_STRMM]   = F2C(thunk_strmm_fortran_to_cblas),
-    [FB_OP_DTRMM]   = F2C(thunk_dtrmm_fortran_to_cblas),
-    [FB_OP_STRSM]   = F2C(thunk_strsm_fortran_to_cblas),
-    [FB_OP_DTRSM]   = F2C(thunk_dtrsm_fortran_to_cblas),
+    [FB_OP_SGEMM] = F2C(thunk_sgemm_fortran_to_cblas),
+    [FB_OP_DGEMM] = F2C(thunk_dgemm_fortran_to_cblas),
+    [FB_OP_CGEMM] = F2C(thunk_cgemm_fortran_to_cblas),
+    [FB_OP_ZGEMM] = F2C(thunk_zgemm_fortran_to_cblas),
+    [FB_OP_SSYMM] = F2C(thunk_ssymm_fortran_to_cblas),
+    [FB_OP_DSYMM] = F2C(thunk_dsymm_fortran_to_cblas),
+    [FB_OP_SSYRK] = F2C(thunk_ssyrk_fortran_to_cblas),
+    [FB_OP_DSYRK] = F2C(thunk_dsyrk_fortran_to_cblas),
+    [FB_OP_SSYR2K] = F2C(thunk_ssyr2k_fortran_to_cblas),
+    [FB_OP_DSYR2K] = F2C(thunk_dsyr2k_fortran_to_cblas),
+    [FB_OP_STRMM] = F2C(thunk_strmm_fortran_to_cblas),
+    [FB_OP_DTRMM] = F2C(thunk_dtrmm_fortran_to_cblas),
+    [FB_OP_STRSM] = F2C(thunk_strsm_fortran_to_cblas),
+    [FB_OP_DTRSM] = F2C(thunk_dtrsm_fortran_to_cblas),
+    /* LAPACK driver ops */
+    [FB_OP_SGEES] = F2C(thunk_sgees_fortran_to_cblas),
+    [FB_OP_DGEES] = F2C(thunk_dgees_fortran_to_cblas),
+    [FB_OP_SGTSVX] = F2C(thunk_sgtsvx_fortran_to_cblas),
+    [FB_OP_DGTSVX] = F2C(thunk_dgtsvx_fortran_to_cblas),
+    [FB_OP_SORMHR] = F2C(thunk_sormhr_fortran_to_cblas),
+    [FB_OP_DSPRFS] = F2C(thunk_dsprfs_fortran_to_cblas),
+    [FB_OP_SSTEV] = F2C(thunk_sstev_fortran_to_cblas),
+    [FB_OP_DSTEV] = F2C(thunk_dstev_fortran_to_cblas),
+    [FB_OP_STGSEN] = F2C(thunk_stgsen_fortran_to_cblas),
+    [FB_OP_DTGSEN] = F2C(thunk_dtgsen_fortran_to_cblas),
+    [FB_OP_CTGSEN] = F2C(thunk_ctgsen_fortran_to_cblas),
+    [FB_OP_ZTGSEN] = F2C(thunk_ztgsen_fortran_to_cblas),
+    [FB_OP_STGSJA] = F2C(thunk_stgsja_fortran_to_cblas),
+    [FB_OP_DTGSJA] = F2C(thunk_dtgsja_fortran_to_cblas),
+    [FB_OP_CTGSJA] = F2C(thunk_ctgsja_fortran_to_cblas),
+    [FB_OP_ZTGSJA] = F2C(thunk_ztgsja_fortran_to_cblas),
 };
 
 #  undef C2F
