@@ -244,9 +244,9 @@ typedef void (*fb_sscal_fn)(const int n, const float alpha, float *x,
                             const int incx);
 typedef void (*fb_dscal_fn)(const int n, const double alpha, double *x,
                             const int incx);
-typedef void (*fb_cscal_fn)(const int n, const fb_complex_float_t alpha,
+typedef void (*fb_cscal_fn)(const int n, const fb_complex_float_t *alpha,
                             fb_complex_float_t *x, const int incx);
-typedef void (*fb_zscal_fn)(const int n, const fb_complex_double_t alpha,
+typedef void (*fb_zscal_fn)(const int n, const fb_complex_double_t *alpha,
                             fb_complex_double_t *x, const int incx);
 typedef void (*fb_csscal_fn)(const int n, const float alpha,
                              fb_complex_float_t *x, const int incx);
@@ -271,10 +271,10 @@ typedef void (*fb_saxpy_fn)(const int n, const float alpha, const float *x,
 typedef void (*fb_daxpy_fn)(const int n, const double alpha,
                             const double *x, const int incx, double *y,
                             const int incy);
-typedef void (*fb_caxpy_fn)(const int n, const fb_complex_float_t alpha,
+typedef void (*fb_caxpy_fn)(const int n, const fb_complex_float_t *alpha,
                             const fb_complex_float_t *x, const int incx,
                             fb_complex_float_t *y, const int incy);
-typedef void (*fb_zaxpy_fn)(const int n, const fb_complex_double_t alpha,
+typedef void (*fb_zaxpy_fn)(const int n, const fb_complex_double_t *alpha,
                             const fb_complex_double_t *x, const int incx,
                             fb_complex_double_t *y, const int incy);
 
@@ -986,36 +986,28 @@ typedef int (*fb_zposv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
                                fb_complex_double_t *B, const int ldb);
 
 /* SYSV - Symmetric indefinite linear system solve */
-typedef int (*fb_ssysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs, float *A,
-                               const int lda, int *ipiv, float *B,
-                               const int ldb);
-typedef int (*fb_dsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs, double *A,
-                               const int lda, int *ipiv, double *B,
-                               const int ldb);
-typedef int (*fb_csysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs,
-                               fb_complex_float_t *A, const int lda,
-                               int *ipiv, fb_complex_float_t *B,
-                               const int ldb);
-typedef int (*fb_zsysv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs,
-                               fb_complex_double_t *A, const int lda,
-                               int *ipiv, fb_complex_double_t *B,
-                               const int ldb);
+typedef int (*fb_ssysv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, float *A, const int lda, int *ipiv,
+                           float *B, const int ldb);
+typedef int (*fb_dsysv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, double *A, const int lda, int *ipiv,
+                           double *B, const int ldb);
+typedef int (*fb_csysv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, fb_complex_float_t *A, const int lda,
+                           int *ipiv, fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zsysv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, fb_complex_double_t *A,
+                           const int lda, int *ipiv, fb_complex_double_t *B,
+                           const int ldb);
 
 /* HESV - Hermitian indefinite linear system solve (complex only) */
-typedef int (*fb_chesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs,
-                               fb_complex_float_t *A, const int lda,
-                               int *ipiv, fb_complex_float_t *B,
-                               const int ldb);
-typedef int (*fb_zhesv_fn)(const fb_layout_t layout, const fb_uplo_t uplo,
-                               const int n, const int nrhs,
-                               fb_complex_double_t *A, const int lda,
-                               int *ipiv, fb_complex_double_t *B,
-                               const int ldb);
+typedef int (*fb_chesv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, fb_complex_float_t *A, const int lda,
+                           int *ipiv, fb_complex_float_t *B, const int ldb);
+typedef int (*fb_zhesv_fn)(const fb_layout_t layout, char uplo, const int n,
+                           const int nrhs, fb_complex_double_t *A,
+                           const int lda, int *ipiv, fb_complex_double_t *B,
+                           const int ldb);
 
 /* GETRF - LU factorization */
 typedef int (*fb_sgetrf_fn)(const fb_layout_t layout, const int m,
@@ -1361,7 +1353,8 @@ typedef int (*fb_zgelsy_fn)(const fb_layout_t layout, const int m,
  * Backend Virtual Table
  *   252 named operation fields  (BLAS L1/L2/L3 + LAPACK core)
  * + 15  infrastructure fields  (unified, memory, streams, thread control)
- * + ext_ops[] array covering the full 2266-op superset (FB_JUDGE_MAX_OPERATIONS)
+ * + ext_ops[] array covering the full 3054-op superset
+ * (FB_JUDGE_MAX_OPERATIONS)
  * ========================================================================= */
 
 typedef struct fb_backend_vtable {

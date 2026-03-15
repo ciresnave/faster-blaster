@@ -42,7 +42,7 @@ extern "C" {
  * The dispatch table allocated by fb_judge_build_dispatch_table() has this
  * many uint32_t slots.
  */
-#define FB_JUDGE_MAX_OPERATIONS  2400u
+#define FB_JUDGE_MAX_OPERATIONS 3200u
 
 /* =========================================================================
  * Accuracy curve
