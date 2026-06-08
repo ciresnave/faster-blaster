@@ -8,6 +8,24 @@
 		}
 	],
 	"settings": {
-		"git.ignoreLimitWarning": true
+		"git.ignoreLimitWarning": true,
+		"files.watcherExclude": {
+			"**/build*/**": true,
+			"**/CMakeFiles/**": true,
+			"**/_deps/**": true,
+			"**/oxiblas-cargo-target/**": true,
+			"**/__pycache__/**": true
+		},
+		"search.exclude": {
+			"**/build*/**": true,
+			"**/CMakeFiles/**": true,
+			"**/_deps/**": true,
+			"**/oxiblas-cargo-target/**": true
+		},
+		"files.exclude": {
+			"**/build*/": true
+		},
+		"git.untrackedChanges": "hidden",
+		"git.autorefresh": false
 	}
 }

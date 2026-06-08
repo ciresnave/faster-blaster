@@ -1,0 +1,30 @@
+# Build trees and generated dependency checkouts
+/build*/
+
+# CMake/Ninja generated files
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CTestTestfile.cmake
+**/compile_commands.json
+**/build.ninja
+**/.ninja_*
+
+# Common build outputs
+*.obj
+*.o
+*.a
+*.so
+*.dll
+*.dylib
+*.lib
+*.exp
+*.pdb
+*.exe
+
+# Tool and language caches
+**/oxiblas-cargo-target/
+__pycache__/
+
+# Windows reserved-name artifact
+NUL.obj
