@@ -1,2 +1,0 @@
-/* cmin */
-void cmin_() { }

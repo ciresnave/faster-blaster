@@ -1,2 +1,0 @@
-/* cwilk */
-void cwilk_() { }

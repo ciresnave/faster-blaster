@@ -1,2 +1,0 @@
-/* cprod */
-void cprod_() { }

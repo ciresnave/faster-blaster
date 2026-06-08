@@ -367,7 +367,9 @@ void fb_unload_backend_for_device(fb_compute_device_t* device) {
  * ========================================================================== */
 
 /* Forward declarations for backend-specific active instance setters */
+#ifdef FB_ENABLE_CLBLAST
 extern void clblast_set_active_instance(const fb_backend_vtable_t* vtable);
+#endif
 
 const fb_backend_vtable_t* fb_backend_get_vtable(fb_backend_instance_t* instance) {
     fprintf(stderr, "[DEBUG] get_vtable called with instance=%p\n", instance);
@@ -382,9 +384,11 @@ const fb_backend_vtable_t* fb_backend_get_vtable(fb_backend_instance_t* instance
         const char* plugin_name = instance->plugin->metadata ? instance->plugin->metadata->name : "";
         fprintf(stderr, "[DEBUG] get_vtable: plugin_name=%s\n", plugin_name ? plugin_name : "NULL");
         if (plugin_name && strstr(plugin_name, "clblast")) {
+#ifdef FB_ENABLE_CLBLAST
             fprintf(stderr, "[DEBUG] get_vtable: About to call clblast_set_active_instance\n");
             clblast_set_active_instance(instance->vtable);
             fprintf(stderr, "[DEBUG] get_vtable: Returned from clblast_set_active_instance\n");
+#endif
         }
         /* TODO: Add similar calls for cuBLAS, rocBLAS, etc. when they're refactored */
     }

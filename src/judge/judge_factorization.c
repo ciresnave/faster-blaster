@@ -1,6 +1,6 @@
 ﻿/**
  * @file judge_factorization.c
- * @brief FB_JUDGE_FACTORIZATION archetype evaluator — LU, Cholesky, QR.
+ * @brief FB_JUDGE_FACTORIZATION archetype evaluator — LU, Cholesky, QR, Hessenberg.
  *
  * Implements oracle-vs-candidate comparison for matrix factorizations with
  * two primary metrics: reconstruction residual and (for QR) orthogonality.
@@ -9,6 +9,7 @@
  *   LU (GETRF):      SGETRF, DGETRF
  *   Cholesky (POTRF): SPOTRF, DPOTRF
  *   QR (GEQRF):      SGEQRF, DGEQRF
+ *   Hessenberg (GEHRD): SGEHRD, DGEHRD, CGEHRD, ZGEHRD
  *
  * Complex variants (CGETRF, ZGETRF, etc.) return FB_JUDGE_ERR_NOT_IMPL; they
  * will be added in a later phase.
@@ -22,6 +23,7 @@
 #include "judge_op_ids.h"
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -35,6 +37,9 @@
 
 #define FB_FACTORIZATION_WARMUP_RUNS   2
 #define FB_FACTORIZATION_TIMING_RUNS   5
+#define FB_BAND_FACT_CALL_NOT_IMPL INT_MIN
+#define FB_BAND_FACT_CALL_ALLOC_FAILURE (INT_MIN + 1)
+#define FB_FACTORIZATION_CALL_ALLOC_FAILURE (INT_MIN + 2)
 
 /* =========================================================================
  * Private utilities
@@ -43,6 +48,7 @@
 /** Clone an m × n matrix (row-major, leading dimension lda). */
 static float *clone_matrix_f32(const float *A, int m, int n, int lda)
 {
+    (void)n;
     size_t sz = (size_t)m * (size_t)lda * sizeof(float);
     float *cpy = (float *)malloc(sz);
     if (!cpy) return NULL;
@@ -53,6 +59,7 @@ static float *clone_matrix_f32(const float *A, int m, int n, int lda)
 /** Clone an m × n matrix (double precision). */
 static double *clone_matrix_f64(const double *A, int m, int n, int lda)
 {
+    (void)n;
     size_t sz = (size_t)m * (size_t)lda * sizeof(double);
     double *cpy = (double *)malloc(sz);
     if (!cpy) return NULL;
@@ -109,6 +116,23 @@ typedef fb_judge_status_t (*fb_factorization_runner_fn)(
     const fb_corpus_case_t    *tc,
     fb_judge_factorization_result_t *result,
     uint64_t                  *ns_out);
+
+static fb_judge_status_t run_sgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out);
+static fb_judge_status_t run_dgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out);
+static fb_judge_status_t run_cgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out);
+static fb_judge_status_t run_zgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out);
 
 /* =========================================================================
  * LU Factorization (SGETRF, DGETRF)
@@ -523,7 +547,9 @@ static fb_judge_status_t run_sgeqrf(
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    if (!oracle->sgeqrf || !cand->sgeqrf || !cand->sorgqr) return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->sgeqrf || !cand->sgeqrf || !cand->sorgqr) {
+        return run_sgeqrf_fortran_fallback(oracle, cand, tc, res, ns_out);
+    }
 
     int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const float *A_orig = (const float*)tc->A;
@@ -618,7 +644,9 @@ static fb_judge_status_t run_dgeqrf(
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    if (!oracle->dgeqrf || !cand->dgeqrf || !cand->dorgqr) return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->dgeqrf || !cand->dgeqrf || !cand->dorgqr) {
+        return run_dgeqrf_fortran_fallback(oracle, cand, tc, res, ns_out);
+    }
 
     int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const double *A_orig = (const double*)tc->A;
@@ -721,6 +749,2328 @@ static fb_complex_double_t *clone_matrix_cf64(const fb_complex_double_t *A,
     if (!cpy) return NULL;
     memcpy(cpy, A, sz);
     return cpy;
+}
+
+static int fb_factor_query_size_from_float(float query_size)
+{
+    return (query_size > 1.0f) ? (int)query_size : 1;
+}
+
+static int fb_factor_query_size_from_double(double query_size)
+{
+    return (query_size > 1.0) ? (int)query_size : 1;
+}
+
+static int fb_factor_query_size_from_cfloat(fb_complex_float_t query_size)
+{
+    float real_part = 0.0f;
+    memcpy(&real_part, &query_size, sizeof(real_part));
+    return (real_part > 1.0f) ? (int)real_part : 1;
+}
+
+static int fb_factor_query_size_from_cdouble(fb_complex_double_t query_size)
+{
+    double real_part = 0.0;
+    memcpy(&real_part, &query_size, sizeof(real_part));
+    return (real_part > 1.0) ? (int)real_part : 1;
+}
+
+typedef void (*fb_sgehrd_fortran_fn_t)(const int *n, const int *ilo,
+                                       const int *ihi, float *a,
+                                       const int *lda, float *tau,
+                                       float *work, const int *lwork,
+                                       int *info);
+typedef void (*fb_dgehrd_fortran_fn_t)(const int *n, const int *ilo,
+                                       const int *ihi, double *a,
+                                       const int *lda, double *tau,
+                                       double *work, const int *lwork,
+                                       int *info);
+typedef void (*fb_cgehrd_fortran_fn_t)(const int *n, const int *ilo,
+                                       const int *ihi, fb_complex_float_t *a,
+                                       const int *lda,
+                                       fb_complex_float_t *tau,
+                                       fb_complex_float_t *work,
+                                       const int *lwork, int *info);
+typedef void (*fb_zgehrd_fortran_fn_t)(const int *n, const int *ilo,
+                                       const int *ihi, fb_complex_double_t *a,
+                                       const int *lda,
+                                       fb_complex_double_t *tau,
+                                       fb_complex_double_t *work,
+                                       const int *lwork, int *info);
+
+static int call_sgehrd_backend(fb_sgehrd_fortran_fn_t fn, int n, int ilo,
+                               int ihi, float *a, int lda, float *tau)
+{
+    float work_query = 0.0f;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_float(work_query);
+    float *work = (float *)malloc((size_t)lwork * sizeof(float));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_dgehrd_backend(fb_dgehrd_fortran_fn_t fn, int n, int ilo,
+                               int ihi, double *a, int lda, double *tau)
+{
+    double work_query = 0.0;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_double(work_query);
+    double *work = (double *)malloc((size_t)lwork * sizeof(double));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_cgehrd_backend(fb_cgehrd_fortran_fn_t fn, int n, int ilo,
+                               int ihi, fb_complex_float_t *a, int lda,
+                               fb_complex_float_t *tau)
+{
+    fb_complex_float_t work_query = 0.0f;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_cfloat(work_query);
+    fb_complex_float_t *work =
+        (fb_complex_float_t *)malloc((size_t)lwork * sizeof(fb_complex_float_t));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_zgehrd_backend(fb_zgehrd_fortran_fn_t fn, int n, int ilo,
+                               int ihi, fb_complex_double_t *a, int lda,
+                               fb_complex_double_t *tau)
+{
+    fb_complex_double_t work_query = 0.0;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_cdouble(work_query);
+    fb_complex_double_t *work =
+        (fb_complex_double_t *)malloc((size_t)lwork * sizeof(fb_complex_double_t));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&n, &ilo, &ihi, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static double fb_gehrd_relerr_f32(const float *a_oracle, const float *a_cand,
+                                  int n, int lda, const float *tau_oracle,
+                                  const float *tau_cand, int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = (double)a_cand[i * lda + j] -
+                          (double)a_oracle[i * lda + j];
+            double ref = (double)a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = (double)tau_cand[i] - (double)tau_oracle[i];
+        double ref = (double)tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_gehrd_relerr_f64(const double *a_oracle, const double *a_cand,
+                                  int n, int lda, const double *tau_oracle,
+                                  const double *tau_cand, int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = a_cand[i * lda + j] - a_oracle[i * lda + j];
+            double ref = a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = tau_cand[i] - tau_oracle[i];
+        double ref = tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_gehrd_relerr_cf32(const fb_complex_float_t *a_oracle,
+                                   const fb_complex_float_t *a_cand,
+                                   int n, int lda,
+                                   const fb_complex_float_t *tau_oracle,
+                                   const fb_complex_float_t *tau_cand,
+                                   int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff_re = (double)__real__(a_cand[i * lda + j]) -
+                             (double)__real__(a_oracle[i * lda + j]);
+            double diff_im = (double)__imag__(a_cand[i * lda + j]) -
+                             (double)__imag__(a_oracle[i * lda + j]);
+            double ref_re = (double)__real__(a_oracle[i * lda + j]);
+            double ref_im = (double)__imag__(a_oracle[i * lda + j]);
+            diff2 += diff_re * diff_re + diff_im * diff_im;
+            ref2 += ref_re * ref_re + ref_im * ref_im;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff_re = (double)__real__(tau_cand[i]) -
+                         (double)__real__(tau_oracle[i]);
+        double diff_im = (double)__imag__(tau_cand[i]) -
+                         (double)__imag__(tau_oracle[i]);
+        double ref_re = (double)__real__(tau_oracle[i]);
+        double ref_im = (double)__imag__(tau_oracle[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_gehrd_relerr_cf64(const fb_complex_double_t *a_oracle,
+                                   const fb_complex_double_t *a_cand,
+                                   int n, int lda,
+                                   const fb_complex_double_t *tau_oracle,
+                                   const fb_complex_double_t *tau_cand,
+                                   int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff_re = __real__(a_cand[i * lda + j]) -
+                             __real__(a_oracle[i * lda + j]);
+            double diff_im = __imag__(a_cand[i * lda + j]) -
+                             __imag__(a_oracle[i * lda + j]);
+            double ref_re = __real__(a_oracle[i * lda + j]);
+            double ref_im = __imag__(a_oracle[i * lda + j]);
+            diff2 += diff_re * diff_re + diff_im * diff_im;
+            ref2 += ref_re * ref_re + ref_im * ref_im;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff_re = __real__(tau_cand[i]) - __real__(tau_oracle[i]);
+        double diff_im = __imag__(tau_cand[i]) - __imag__(tau_oracle[i]);
+        double ref_re = __real__(tau_oracle[i]);
+        double ref_im = __imag__(tau_oracle[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static fb_judge_status_t run_sgehrd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGEHRD][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGEHRD][FB_CONV_FORTRAN];
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int ilo = 1;
+    int ihi = n;
+    int tau_len = (n > 1) ? (n - 1) : 0;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)n * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, n, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, n, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgehrd_backend((fb_sgehrd_fortran_fn_t)oracle_fn,
+                                          n, ilo, ihi, a_oracle, lda,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)n * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, n, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)n * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            (void)call_sgehrd_backend((fb_sgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)n * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgehrd_backend((fb_sgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_sgehrd_backend((fb_sgehrd_fortran_fn_t)cand_fn, n,
+                                        ilo, ihi, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)n * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_gehrd_relerr_f32(a_oracle, a_cand, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgehrd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGEHRD][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGEHRD][FB_CONV_FORTRAN];
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int ilo = 1;
+    int ihi = n;
+    int tau_len = (n > 1) ? (n - 1) : 0;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)n * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, n, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, n, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgehrd_backend((fb_dgehrd_fortran_fn_t)oracle_fn,
+                                          n, ilo, ihi, a_oracle, lda,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)n * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, n, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)n * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            (void)call_dgehrd_backend((fb_dgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)n * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgehrd_backend((fb_dgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_dgehrd_backend((fb_dgehrd_fortran_fn_t)cand_fn, n,
+                                        ilo, ihi, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)n * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_gehrd_relerr_f64(a_oracle, a_cand, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgehrd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_CGEHRD][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_CGEHRD][FB_CONV_FORTRAN];
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int ilo = 1;
+    int ihi = n;
+    int tau_len = (n > 1) ? (n - 1) : 0;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_float_t *a_orig = (const fb_complex_float_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)n * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *a_oracle = clone_matrix_cf32(a_orig, n, n, lda);
+    fb_complex_float_t *a_cand = clone_matrix_cf32(a_orig, n, n, lda);
+    fb_complex_float_t *tau_oracle =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    fb_complex_float_t *tau_cand =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_cgehrd_backend((fb_cgehrd_fortran_fn_t)oracle_fn,
+                                          n, ilo, ihi, a_oracle, lda,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)n * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_float_t *a_tmp = clone_matrix_cf32(a_orig, n, n, lda);
+        fb_complex_float_t *tau_tmp =
+            (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            (void)call_cgehrd_backend((fb_cgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)n * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_cgehrd_backend((fb_cgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_cgehrd_backend((fb_cgehrd_fortran_fn_t)cand_fn, n,
+                                        ilo, ihi, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)n * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_gehrd_relerr_cf32(a_oracle, a_cand, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgehrd(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_ZGEHRD][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_ZGEHRD][FB_CONV_FORTRAN];
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int ilo = 1;
+    int ihi = n;
+    int tau_len = (n > 1) ? (n - 1) : 0;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_double_t *a_orig = (const fb_complex_double_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)n * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *a_oracle = clone_matrix_cf64(a_orig, n, n, lda);
+    fb_complex_double_t *a_cand = clone_matrix_cf64(a_orig, n, n, lda);
+    fb_complex_double_t *tau_oracle =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    fb_complex_double_t *tau_cand =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_zgehrd_backend((fb_zgehrd_fortran_fn_t)oracle_fn,
+                                          n, ilo, ihi, a_oracle, lda,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)n * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_double_t *a_tmp = clone_matrix_cf64(a_orig, n, n, lda);
+        fb_complex_double_t *tau_tmp =
+            (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            (void)call_zgehrd_backend((fb_zgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)n * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_zgehrd_backend((fb_zgehrd_fortran_fn_t)cand_fn, n, ilo,
+                                      ihi, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_zgehrd_backend((fb_zgehrd_fortran_fn_t)cand_fn, n,
+                                        ilo, ihi, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)n * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_gehrd_relerr_cf64(a_oracle, a_cand, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+typedef void (*fb_sgeqlf_fortran_fn_t)(int *m, int *n, float *a, int *lda,
+                                       float *tau, float *work, int *lwork,
+                                       int *info);
+typedef void (*fb_dgeqlf_fortran_fn_t)(int *m, int *n, double *a, int *lda,
+                                       double *tau, double *work, int *lwork,
+                                       int *info);
+typedef void (*fb_cgeqlf_fortran_fn_t)(int *m, int *n,
+                                       fb_complex_float_t *a, int *lda,
+                                       fb_complex_float_t *tau,
+                                       fb_complex_float_t *work, int *lwork,
+                                       int *info);
+typedef void (*fb_zgeqlf_fortran_fn_t)(int *m, int *n,
+                                       fb_complex_double_t *a, int *lda,
+                                       fb_complex_double_t *tau,
+                                       fb_complex_double_t *work, int *lwork,
+                                       int *info);
+
+static int call_sgeqlf_backend(fb_sgeqlf_fortran_fn_t fn, int m, int n,
+                               float *a, int lda, float *tau)
+{
+    float work_query = 0.0f;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_float(work_query);
+    float *work = (float *)malloc((size_t)lwork * sizeof(float));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_dgeqlf_backend(fb_dgeqlf_fortran_fn_t fn, int m, int n,
+                               double *a, int lda, double *tau)
+{
+    double work_query = 0.0;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_double(work_query);
+    double *work = (double *)malloc((size_t)lwork * sizeof(double));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_cgeqlf_backend(fb_cgeqlf_fortran_fn_t fn, int m, int n,
+                               fb_complex_float_t *a, int lda,
+                               fb_complex_float_t *tau)
+{
+    fb_complex_float_t work_query = 0.0f;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_cfloat(work_query);
+    fb_complex_float_t *work =
+        (fb_complex_float_t *)malloc((size_t)lwork * sizeof(fb_complex_float_t));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_zgeqlf_backend(fb_zgeqlf_fortran_fn_t fn, int m, int n,
+                               fb_complex_double_t *a, int lda,
+                               fb_complex_double_t *tau)
+{
+    fb_complex_double_t work_query = 0.0;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_cdouble(work_query);
+    fb_complex_double_t *work =
+        (fb_complex_double_t *)malloc((size_t)lwork * sizeof(fb_complex_double_t));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static double fb_geqlf_relerr_f32(const float *a_oracle, const float *a_cand,
+                                  int m, int n, int lda,
+                                  const float *tau_oracle,
+                                  const float *tau_cand, int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = (double)a_cand[i * lda + j] -
+                          (double)a_oracle[i * lda + j];
+            double ref = (double)a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = (double)tau_cand[i] - (double)tau_oracle[i];
+        double ref = (double)tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_geqlf_relerr_f64(const double *a_oracle, const double *a_cand,
+                                  int m, int n, int lda,
+                                  const double *tau_oracle,
+                                  const double *tau_cand, int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = a_cand[i * lda + j] - a_oracle[i * lda + j];
+            double ref = a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = tau_cand[i] - tau_oracle[i];
+        double ref = tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_geqlf_relerr_cf32(const fb_complex_float_t *a_oracle,
+                                   const fb_complex_float_t *a_cand,
+                                   int m, int n, int lda,
+                                   const fb_complex_float_t *tau_oracle,
+                                   const fb_complex_float_t *tau_cand,
+                                   int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff_re = (double)__real__(a_cand[i * lda + j]) -
+                             (double)__real__(a_oracle[i * lda + j]);
+            double diff_im = (double)__imag__(a_cand[i * lda + j]) -
+                             (double)__imag__(a_oracle[i * lda + j]);
+            double ref_re = (double)__real__(a_oracle[i * lda + j]);
+            double ref_im = (double)__imag__(a_oracle[i * lda + j]);
+            diff2 += diff_re * diff_re + diff_im * diff_im;
+            ref2 += ref_re * ref_re + ref_im * ref_im;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff_re = (double)__real__(tau_cand[i]) -
+                         (double)__real__(tau_oracle[i]);
+        double diff_im = (double)__imag__(tau_cand[i]) -
+                         (double)__imag__(tau_oracle[i]);
+        double ref_re = (double)__real__(tau_oracle[i]);
+        double ref_im = (double)__imag__(tau_oracle[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_geqlf_relerr_cf64(const fb_complex_double_t *a_oracle,
+                                   const fb_complex_double_t *a_cand,
+                                   int m, int n, int lda,
+                                   const fb_complex_double_t *tau_oracle,
+                                   const fb_complex_double_t *tau_cand,
+                                   int tau_len)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff_re = __real__(a_cand[i * lda + j]) -
+                             __real__(a_oracle[i * lda + j]);
+            double diff_im = __imag__(a_cand[i * lda + j]) -
+                             __imag__(a_oracle[i * lda + j]);
+            double ref_re = __real__(a_oracle[i * lda + j]);
+            double ref_im = __imag__(a_oracle[i * lda + j]);
+            diff2 += diff_re * diff_re + diff_im * diff_im;
+            ref2 += ref_re * ref_re + ref_im * ref_im;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff_re = __real__(tau_cand[i]) - __real__(tau_oracle[i]);
+        double diff_im = __imag__(tau_cand[i]) - __imag__(tau_oracle[i]);
+        double ref_re = __real__(tau_oracle[i]);
+        double ref_im = __imag__(tau_oracle[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static fb_judge_status_t run_sgeqlf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGEQLF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGEQLF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgeqlf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGEQLF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGEQLF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_sgelqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGELQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGELQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgelqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGELQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGELQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgeqlf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_CGEQLF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_CGEQLF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_float_t *a_orig = (const fb_complex_float_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *a_oracle = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *a_cand = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *tau_oracle =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    fb_complex_float_t *tau_cand =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_float_t *a_tmp = clone_matrix_cf32(a_orig, m, n, lda);
+        fb_complex_float_t *tau_tmp =
+            (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf32(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgeqlf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_ZGEQLF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_ZGEQLF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_double_t *a_orig = (const fb_complex_double_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *a_oracle = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *a_cand = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *tau_oracle =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    fb_complex_double_t *tau_cand =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_double_t *a_tmp = clone_matrix_cf64(a_orig, m, n, lda);
+        fb_complex_double_t *tau_tmp =
+            (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf64(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_sgerqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGERQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGERQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgerqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGERQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGERQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgerqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_CGERQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_CGERQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_float_t *a_orig = (const fb_complex_float_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *a_oracle = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *a_cand = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *tau_oracle =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    fb_complex_float_t *tau_cand =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_float_t *a_tmp = clone_matrix_cf32(a_orig, m, n, lda);
+        fb_complex_float_t *tau_tmp =
+            (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf32(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgerqf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_ZGERQF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_ZGERQF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_double_t *a_orig = (const fb_complex_double_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *a_oracle = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *a_cand = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *tau_oracle =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    fb_complex_double_t *tau_cand =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_double_t *a_tmp = clone_matrix_cf64(a_orig, m, n, lda);
+        fb_complex_double_t *tau_tmp =
+            (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf64(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_sgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGEQRF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGEQRF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_sgeqlf_backend((fb_sgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGEQRF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGEQRF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_dgeqlf_backend((fb_dgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_CGEQRF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_CGEQRF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_float_t *a_orig = (const fb_complex_float_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *a_oracle = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *a_cand = clone_matrix_cf32(a_orig, m, n, lda);
+    fb_complex_float_t *tau_oracle =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    fb_complex_float_t *tau_cand =
+        (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_float_t *a_tmp = clone_matrix_cf32(a_orig, m, n, lda);
+        fb_complex_float_t *tau_tmp =
+            (fb_complex_float_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_float_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_float_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_float_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_cgeqlf_backend((fb_cgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf32(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgeqrf_fortran_fallback(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_ZGEQRF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_ZGEQRF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const fb_complex_double_t *a_orig = (const fb_complex_double_t *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *a_oracle = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *a_cand = clone_matrix_cf64(a_orig, m, n, lda);
+    fb_complex_double_t *tau_oracle =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    fb_complex_double_t *tau_cand =
+        (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        fb_complex_double_t *a_tmp = clone_matrix_cf64(a_orig, m, n, lda);
+        fb_complex_double_t *tau_tmp =
+            (fb_complex_double_t *)calloc((size_t)tau_alloc, sizeof(fb_complex_double_t));
+        if (!a_tmp || !tau_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(a_tmp); free(tau_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig,
+                   (size_t)m * (size_t)lda * sizeof(fb_complex_double_t));
+            memset(tau_tmp, 0,
+                   (size_t)tau_alloc * sizeof(fb_complex_double_t));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp);
+    }
+
+    int info_cand = call_zgeqlf_backend((fb_zgeqlf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_CF64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_CF64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqlf_relerr_cf64(a_oracle, a_cand, m, n, lda,
+                                            tau_oracle, tau_cand, tau_len));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    return FB_JUDGE_OK;
 }
 
 /**
@@ -1003,6 +3353,1000 @@ static fb_judge_status_t run_zgetrf(
     return FB_JUDGE_OK;
 }
 
+static int fb_band_test_lower_width(int n)
+{
+    return n > 1 ? 1 : 0;
+}
+
+static int fb_band_test_upper_width(int n)
+{
+    return n > 1 ? 1 : 0;
+}
+
+static double fb_cf32_abs(fb_complex_float_t value)
+{
+    double real_part = (double)__real__(value);
+    double imag_part = (double)__imag__(value);
+    return sqrt(real_part * real_part + imag_part * imag_part);
+}
+
+static double fb_cf64_abs(fb_complex_double_t value)
+{
+    double real_part = __real__(value);
+    double imag_part = __imag__(value);
+    return sqrt(real_part * real_part + imag_part * imag_part);
+}
+
+static void fb_fill_band_dense_f32(float *A, int n, int lda, int kl, int ku)
+{
+    memset(A, 0, (size_t)n * (size_t)lda * sizeof(*A));
+    for (int i = 0; i < n; i++) {
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j == i) continue;
+            double scale = 0.125 / (double)(abs(j - i));
+            A[(size_t)i * (size_t)lda + (size_t)j] = (float)((j > i) ? -scale : scale);
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        double row_sum = 0.0;
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j != i) row_sum += fabs((double)A[(size_t)i * (size_t)lda + (size_t)j]);
+        }
+        A[(size_t)i * (size_t)lda + (size_t)i] = (float)(row_sum + 8.0 + 0.0625 * (double)(i + 1));
+    }
+}
+
+static void fb_fill_band_dense_f64(double *A, int n, int lda, int kl, int ku)
+{
+    memset(A, 0, (size_t)n * (size_t)lda * sizeof(*A));
+    for (int i = 0; i < n; i++) {
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j == i) continue;
+            double scale = 0.125 / (double)(abs(j - i));
+            A[(size_t)i * (size_t)lda + (size_t)j] = (j > i) ? -scale : scale;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        double row_sum = 0.0;
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j != i) row_sum += fabs(A[(size_t)i * (size_t)lda + (size_t)j]);
+        }
+        A[(size_t)i * (size_t)lda + (size_t)i] = row_sum + 8.0 + 0.0625 * (double)(i + 1);
+    }
+}
+
+static void fb_fill_band_dense_cf32(fb_complex_float_t *A, int n, int lda, int kl, int ku)
+{
+    memset(A, 0, (size_t)n * (size_t)lda * sizeof(*A));
+    for (int i = 0; i < n; i++) {
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j == i) continue;
+            float scale = 0.125f / (float)(abs(j - i));
+            fb_complex_float_t value = 0.0f;
+            __real__ value = (j > i) ? -scale : scale;
+            __imag__ value = (i > j) ? 0.03125f * scale : -0.03125f * scale;
+            A[(size_t)i * (size_t)lda + (size_t)j] = value;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        double row_sum = 0.0;
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j != i) row_sum += fb_cf32_abs(A[(size_t)i * (size_t)lda + (size_t)j]);
+        }
+        A[(size_t)i * (size_t)lda + (size_t)i] = (fb_complex_float_t)(float)(row_sum + 8.0 + 0.0625 * (double)(i + 1));
+    }
+}
+
+static void fb_fill_band_dense_cf64(fb_complex_double_t *A, int n, int lda, int kl, int ku)
+{
+    memset(A, 0, (size_t)n * (size_t)lda * sizeof(*A));
+    for (int i = 0; i < n; i++) {
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j == i) continue;
+            double scale = 0.125 / (double)(abs(j - i));
+            fb_complex_double_t value = 0.0;
+            __real__ value = (j > i) ? -scale : scale;
+            __imag__ value = (i > j) ? 0.03125 * scale : -0.03125 * scale;
+            A[(size_t)i * (size_t)lda + (size_t)j] = value;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        double row_sum = 0.0;
+        int j0 = i - kl;
+        int j1 = i + ku;
+        if (j0 < 0) j0 = 0;
+        if (j1 >= n) j1 = n - 1;
+        for (int j = j0; j <= j1; j++) {
+            if (j != i) row_sum += fb_cf64_abs(A[(size_t)i * (size_t)lda + (size_t)j]);
+        }
+        A[(size_t)i * (size_t)lda + (size_t)i] = (fb_complex_double_t)(row_sum + 8.0 + 0.0625 * (double)(i + 1));
+    }
+}
+
+#define FB_DEFINE_PACK_BAND_ROW_MAJOR(name, scalar_t) \
+static void name(const scalar_t *A, int n, int lda, int kl, int ku, scalar_t *ab, int ldab) \
+{ \
+    int band_rows = 2 * kl + ku + 1; \
+    memset(ab, 0, (size_t)band_rows * (size_t)ldab * sizeof(*ab)); \
+    for (int j = 0; j < n; j++) { \
+        int i0 = j - ku; \
+        int i1 = j + kl; \
+        if (i0 < 0) i0 = 0; \
+        if (i1 >= n) i1 = n - 1; \
+        for (int i = i0; i <= i1; i++) { \
+            int band_row = kl + ku + i - j; \
+            ab[(size_t)band_row * (size_t)ldab + (size_t)j] = A[(size_t)i * (size_t)lda + (size_t)j]; \
+        } \
+    } \
+}
+
+#define FB_DEFINE_PACK_BAND_COL_MAJOR(name, scalar_t) \
+static void name(const scalar_t *A, int n, int lda, int kl, int ku, scalar_t *ab, int ldab) \
+{ \
+    int band_rows = 2 * kl + ku + 1; \
+    memset(ab, 0, (size_t)band_rows * (size_t)n * sizeof(*ab)); \
+    for (int j = 0; j < n; j++) { \
+        int i0 = j - ku; \
+        int i1 = j + kl; \
+        if (i0 < 0) i0 = 0; \
+        if (i1 >= n) i1 = n - 1; \
+        for (int i = i0; i <= i1; i++) { \
+            int band_row = kl + ku + i - j; \
+            ab[(size_t)band_row + (size_t)j * (size_t)ldab] = A[(size_t)i * (size_t)lda + (size_t)j]; \
+        } \
+    } \
+}
+
+#define FB_DEFINE_COL_TO_ROW_COPY(name, scalar_t) \
+static void name(const scalar_t *src, int rows, int cols, scalar_t *dst) \
+{ \
+    for (int i = 0; i < rows; i++) { \
+        for (int j = 0; j < cols; j++) { \
+            dst[(size_t)i * (size_t)cols + (size_t)j] = src[(size_t)i + (size_t)j * (size_t)rows]; \
+        } \
+    } \
+}
+
+FB_DEFINE_PACK_BAND_ROW_MAJOR(fb_pack_band_row_major_f32, float)
+FB_DEFINE_PACK_BAND_ROW_MAJOR(fb_pack_band_row_major_f64, double)
+FB_DEFINE_PACK_BAND_ROW_MAJOR(fb_pack_band_row_major_cf32, fb_complex_float_t)
+FB_DEFINE_PACK_BAND_ROW_MAJOR(fb_pack_band_row_major_cf64, fb_complex_double_t)
+FB_DEFINE_PACK_BAND_COL_MAJOR(fb_pack_band_col_major_f32, float)
+FB_DEFINE_PACK_BAND_COL_MAJOR(fb_pack_band_col_major_f64, double)
+FB_DEFINE_PACK_BAND_COL_MAJOR(fb_pack_band_col_major_cf32, fb_complex_float_t)
+FB_DEFINE_PACK_BAND_COL_MAJOR(fb_pack_band_col_major_cf64, fb_complex_double_t)
+FB_DEFINE_COL_TO_ROW_COPY(fb_copy_col_to_row_f32, float)
+FB_DEFINE_COL_TO_ROW_COPY(fb_copy_col_to_row_f64, double)
+FB_DEFINE_COL_TO_ROW_COPY(fb_copy_col_to_row_cf32, fb_complex_float_t)
+FB_DEFINE_COL_TO_ROW_COPY(fb_copy_col_to_row_cf64, fb_complex_double_t)
+
+typedef int (*fb_sgbtrf_fn_t)(int layout, int m, int n, int kl, int ku,
+                              float *ab, int ldab, int *ipiv);
+typedef int (*fb_dgbtrf_fn_t)(int layout, int m, int n, int kl, int ku,
+                              double *ab, int ldab, int *ipiv);
+typedef int (*fb_cgbtrf_fn_t)(int layout, int m, int n, int kl, int ku,
+                              fb_complex_float_t *ab, int ldab, int *ipiv);
+typedef int (*fb_zgbtrf_fn_t)(int layout, int m, int n, int kl, int ku,
+                              fb_complex_double_t *ab, int ldab, int *ipiv);
+
+typedef void (*fb_sgbtrf_fortran_fn_t)(const int *m, const int *n,
+                                       const int *kl, const int *ku,
+                                       float *ab, const int *ldab,
+                                       int *ipiv, int *info);
+typedef void (*fb_dgbtrf_fortran_fn_t)(const int *m, const int *n,
+                                       const int *kl, const int *ku,
+                                       double *ab, const int *ldab,
+                                       int *ipiv, int *info);
+typedef void (*fb_cgbtrf_fortran_fn_t)(const int *m, const int *n,
+                                       const int *kl, const int *ku,
+                                       fb_complex_float_t *ab,
+                                       const int *ldab, int *ipiv,
+                                       int *info);
+typedef void (*fb_zgbtrf_fortran_fn_t)(const int *m, const int *n,
+                                       const int *kl, const int *ku,
+                                       fb_complex_double_t *ab,
+                                       const int *ldab, int *ipiv,
+                                       int *info);
+
+#define FB_DEFINE_GBTRF_CALLER(name, cblas_t, fortran_t, scalar_t, pack_row_fn, pack_col_fn, col_to_row_fn) \
+static int name(fb_generic_fn cblas_fn, fb_generic_fn fortran_fn, const scalar_t *A_dense, int n, int kl, int ku, scalar_t *lu_row, int *ipiv) \
+{ \
+    int band_rows = 2 * kl + ku + 1; \
+    if (cblas_fn != NULL) { \
+        pack_row_fn(A_dense, n, n, kl, ku, lu_row, n); \
+        return ((cblas_t)cblas_fn)(FB_LAYOUT_ROW_MAJOR, n, n, kl, ku, lu_row, n, ipiv); \
+    } \
+    if (fortran_fn != NULL) { \
+        scalar_t *lu_col = (scalar_t *)malloc((size_t)band_rows * (size_t)n * sizeof(scalar_t)); \
+        if (!lu_col) return FB_BAND_FACT_CALL_ALLOC_FAILURE; \
+        int n_ = n, kl_ = kl, ku_ = ku, ldab_ = band_rows, info = 0; \
+        pack_col_fn(A_dense, n, n, kl, ku, lu_col, ldab_); \
+        ((fortran_t)fortran_fn)(&n_, &n_, &kl_, &ku_, lu_col, &ldab_, ipiv, &info); \
+        if (info == 0) col_to_row_fn(lu_col, band_rows, n, lu_row); \
+        free(lu_col); \
+        return info; \
+    } \
+    return FB_BAND_FACT_CALL_NOT_IMPL; \
+}
+
+FB_DEFINE_GBTRF_CALLER(fb_call_sgbtrf, fb_sgbtrf_fn_t, fb_sgbtrf_fortran_fn_t, float,
+                       fb_pack_band_row_major_f32, fb_pack_band_col_major_f32, fb_copy_col_to_row_f32)
+FB_DEFINE_GBTRF_CALLER(fb_call_dgbtrf, fb_dgbtrf_fn_t, fb_dgbtrf_fortran_fn_t, double,
+                       fb_pack_band_row_major_f64, fb_pack_band_col_major_f64, fb_copy_col_to_row_f64)
+FB_DEFINE_GBTRF_CALLER(fb_call_cgbtrf, fb_cgbtrf_fn_t, fb_cgbtrf_fortran_fn_t, fb_complex_float_t,
+                       fb_pack_band_row_major_cf32, fb_pack_band_col_major_cf32, fb_copy_col_to_row_cf32)
+FB_DEFINE_GBTRF_CALLER(fb_call_zgbtrf, fb_zgbtrf_fn_t, fb_zgbtrf_fortran_fn_t, fb_complex_double_t,
+                       fb_pack_band_row_major_cf64, fb_pack_band_col_major_cf64, fb_copy_col_to_row_cf64)
+
+static bool fb_ipiv_equal(const int *lhs, const int *rhs, int n)
+{
+    for (int i = 0; i < n; i++) {
+        if (lhs[i] != rhs[i]) return false;
+    }
+    return true;
+}
+
+typedef void (*fb_sgeqpf_fortran_fn_t)(const int *m, const int *n, float *a,
+                                       const int *lda, int *jpvt, float *tau,
+                                       float *work, int *info);
+typedef void (*fb_dgeqpf_fortran_fn_t)(const int *m, const int *n, double *a,
+                                       const int *lda, int *jpvt, double *tau,
+                                       double *work, int *info);
+typedef void (*fb_sgeqp3_fortran_fn_t)(const int *m, const int *n, float *a,
+                                       const int *lda, int *jpvt, float *tau,
+                                       float *work, const int *lwork,
+                                       int *info);
+typedef void (*fb_dgeqp3_fortran_fn_t)(const int *m, const int *n, double *a,
+                                       const int *lda, int *jpvt, double *tau,
+                                       double *work, const int *lwork,
+                                       int *info);
+
+static int call_sgeqpf_backend(fb_sgeqpf_fortran_fn_t fn, int m, int n,
+                               float *a, int lda, int *jpvt, float *tau)
+{
+    size_t work_count = (n > 0) ? ((size_t)3 * (size_t)n + 1u) : 1u;
+    float *work = (float *)calloc(work_count, sizeof(float));
+    int info = 0;
+
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+    fn(&m, &n, a, &lda, jpvt, tau, work, &info);
+    free(work);
+    return info;
+}
+
+static int call_dgeqpf_backend(fb_dgeqpf_fortran_fn_t fn, int m, int n,
+                               double *a, int lda, int *jpvt, double *tau)
+{
+    size_t work_count = (n > 0) ? ((size_t)3 * (size_t)n + 1u) : 1u;
+    double *work = (double *)calloc(work_count, sizeof(double));
+    int info = 0;
+
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+    fn(&m, &n, a, &lda, jpvt, tau, work, &info);
+    free(work);
+    return info;
+}
+
+static int call_sgeqp3_backend(fb_sgeqp3_fortran_fn_t fn, int m, int n,
+                               float *a, int lda, int *jpvt, float *tau)
+{
+    float work_query = 0.0f;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, jpvt, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_float(work_query);
+    float *work = (float *)malloc((size_t)lwork * sizeof(float));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, jpvt, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static int call_dgeqp3_backend(fb_dgeqp3_fortran_fn_t fn, int m, int n,
+                               double *a, int lda, int *jpvt, double *tau)
+{
+    double work_query = 0.0;
+    int lwork = -1;
+    int info = 0;
+
+    fn(&m, &n, a, &lda, jpvt, tau, &work_query, &lwork, &info);
+    if (info != 0) return info;
+
+    lwork = fb_factor_query_size_from_double(work_query);
+    double *work = (double *)malloc((size_t)lwork * sizeof(double));
+    if (!work) return FB_FACTORIZATION_CALL_ALLOC_FAILURE;
+
+    fn(&m, &n, a, &lda, jpvt, tau, work, &lwork, &info);
+    free(work);
+    return info;
+}
+
+static double fb_geqp3_relerr_f32(const float *a_oracle, const float *a_cand,
+                                  int m, int n, int lda,
+                                  const float *tau_oracle,
+                                  const float *tau_cand, int tau_len,
+                                  const int *jpvt_oracle,
+                                  const int *jpvt_cand)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = (double)a_cand[i * lda + j] -
+                          (double)a_oracle[i * lda + j];
+            double ref = (double)a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = (double)tau_cand[i] - (double)tau_oracle[i];
+        double ref = (double)tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (!fb_ipiv_equal(jpvt_oracle, jpvt_cand, n)) return 1.0;
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_geqp3_relerr_f64(const double *a_oracle, const double *a_cand,
+                                  int m, int n, int lda,
+                                  const double *tau_oracle,
+                                  const double *tau_cand, int tau_len,
+                                  const int *jpvt_oracle,
+                                  const int *jpvt_cand)
+{
+    double diff2 = 0.0;
+    double ref2 = 0.0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            double diff = a_cand[i * lda + j] - a_oracle[i * lda + j];
+            double ref = a_oracle[i * lda + j];
+            diff2 += diff * diff;
+            ref2 += ref * ref;
+        }
+    }
+    for (int i = 0; i < tau_len; i++) {
+        double diff = tau_cand[i] - tau_oracle[i];
+        double ref = tau_oracle[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+
+    if (!fb_ipiv_equal(jpvt_oracle, jpvt_cand, n)) return 1.0;
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static fb_judge_status_t run_sgeqpf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGEQPF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGEQPF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    int *jpvt_oracle = (int *)calloc((size_t)n, sizeof(int));
+    int *jpvt_cand = (int *)calloc((size_t)n, sizeof(int));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand || !jpvt_oracle || !jpvt_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqpf_backend((fb_sgeqpf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, jpvt_oracle,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        int *jpvt_tmp = (int *)calloc((size_t)n, sizeof(int));
+        if (!a_tmp || !tau_tmp || !jpvt_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(jpvt_oracle); free(jpvt_cand);
+            free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            (void)call_sgeqpf_backend((fb_sgeqpf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqpf_backend((fb_sgeqpf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+    }
+
+    int info_cand = call_sgeqpf_backend((fb_sgeqpf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, jpvt_cand,
+                                        tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqp3_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len,
+                                           jpvt_oracle, jpvt_cand));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    free(jpvt_oracle); free(jpvt_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgeqpf(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGEQPF][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGEQPF][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    int *jpvt_oracle = (int *)calloc((size_t)n, sizeof(int));
+    int *jpvt_cand = (int *)calloc((size_t)n, sizeof(int));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand || !jpvt_oracle || !jpvt_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqpf_backend((fb_dgeqpf_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, jpvt_oracle,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        int *jpvt_tmp = (int *)calloc((size_t)n, sizeof(int));
+        if (!a_tmp || !tau_tmp || !jpvt_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(jpvt_oracle); free(jpvt_cand);
+            free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            (void)call_dgeqpf_backend((fb_dgeqpf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqpf_backend((fb_dgeqpf_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+    }
+
+    int info_cand = call_dgeqpf_backend((fb_dgeqpf_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, jpvt_cand,
+                                        tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqp3_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len,
+                                           jpvt_oracle, jpvt_cand));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    free(jpvt_oracle); free(jpvt_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_sgeqp3(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGEQP3][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGEQP3][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const float *a_orig = (const float *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *a_oracle = clone_matrix_f32(a_orig, m, n, lda);
+    float *a_cand = clone_matrix_f32(a_orig, m, n, lda);
+    float *tau_oracle = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    float *tau_cand = (float *)calloc((size_t)tau_alloc, sizeof(float));
+    int *jpvt_oracle = (int *)calloc((size_t)n, sizeof(int));
+    int *jpvt_cand = (int *)calloc((size_t)n, sizeof(int));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand || !jpvt_oracle || !jpvt_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_sgeqp3_backend((fb_sgeqp3_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, jpvt_oracle,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        float *a_tmp = clone_matrix_f32(a_orig, m, n, lda);
+        float *tau_tmp = (float *)calloc((size_t)tau_alloc, sizeof(float));
+        int *jpvt_tmp = (int *)calloc((size_t)n, sizeof(int));
+        if (!a_tmp || !tau_tmp || !jpvt_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(jpvt_oracle); free(jpvt_cand);
+            free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            (void)call_sgeqp3_backend((fb_sgeqp3_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(float));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(float));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_sgeqp3_backend((fb_sgeqp3_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+    }
+
+    int info_cand = call_sgeqp3_backend((fb_sgeqp3_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, jpvt_cand,
+                                        tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F32) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F32))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqp3_relerr_f32(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len,
+                                           jpvt_oracle, jpvt_cand));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    free(jpvt_oracle); free(jpvt_cand);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgeqp3(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
+    uint64_t *ns_out)
+{
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGEQP3][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGEQP3][FB_CONV_FORTRAN];
+    int m = (int)tc->m;
+    int n = (int)tc->n;
+    int lda = (int)tc->lda;
+    int tau_len = (m < n) ? m : n;
+    int tau_alloc = (tau_len > 0) ? tau_len : 1;
+    const double *a_orig = (const double *)tc->A;
+
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+    if (m <= 0 || n <= 0 || lda < n || !a_orig || tc->A_elems < (size_t)m * (size_t)lda) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double *a_oracle = clone_matrix_f64(a_orig, m, n, lda);
+    double *a_cand = clone_matrix_f64(a_orig, m, n, lda);
+    double *tau_oracle = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    double *tau_cand = (double *)calloc((size_t)tau_alloc, sizeof(double));
+    int *jpvt_oracle = (int *)calloc((size_t)n, sizeof(int));
+    int *jpvt_cand = (int *)calloc((size_t)n, sizeof(int));
+    if (!a_oracle || !a_cand || !tau_oracle || !tau_cand || !jpvt_oracle || !jpvt_cand) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    int info_oracle = call_dgeqp3_backend((fb_dgeqp3_fortran_fn_t)oracle_fn,
+                                          m, n, a_oracle, lda, jpvt_oracle,
+                                          tau_oracle);
+    if (info_oracle == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_oracle != 0 ||
+        fb_judge_has_nan_inf(a_oracle, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_oracle, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (ns_out) {
+        double *a_tmp = clone_matrix_f64(a_orig, m, n, lda);
+        double *tau_tmp = (double *)calloc((size_t)tau_alloc, sizeof(double));
+        int *jpvt_tmp = (int *)calloc((size_t)n, sizeof(int));
+        if (!a_tmp || !tau_tmp || !jpvt_tmp) {
+            free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+            free(jpvt_oracle); free(jpvt_cand);
+            free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+            return FB_JUDGE_ERR_ALLOC;
+        }
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            (void)call_dgeqp3_backend((fb_dgeqp3_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(a_tmp, a_orig, (size_t)m * (size_t)lda * sizeof(double));
+            memset(tau_tmp, 0, (size_t)tau_alloc * sizeof(double));
+            memset(jpvt_tmp, 0, (size_t)n * sizeof(int));
+            uint64_t t0 = fb_judge_time_ns();
+            (void)call_dgeqp3_backend((fb_dgeqp3_fortran_fn_t)cand_fn,
+                                      m, n, a_tmp, lda, jpvt_tmp, tau_tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+        free(a_tmp); free(tau_tmp); free(jpvt_tmp);
+    }
+
+    int info_cand = call_dgeqp3_backend((fb_dgeqp3_fortran_fn_t)cand_fn,
+                                        m, n, a_cand, lda, jpvt_cand,
+                                        tau_cand);
+    if (info_cand == FB_FACTORIZATION_CALL_ALLOC_FAILURE) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    if (info_cand != 0 ||
+        fb_judge_has_nan_inf(a_cand, (size_t)m * (size_t)lda, FB_DTYPE_F64) ||
+        (tau_len > 0 && fb_judge_has_nan_inf(tau_cand, (size_t)tau_len, FB_DTYPE_F64))) {
+        free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+        free(jpvt_oracle); free(jpvt_cand);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    result_from_relerr(&res->reconstruction,
+                       fb_geqp3_relerr_f64(a_oracle, a_cand, m, n, lda,
+                                           tau_oracle, tau_cand, tau_len,
+                                           jpvt_oracle, jpvt_cand));
+    res->orthogonality = (fb_judge_case_result_t){
+        .digits = 16.0,
+        .relative_error = 0.0,
+        .is_fatal = false,
+        .is_oracle_fatal = false
+    };
+
+    free(a_oracle); free(a_cand); free(tau_oracle); free(tau_cand);
+    free(jpvt_oracle); free(jpvt_cand);
+    return FB_JUDGE_OK;
+}
+
+static double fb_band_buffer_relerr_f32(const float *oracle_lu, const float *cand_lu, int count)
+{
+    double diff2 = 0.0, ref2 = 0.0;
+    for (int i = 0; i < count; i++) {
+        double diff = (double)cand_lu[i] - (double)oracle_lu[i];
+        double ref = (double)oracle_lu[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_band_buffer_relerr_f64(const double *oracle_lu, const double *cand_lu, int count)
+{
+    double diff2 = 0.0, ref2 = 0.0;
+    for (int i = 0; i < count; i++) {
+        double diff = cand_lu[i] - oracle_lu[i];
+        double ref = oracle_lu[i];
+        diff2 += diff * diff;
+        ref2 += ref * ref;
+    }
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_band_buffer_relerr_cf32(const fb_complex_float_t *oracle_lu,
+                                         const fb_complex_float_t *cand_lu,
+                                         int count)
+{
+    double diff2 = 0.0, ref2 = 0.0;
+    for (int i = 0; i < count; i++) {
+        double diff_re = (double)__real__(cand_lu[i]) - (double)__real__(oracle_lu[i]);
+        double diff_im = (double)__imag__(cand_lu[i]) - (double)__imag__(oracle_lu[i]);
+        double ref_re = (double)__real__(oracle_lu[i]);
+        double ref_im = (double)__imag__(oracle_lu[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+    if (ref2 < (double)FLT_EPSILON) return (diff2 < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+static double fb_band_buffer_relerr_cf64(const fb_complex_double_t *oracle_lu,
+                                         const fb_complex_double_t *cand_lu,
+                                         int count)
+{
+    double diff2 = 0.0, ref2 = 0.0;
+    for (int i = 0; i < count; i++) {
+        double diff_re = __real__(cand_lu[i]) - __real__(oracle_lu[i]);
+        double diff_im = __imag__(cand_lu[i]) - __imag__(oracle_lu[i]);
+        double ref_re = __real__(oracle_lu[i]);
+        double ref_im = __imag__(oracle_lu[i]);
+        diff2 += diff_re * diff_re + diff_im * diff_im;
+        ref2 += ref_re * ref_re + ref_im * ref_im;
+    }
+    if (ref2 < DBL_EPSILON) return (diff2 < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(diff2 / ref2);
+}
+
+#define FB_DEFINE_GBTRF_RUNNER(name, op_id, call_fn, scalar_t, fill_fn, relerr_fn) \
+static fb_judge_status_t name(\
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,\
+    const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,\
+    uint64_t *ns_out)\
+{\
+    fb_generic_fn oracle_cblas = oracle->ext_ops[op_id][FB_CONV_CBLAS];\
+    fb_generic_fn oracle_fortran = oracle->ext_ops[op_id][FB_CONV_FORTRAN];\
+    fb_generic_fn cand_cblas = cand->ext_ops[op_id][FB_CONV_CBLAS];\
+    fb_generic_fn cand_fortran = cand->ext_ops[op_id][FB_CONV_FORTRAN];\
+    if ((oracle_cblas == NULL && oracle_fortran == NULL) || (cand_cblas == NULL && cand_fortran == NULL)) return FB_JUDGE_ERR_NOT_IMPL;\
+    int n = (int)tc->n;\
+    if (n <= 0) { mark_oracle_fatal(res); return FB_JUDGE_OK; }\
+    int kl = fb_band_test_lower_width(n);\
+    int ku = fb_band_test_upper_width(n);\
+    int band_rows = 2 * kl + ku + 1;\
+    size_t dense_sz = (size_t)n * (size_t)n * sizeof(scalar_t);\
+    size_t band_sz = (size_t)band_rows * (size_t)n * sizeof(scalar_t);\
+    scalar_t *Aorig = (scalar_t *)malloc(dense_sz);\
+    scalar_t *LUo = (scalar_t *)malloc(band_sz);\
+    scalar_t *LUc = (scalar_t *)malloc(band_sz);\
+    int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));\
+    int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));\
+    if (!Aorig || !LUo || !LUc || !ipiv_o || !ipiv_c) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_ALLOC;\
+    }\
+    fill_fn(Aorig, n, n, kl, ku);\
+    int info_o = call_fn(oracle_cblas, oracle_fortran, Aorig, n, kl, ku, LUo, ipiv_o);\
+    if (info_o == FB_BAND_FACT_CALL_ALLOC_FAILURE) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_ALLOC;\
+    }\
+    if (info_o == FB_BAND_FACT_CALL_NOT_IMPL) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_NOT_IMPL;\
+    }\
+    if (info_o != 0) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); mark_oracle_fatal(res); return FB_JUDGE_OK;\
+    }\
+    if (ns_out) {\
+        uint64_t best = UINT64_MAX;\
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {\
+            int info_w = call_fn(cand_cblas, cand_fortran, Aorig, n, kl, ku, LUc, ipiv_c);\
+            if (info_w == FB_BAND_FACT_CALL_ALLOC_FAILURE) { free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_ALLOC; }\
+        }\
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {\
+            uint64_t t0 = fb_judge_time_ns();\
+            int info_t = call_fn(cand_cblas, cand_fortran, Aorig, n, kl, ku, LUc, ipiv_c);\
+            if (info_t == FB_BAND_FACT_CALL_ALLOC_FAILURE) { free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_ALLOC; }\
+            uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt;\
+        }\
+        *ns_out = best;\
+    }\
+    int info_c = call_fn(cand_cblas, cand_fortran, Aorig, n, kl, ku, LUc, ipiv_c);\
+    if (info_c == FB_BAND_FACT_CALL_ALLOC_FAILURE) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_ALLOC;\
+    }\
+    if (info_c == FB_BAND_FACT_CALL_NOT_IMPL) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); return FB_JUDGE_ERR_NOT_IMPL;\
+    }\
+    if (info_c != 0) {\
+        free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c); mark_cand_fatal(res); return FB_JUDGE_OK;\
+    }\
+    double relerr = relerr_fn(LUo, LUc, band_rows * n);\
+    if (!fb_ipiv_equal(ipiv_o, ipiv_c, n)) relerr = 1.0;\
+    result_from_relerr(&res->reconstruction, relerr);\
+    res->orthogonality.digits = 16.0;\
+    res->orthogonality.relative_error = 0.0;\
+    res->orthogonality.is_fatal = false;\
+    res->orthogonality.is_oracle_fatal = false;\
+    free(Aorig); free(LUo); free(LUc); free(ipiv_o); free(ipiv_c);\
+    return FB_JUDGE_OK;\
+}
+
+FB_DEFINE_GBTRF_RUNNER(run_sgbtrf, FB_OP_SGBTRF, fb_call_sgbtrf, float, fb_fill_band_dense_f32, fb_band_buffer_relerr_f32)
+FB_DEFINE_GBTRF_RUNNER(run_dgbtrf, FB_OP_DGBTRF, fb_call_dgbtrf, double, fb_fill_band_dense_f64, fb_band_buffer_relerr_f64)
+FB_DEFINE_GBTRF_RUNNER(run_cgbtrf, FB_OP_CGBTRF, fb_call_cgbtrf, fb_complex_float_t, fb_fill_band_dense_cf32, fb_band_buffer_relerr_cf32)
+FB_DEFINE_GBTRF_RUNNER(run_zgbtrf, FB_OP_ZGBTRF, fb_call_zgbtrf, fb_complex_double_t, fb_fill_band_dense_cf64, fb_band_buffer_relerr_cf64)
+
 /* =========================================================================
  * CPOTRF / ZPOTRF — complex Cholesky factorization
  * ========================================================================= */
@@ -1112,7 +4456,9 @@ static fb_judge_status_t run_cgeqrf(
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    if (!oracle->cgeqrf || !cand->cgeqrf || !cand->cungqr) return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->cgeqrf || !cand->cgeqrf || !cand->cungqr) {
+        return run_cgeqrf_fortran_fallback(oracle, cand, tc, res, ns_out);
+    }
 
     int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_float_t *A_orig = (const fb_complex_float_t *)tc->A;
@@ -1217,7 +4563,9 @@ static fb_judge_status_t run_zgeqrf(
     const fb_corpus_case_t *tc, fb_judge_factorization_result_t *res,
     uint64_t *ns_out)
 {
-    if (!oracle->zgeqrf || !cand->zgeqrf || !cand->zungqr) return FB_JUDGE_ERR_NOT_IMPL;
+    if (!oracle->zgeqrf || !cand->zgeqrf || !cand->zungqr) {
+        return run_zgeqrf_fortran_fallback(oracle, cand, tc, res, ns_out);
+    }
 
     int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda;
     const fb_complex_double_t *A_orig = (const fb_complex_double_t *)tc->A;
@@ -3028,6 +6376,792 @@ static fb_judge_status_t run_zpotri(
     return FB_JUDGE_OK;
 }
 
+/* =========================================================================
+ * LDL^T Reconstruction (for SSYTRF / DSYTRF)
+ *
+ * Assumes lower‑triangle storage, no 2×2 blocks (diagonally‑dominant test
+ * matrix never triggers Bunch–Kaufman 2×2 pivoting).
+ *   D[k]    = Afact[k*lda+k]
+ *   L[i][k] = Afact[i*lda+k]  for k < i,  L[i][i] = 1
+ *   recon[i][j] = Σ_{k=0}^{min(i,j)} L[i][k]·D[k]·L[j][k]
+ * ========================================================================= */
+
+static double fb_ldlt_reconstruction_f32(const float *Aorig, const float *Afact,
+                                         int n, int lda) {
+  double norm_diff = 0.0, norm_A = 0.0;
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      int kmax = (i < j) ? i : j;
+      double sum = 0.0;
+      for (int k = 0; k <= kmax; k++) {
+        double lik = (k == i) ? 1.0 : (double)Afact[i * lda + k];
+        double ljk = (k == j) ? 1.0 : (double)Afact[j * lda + k];
+        double dk = (double)Afact[k * lda + k];
+        sum += lik * dk * ljk;
+      }
+      double a_ij = (double)Aorig[i * lda + j];
+      double diff = sum - a_ij;
+      norm_diff += diff * diff;
+      norm_A += a_ij * a_ij;
+    }
+  }
+  if (norm_A < (double)FLT_EPSILON)
+    return 0.0;
+  return sqrt(norm_diff / norm_A);
+}
+
+static double fb_ldlt_reconstruction_f64(const double *Aorig,
+                                         const double *Afact, int n, int lda) {
+  double norm_diff = 0.0, norm_A = 0.0;
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      int kmax = (i < j) ? i : j;
+      double sum = 0.0;
+      for (int k = 0; k <= kmax; k++) {
+        double lik = (k == i) ? 1.0 : Afact[i * lda + k];
+        double ljk = (k == j) ? 1.0 : Afact[j * lda + k];
+        double dk = Afact[k * lda + k];
+        sum += lik * dk * ljk;
+      }
+      double a_ij = Aorig[i * lda + j];
+      double diff = sum - a_ij;
+      norm_diff += diff * diff;
+      norm_A += a_ij * a_ij;
+    }
+  }
+  if (norm_A < DBL_EPSILON)
+    return 0.0;
+  return sqrt(norm_diff / norm_A);
+}
+
+static void fb_fill_sym_indef_cf32(fb_complex_float_t *Aorig, int n, int lda) {
+    for (int i = 0; i < n; i++) {
+        __real__(Aorig[i * lda + i]) = (float)(n + 2 * (i + 1));
+        __imag__(Aorig[i * lda + i]) = 0.0f;
+        for (int j = i + 1; j < n; j++) {
+            float re = 0.5f / (float)(j - i + 1);
+            float im = 0.05f * (float)(i + 1) / (float)(j + 1);
+            __real__(Aorig[i * lda + j]) = re;
+            __imag__(Aorig[i * lda + j]) = im;
+            __real__(Aorig[j * lda + i]) = re;
+            __imag__(Aorig[j * lda + i]) = im;
+        }
+    }
+}
+
+static void fb_fill_sym_indef_cf64(fb_complex_double_t *Aorig, int n, int lda) {
+    for (int i = 0; i < n; i++) {
+        __real__(Aorig[i * lda + i]) = (double)(n + 2 * (i + 1));
+        __imag__(Aorig[i * lda + i]) = 0.0;
+        for (int j = i + 1; j < n; j++) {
+            double re = 0.5 / (double)(j - i + 1);
+            double im = 0.05 * (double)(i + 1) / (double)(j + 1);
+            __real__(Aorig[i * lda + j]) = re;
+            __imag__(Aorig[i * lda + j]) = im;
+            __real__(Aorig[j * lda + i]) = re;
+            __imag__(Aorig[j * lda + i]) = im;
+        }
+    }
+}
+
+static void fb_fill_herm_indef_cf32(fb_complex_float_t *Aorig, int n, int lda) {
+    for (int i = 0; i < n; i++) {
+        __real__(Aorig[i * lda + i]) = (float)(n + 2 * (i + 1));
+        __imag__(Aorig[i * lda + i]) = 0.0f;
+        for (int j = i + 1; j < n; j++) {
+            float re = 0.5f / (float)(j - i + 1);
+            float im = 0.05f * (float)(i + 1) / (float)(j + 1);
+            __real__(Aorig[i * lda + j]) = re;
+            __imag__(Aorig[i * lda + j]) = im;
+            __real__(Aorig[j * lda + i]) = re;
+            __imag__(Aorig[j * lda + i]) = -im;
+        }
+    }
+}
+
+static void fb_fill_herm_indef_cf64(fb_complex_double_t *Aorig, int n, int lda) {
+    for (int i = 0; i < n; i++) {
+        __real__(Aorig[i * lda + i]) = (double)(n + 2 * (i + 1));
+        __imag__(Aorig[i * lda + i]) = 0.0;
+        for (int j = i + 1; j < n; j++) {
+            double re = 0.5 / (double)(j - i + 1);
+            double im = 0.05 * (double)(i + 1) / (double)(j + 1);
+            __real__(Aorig[i * lda + j]) = re;
+            __imag__(Aorig[i * lda + j]) = im;
+            __real__(Aorig[j * lda + i]) = re;
+            __imag__(Aorig[j * lda + i]) = -im;
+        }
+    }
+}
+
+static double fb_ldlt_reconstruction_cf32(const fb_complex_float_t *Aorig,
+                                                                                    const fb_complex_float_t *Afact,
+                                                                                    int n, int lda,
+                                                                                    int hermitian) {
+    double norm_diff = 0.0, norm_A = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = (i < j) ? i : j;
+            double sum_re = 0.0, sum_im = 0.0;
+            for (int k = 0; k <= kmax; k++) {
+                double lik_re = (k == i) ? 1.0 : (double)__real__(Afact[i * lda + k]);
+                double lik_im = (k == i) ? 0.0 : (double)__imag__(Afact[i * lda + k]);
+                double ljk_re = (k == j) ? 1.0 : (double)__real__(Afact[j * lda + k]);
+                double ljk_im = (k == j) ? 0.0 : (double)__imag__(Afact[j * lda + k]);
+                double dk_re = (double)__real__(Afact[k * lda + k]);
+                double dk_im = (double)__imag__(Afact[k * lda + k]);
+                if (hermitian) ljk_im = -ljk_im;
+
+                double tmp_re = lik_re * dk_re - lik_im * dk_im;
+                double tmp_im = lik_re * dk_im + lik_im * dk_re;
+                sum_re += tmp_re * ljk_re - tmp_im * ljk_im;
+                sum_im += tmp_re * ljk_im + tmp_im * ljk_re;
+            }
+            double a_re = (double)__real__(Aorig[i * lda + j]);
+            double a_im = (double)__imag__(Aorig[i * lda + j]);
+            double diff_re = sum_re - a_re;
+            double diff_im = sum_im - a_im;
+            norm_diff += diff_re * diff_re + diff_im * diff_im;
+            norm_A += a_re * a_re + a_im * a_im;
+        }
+    }
+    if (norm_A < (double)FLT_EPSILON)
+        return (norm_diff < (double)FLT_EPSILON) ? 0.0 : 1.0;
+    return sqrt(norm_diff / norm_A);
+}
+
+static double fb_ldlt_reconstruction_cf64(const fb_complex_double_t *Aorig,
+                                                                                    const fb_complex_double_t *Afact,
+                                                                                    int n, int lda,
+                                                                                    int hermitian) {
+    double norm_diff = 0.0, norm_A = 0.0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            int kmax = (i < j) ? i : j;
+            double sum_re = 0.0, sum_im = 0.0;
+            for (int k = 0; k <= kmax; k++) {
+                double lik_re = (k == i) ? 1.0 : __real__(Afact[i * lda + k]);
+                double lik_im = (k == i) ? 0.0 : __imag__(Afact[i * lda + k]);
+                double ljk_re = (k == j) ? 1.0 : __real__(Afact[j * lda + k]);
+                double ljk_im = (k == j) ? 0.0 : __imag__(Afact[j * lda + k]);
+                double dk_re = __real__(Afact[k * lda + k]);
+                double dk_im = __imag__(Afact[k * lda + k]);
+                if (hermitian) ljk_im = -ljk_im;
+
+                double tmp_re = lik_re * dk_re - lik_im * dk_im;
+                double tmp_im = lik_re * dk_im + lik_im * dk_re;
+                sum_re += tmp_re * ljk_re - tmp_im * ljk_im;
+                sum_im += tmp_re * ljk_im + tmp_im * ljk_re;
+            }
+            double a_re = __real__(Aorig[i * lda + j]);
+            double a_im = __imag__(Aorig[i * lda + j]);
+            double diff_re = sum_re - a_re;
+            double diff_im = sum_im - a_im;
+            norm_diff += diff_re * diff_re + diff_im * diff_im;
+            norm_A += a_re * a_re + a_im * a_im;
+        }
+    }
+    if (norm_A < DBL_EPSILON)
+        return (norm_diff < DBL_EPSILON) ? 0.0 : 1.0;
+    return sqrt(norm_diff / norm_A);
+}
+
+/* =========================================================================
+ * Symmetric Indefinite Factorization (SSYTRF, DSYTRF)
+ *
+ * Test matrix: diagonally‑dominant symmetric, A[i][i] = n+2*(i+1),
+ * A[i][j] = 0.5/(|i‑j|+1) for i≠j.  Strictly diagonally dominant ⇒
+ * Bunch–Kaufman always picks 1×1 pivots, so L·D·L^T reconstruction is
+ * straightforward (no 2×2 block parsing).
+ * ========================================================================= */
+
+static fb_judge_status_t run_ssytrf(const fb_backend_vtable_t *oracle,
+                                    const fb_backend_vtable_t *cand,
+                                    const fb_corpus_case_t *tc,
+                                    fb_judge_factorization_result_t *res,
+                                    uint64_t *ns_out) {
+  typedef int (*fb_ssytrf_fn_t)(int layout, char uplo, int n, float *a, int lda,
+                                int *ipiv);
+  if (!oracle->ssytrf || !cand->ssytrf)
+    return FB_JUDGE_ERR_NOT_IMPL;
+
+  int n = (int)tc->n;
+  int lda = (tc->lda > 0) ? (int)tc->lda : n;
+  if (n <= 0) {
+    mark_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  size_t Asz = (size_t)n * (size_t)lda * sizeof(float);
+
+  /* Build diagonally‑dominant symmetric matrix. */
+  float *Aorig = (float *)calloc((size_t)n * (size_t)lda, sizeof(float));
+  if (!Aorig)
+    return FB_JUDGE_ERR_ALLOC;
+  for (int i = 0; i < n; i++) {
+    Aorig[i * lda + i] = (float)(n + 2 * (i + 1));
+    for (int j = i + 1; j < n; j++) {
+      float v = 0.5f / (float)(j - i + 1);
+      Aorig[i * lda + j] = v;
+      Aorig[j * lda + i] = v;
+    }
+  }
+
+  /* Oracle */
+  float *Ao = (float *)malloc(Asz);
+  int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+  if (!Ao || !ipiv_o) {
+    free(Aorig);
+    free(Ao);
+    free(ipiv_o);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  memcpy(Ao, Aorig, Asz);
+  int info_o = ((fb_ssytrf_fn_t)oracle->ssytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ao,
+                                                lda, ipiv_o);
+  free(Ao);
+  if (info_o != 0) {
+    free(Aorig);
+    free(ipiv_o);
+    mark_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  /* Candidate */
+  float *Ac = (float *)malloc(Asz);
+  int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+  if (!Ac || !ipiv_c) {
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+
+  if (ns_out) {
+    uint64_t best = UINT64_MAX;
+    for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+      memcpy(Ac, Aorig, Asz);
+      (void)((fb_ssytrf_fn_t)cand->ssytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac, lda,
+                                           ipiv_c);
+    }
+    for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+      memcpy(Ac, Aorig, Asz);
+      uint64_t t0 = fb_judge_time_ns();
+      (void)((fb_ssytrf_fn_t)cand->ssytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac, lda,
+                                           ipiv_c);
+      uint64_t dt = fb_judge_time_ns() - t0;
+      if (dt < best)
+        best = dt;
+    }
+    *ns_out = best;
+  }
+
+  memcpy(Ac, Aorig, Asz);
+  int info_c = ((fb_ssytrf_fn_t)cand->ssytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                              lda, ipiv_c);
+  if (info_c != 0) {
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    mark_cand_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  double recon_err = fb_ldlt_reconstruction_f32(Aorig, Ac, n, lda);
+  result_from_relerr(&res->reconstruction, recon_err);
+  res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+  free(Aorig);
+  free(ipiv_o);
+  free(Ac);
+  free(ipiv_c);
+  return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dsytrf(const fb_backend_vtable_t *oracle,
+                                    const fb_backend_vtable_t *cand,
+                                    const fb_corpus_case_t *tc,
+                                    fb_judge_factorization_result_t *res,
+                                    uint64_t *ns_out) {
+  typedef int (*fb_dsytrf_fn_t)(int layout, char uplo, int n, double *a,
+                                int lda, int *ipiv);
+  if (!oracle->dsytrf || !cand->dsytrf)
+    return FB_JUDGE_ERR_NOT_IMPL;
+
+  int n = (int)tc->n;
+  int lda = (tc->lda > 0) ? (int)tc->lda : n;
+  if (n <= 0) {
+    mark_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  size_t Asz = (size_t)n * (size_t)lda * sizeof(double);
+
+  double *Aorig = (double *)calloc((size_t)n * (size_t)lda, sizeof(double));
+  if (!Aorig)
+    return FB_JUDGE_ERR_ALLOC;
+  for (int i = 0; i < n; i++) {
+    Aorig[i * lda + i] = (double)(n + 2 * (i + 1));
+    for (int j = i + 1; j < n; j++) {
+      double v = 0.5 / (double)(j - i + 1);
+      Aorig[i * lda + j] = v;
+      Aorig[j * lda + i] = v;
+    }
+  }
+
+  double *Ao = (double *)malloc(Asz);
+  int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+  if (!Ao || !ipiv_o) {
+    free(Aorig);
+    free(Ao);
+    free(ipiv_o);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+  memcpy(Ao, Aorig, Asz);
+  int info_o = ((fb_dsytrf_fn_t)oracle->dsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ao,
+                                                lda, ipiv_o);
+  free(Ao);
+  if (info_o != 0) {
+    free(Aorig);
+    free(ipiv_o);
+    mark_oracle_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  double *Ac = (double *)malloc(Asz);
+  int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+  if (!Ac || !ipiv_c) {
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_ERR_ALLOC;
+  }
+
+  if (ns_out) {
+    uint64_t best = UINT64_MAX;
+    for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+      memcpy(Ac, Aorig, Asz);
+      (void)((fb_dsytrf_fn_t)cand->dsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac, lda,
+                                           ipiv_c);
+    }
+    for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+      memcpy(Ac, Aorig, Asz);
+      uint64_t t0 = fb_judge_time_ns();
+      (void)((fb_dsytrf_fn_t)cand->dsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac, lda,
+                                           ipiv_c);
+      uint64_t dt = fb_judge_time_ns() - t0;
+      if (dt < best)
+        best = dt;
+    }
+    *ns_out = best;
+  }
+
+  memcpy(Ac, Aorig, Asz);
+  int info_c = ((fb_dsytrf_fn_t)cand->dsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                              lda, ipiv_c);
+  if (info_c != 0) {
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    mark_cand_fatal(res);
+    return FB_JUDGE_OK;
+  }
+
+  double recon_err = fb_ldlt_reconstruction_f64(Aorig, Ac, n, lda);
+  result_from_relerr(&res->reconstruction, recon_err);
+  res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+  free(Aorig);
+  free(ipiv_o);
+  free(Ac);
+  free(ipiv_c);
+  return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_csytrf(const fb_backend_vtable_t *oracle,
+                                                                        const fb_backend_vtable_t *cand,
+                                                                        const fb_corpus_case_t *tc,
+                                                                        fb_judge_factorization_result_t *res,
+                                                                        uint64_t *ns_out) {
+    typedef int (*fb_csytrf_fn_t)(int layout, char uplo, int n,
+                                                                fb_complex_float_t *a, int lda, int *ipiv);
+    if (!oracle->csytrf || !cand->csytrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    int n = (int)tc->n;
+    int lda = (tc->lda > 0) ? (int)tc->lda : n;
+    if (n <= 0) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_float_t);
+    fb_complex_float_t *Aorig =
+            (fb_complex_float_t *)calloc((size_t)n * (size_t)lda, sizeof(*Aorig));
+    if (!Aorig)
+        return FB_JUDGE_ERR_ALLOC;
+    fb_fill_sym_indef_cf32(Aorig, n, lda);
+
+    fb_complex_float_t *Ao = (fb_complex_float_t *)malloc(Asz);
+    int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ao || !ipiv_o) {
+        free(Aorig);
+        free(Ao);
+        free(ipiv_o);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, Aorig, Asz);
+    int info_o = ((fb_csytrf_fn_t)oracle->csytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n,
+                                                                                                Ao, lda, ipiv_o);
+    free(Ao);
+    if (info_o != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *Ac = (fb_complex_float_t *)malloc(Asz);
+    int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ac || !ipiv_c) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(Ac, Aorig, Asz);
+            (void)((fb_csytrf_fn_t)cand->csytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(Ac, Aorig, Asz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_csytrf_fn_t)cand->csytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+                best = dt;
+        }
+        *ns_out = best;
+    }
+
+    memcpy(Ac, Aorig, Asz);
+    int info_c = ((fb_csytrf_fn_t)cand->csytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                            lda, ipiv_c);
+    if (info_c != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double recon_err = fb_ldlt_reconstruction_cf32(Aorig, Ac, n, lda, 0);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zsytrf(const fb_backend_vtable_t *oracle,
+                                                                        const fb_backend_vtable_t *cand,
+                                                                        const fb_corpus_case_t *tc,
+                                                                        fb_judge_factorization_result_t *res,
+                                                                        uint64_t *ns_out) {
+    typedef int (*fb_zsytrf_fn_t)(int layout, char uplo, int n,
+                                                                fb_complex_double_t *a, int lda, int *ipiv);
+    if (!oracle->zsytrf || !cand->zsytrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    int n = (int)tc->n;
+    int lda = (tc->lda > 0) ? (int)tc->lda : n;
+    if (n <= 0) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_double_t);
+    fb_complex_double_t *Aorig =
+            (fb_complex_double_t *)calloc((size_t)n * (size_t)lda, sizeof(*Aorig));
+    if (!Aorig)
+        return FB_JUDGE_ERR_ALLOC;
+    fb_fill_sym_indef_cf64(Aorig, n, lda);
+
+    fb_complex_double_t *Ao = (fb_complex_double_t *)malloc(Asz);
+    int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ao || !ipiv_o) {
+        free(Aorig);
+        free(Ao);
+        free(ipiv_o);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, Aorig, Asz);
+    int info_o = ((fb_zsytrf_fn_t)oracle->zsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n,
+                                                                                                Ao, lda, ipiv_o);
+    free(Ao);
+    if (info_o != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *Ac = (fb_complex_double_t *)malloc(Asz);
+    int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ac || !ipiv_c) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(Ac, Aorig, Asz);
+            (void)((fb_zsytrf_fn_t)cand->zsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(Ac, Aorig, Asz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_zsytrf_fn_t)cand->zsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+                best = dt;
+        }
+        *ns_out = best;
+    }
+
+    memcpy(Ac, Aorig, Asz);
+    int info_c = ((fb_zsytrf_fn_t)cand->zsytrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                            lda, ipiv_c);
+    if (info_c != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double recon_err = fb_ldlt_reconstruction_cf64(Aorig, Ac, n, lda, 0);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_chetrf(const fb_backend_vtable_t *oracle,
+                                                                        const fb_backend_vtable_t *cand,
+                                                                        const fb_corpus_case_t *tc,
+                                                                        fb_judge_factorization_result_t *res,
+                                                                        uint64_t *ns_out) {
+    typedef int (*fb_chetrf_fn_t)(int layout, char uplo, int n,
+                                                                fb_complex_float_t *a, int lda, int *ipiv);
+    if (!oracle->chetrf || !cand->chetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    int n = (int)tc->n;
+    int lda = (tc->lda > 0) ? (int)tc->lda : n;
+    if (n <= 0) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_float_t);
+    fb_complex_float_t *Aorig =
+            (fb_complex_float_t *)calloc((size_t)n * (size_t)lda, sizeof(*Aorig));
+    if (!Aorig)
+        return FB_JUDGE_ERR_ALLOC;
+    fb_fill_herm_indef_cf32(Aorig, n, lda);
+
+    fb_complex_float_t *Ao = (fb_complex_float_t *)malloc(Asz);
+    int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ao || !ipiv_o) {
+        free(Aorig);
+        free(Ao);
+        free(ipiv_o);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, Aorig, Asz);
+    int info_o = ((fb_chetrf_fn_t)oracle->chetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n,
+                                                                                                Ao, lda, ipiv_o);
+    free(Ao);
+    if (info_o != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *Ac = (fb_complex_float_t *)malloc(Asz);
+    int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ac || !ipiv_c) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(Ac, Aorig, Asz);
+            (void)((fb_chetrf_fn_t)cand->chetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(Ac, Aorig, Asz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_chetrf_fn_t)cand->chetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+                best = dt;
+        }
+        *ns_out = best;
+    }
+
+    memcpy(Ac, Aorig, Asz);
+    int info_c = ((fb_chetrf_fn_t)cand->chetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                            lda, ipiv_c);
+    if (info_c != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double recon_err = fb_ldlt_reconstruction_cf32(Aorig, Ac, n, lda, 1);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zhetrf(const fb_backend_vtable_t *oracle,
+                                                                        const fb_backend_vtable_t *cand,
+                                                                        const fb_corpus_case_t *tc,
+                                                                        fb_judge_factorization_result_t *res,
+                                                                        uint64_t *ns_out) {
+    typedef int (*fb_zhetrf_fn_t)(int layout, char uplo, int n,
+                                                                fb_complex_double_t *a, int lda, int *ipiv);
+    if (!oracle->zhetrf || !cand->zhetrf)
+        return FB_JUDGE_ERR_NOT_IMPL;
+
+    int n = (int)tc->n;
+    int lda = (tc->lda > 0) ? (int)tc->lda : n;
+    if (n <= 0) {
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    size_t Asz = (size_t)n * (size_t)lda * sizeof(fb_complex_double_t);
+    fb_complex_double_t *Aorig =
+            (fb_complex_double_t *)calloc((size_t)n * (size_t)lda, sizeof(*Aorig));
+    if (!Aorig)
+        return FB_JUDGE_ERR_ALLOC;
+    fb_fill_herm_indef_cf64(Aorig, n, lda);
+
+    fb_complex_double_t *Ao = (fb_complex_double_t *)malloc(Asz);
+    int *ipiv_o = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ao || !ipiv_o) {
+        free(Aorig);
+        free(Ao);
+        free(ipiv_o);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    memcpy(Ao, Aorig, Asz);
+    int info_o = ((fb_zhetrf_fn_t)oracle->zhetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n,
+                                                                                                Ao, lda, ipiv_o);
+    free(Ao);
+    if (info_o != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        mark_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *Ac = (fb_complex_double_t *)malloc(Asz);
+    int *ipiv_c = (int *)malloc((size_t)n * sizeof(int));
+    if (!Ac || !ipiv_c) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_FACTORIZATION_WARMUP_RUNS; w++) {
+            memcpy(Ac, Aorig, Asz);
+            (void)((fb_zhetrf_fn_t)cand->zhetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+        }
+        for (int t = 0; t < FB_FACTORIZATION_TIMING_RUNS; t++) {
+            memcpy(Ac, Aorig, Asz);
+            uint64_t t0 = fb_judge_time_ns();
+            (void)((fb_zhetrf_fn_t)cand->zhetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                     lda, ipiv_c);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+                best = dt;
+        }
+        *ns_out = best;
+    }
+
+    memcpy(Ac, Aorig, Asz);
+    int info_c = ((fb_zhetrf_fn_t)cand->zhetrf)(FB_LAYOUT_ROW_MAJOR, 'L', n, Ac,
+                                                                                            lda, ipiv_c);
+    if (info_c != 0) {
+        free(Aorig);
+        free(ipiv_o);
+        free(Ac);
+        free(ipiv_c);
+        mark_cand_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    double recon_err = fb_ldlt_reconstruction_cf64(Aorig, Ac, n, lda, 1);
+    result_from_relerr(&res->reconstruction, recon_err);
+    res->orthogonality = (fb_judge_case_result_t){.digits = 16};
+
+    free(Aorig);
+    free(ipiv_o);
+    free(Ac);
+    free(ipiv_c);
+    return FB_JUDGE_OK;
+}
+
 /**
  * Dispatch table for FACTORIZATION archetype operations.
  * Indexed by op_id; covers LU, Cholesky, QR variants.
@@ -3035,10 +7169,21 @@ static fb_judge_status_t run_zpotri(
 static const fb_factorization_runner_fn fb_factorization_dispatch[] = {
     [FB_OP_SGETRF] = run_sgetrf, [FB_OP_DGETRF] = run_dgetrf,
     [FB_OP_CGETRF] = run_cgetrf, [FB_OP_ZGETRF] = run_zgetrf,
+    [FB_OP_SGBTRF] = run_sgbtrf, [FB_OP_DGBTRF] = run_dgbtrf,
+    [FB_OP_CGBTRF] = run_cgbtrf, [FB_OP_ZGBTRF] = run_zgbtrf,
     [FB_OP_SPOTRF] = run_spotrf, [FB_OP_DPOTRF] = run_dpotrf,
     [FB_OP_CPOTRF] = run_cpotrf, [FB_OP_ZPOTRF] = run_zpotrf,
     [FB_OP_SGEQRF] = run_sgeqrf, [FB_OP_DGEQRF] = run_dgeqrf,
     [FB_OP_CGEQRF] = run_cgeqrf, [FB_OP_ZGEQRF] = run_zgeqrf,
+    [FB_OP_SGEHRD] = run_sgehrd, [FB_OP_DGEHRD] = run_dgehrd,
+    [FB_OP_CGEHRD] = run_cgehrd, [FB_OP_ZGEHRD] = run_zgehrd,
+    [FB_OP_SGELQF] = run_sgelqf, [FB_OP_DGELQF] = run_dgelqf,
+    [FB_OP_SGEQLF] = run_sgeqlf, [FB_OP_DGEQLF] = run_dgeqlf,
+    [FB_OP_CGEQLF] = run_cgeqlf, [FB_OP_ZGEQLF] = run_zgeqlf,
+    [FB_OP_SGERQF] = run_sgerqf, [FB_OP_DGERQF] = run_dgerqf,
+    [FB_OP_CGERQF] = run_cgerqf, [FB_OP_ZGERQF] = run_zgerqf,
+    [FB_OP_SGEQPF] = run_sgeqpf, [FB_OP_DGEQPF] = run_dgeqpf,
+    [FB_OP_SGEQP3] = run_sgeqp3, [FB_OP_DGEQP3] = run_dgeqp3,
     [FB_OP_SORGQR] = run_sorgqr, [FB_OP_DORGQR] = run_dorgqr,
     [FB_OP_CUNGQR] = run_cungqr, [FB_OP_ZUNGQR] = run_zungqr,
     [FB_OP_SORMQR] = run_sormqr, [FB_OP_DORMQR] = run_dormqr,
@@ -3049,6 +7194,9 @@ static const fb_factorization_runner_fn fb_factorization_dispatch[] = {
     [FB_OP_CGETRI] = run_cgetri, [FB_OP_ZGETRI] = run_zgetri,
     [FB_OP_SPOTRI] = run_spotri, [FB_OP_DPOTRI] = run_dpotri,
     [FB_OP_CPOTRI] = run_cpotri, [FB_OP_ZPOTRI] = run_zpotri,
+    [FB_OP_SSYTRF] = run_ssytrf, [FB_OP_DSYTRF] = run_dsytrf,
+    [FB_OP_CSYTRF] = run_csytrf, [FB_OP_ZSYTRF] = run_zsytrf,
+    [FB_OP_CHETRF] = run_chetrf, [FB_OP_ZHETRF] = run_zhetrf,
 };
 
 #define FB_FACTORIZATION_DISPATCH_SIZE \

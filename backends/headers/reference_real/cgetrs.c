@@ -1,2 +1,0 @@
-/* cgetrs */
-void cgetrs_() { }

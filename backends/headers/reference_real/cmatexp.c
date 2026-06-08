@@ -1,2 +1,0 @@
-/* cmatexp */
-void cmatexp_() { }

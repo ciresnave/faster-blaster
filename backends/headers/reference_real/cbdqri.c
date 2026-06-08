@@ -1,2 +1,0 @@
-/* cbdqri */
-void cbdqri_() { }

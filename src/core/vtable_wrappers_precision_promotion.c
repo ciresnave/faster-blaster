@@ -44,11 +44,11 @@
  * Used when backend has only DGEMM but user calls SGEMM.
  */
 void fb_sgemm_from_dgemm(const fb_layout_t layout, const fb_transpose_t transa,
-                         const fb_transpose_t transb, const int64_t m,
-                         const int64_t n, const int64_t k, const float alpha,
-                         const float *A, const int64_t lda, const float *B,
-                         const int64_t ldb, const float beta, float *C,
-                         const int64_t ldc) {
+                         const fb_transpose_t transb, const int m,
+                         const int n, const int k, const float alpha,
+                         const float *A, const int lda, const float *B,
+                         const int ldb, const float beta, float *C,
+                         const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->dgemm) {
@@ -105,13 +105,13 @@ void fb_sgemm_from_dgemm(const fb_layout_t layout, const fb_transpose_t transa,
  * ========================================================================= */
 
 void fb_cgemm_from_zgemm(const fb_layout_t layout, const fb_transpose_t transa,
-                         const fb_transpose_t transb, const int64_t m,
-                         const int64_t n, const int64_t k,
+                         const fb_transpose_t transb, const int m,
+                         const int n, const int k,
                          const fb_complex_float_t alpha,
-                         const fb_complex_float_t *A, const int64_t lda,
-                         const fb_complex_float_t *B, const int64_t ldb,
+                         const fb_complex_float_t *A, const int lda,
+                         const fb_complex_float_t *B, const int ldb,
                          const fb_complex_float_t beta, fb_complex_float_t *C,
-                         const int64_t ldc) {
+                         const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->zgemm) {
@@ -138,24 +138,18 @@ void fb_cgemm_from_zgemm(const fb_layout_t layout, const fb_transpose_t transa,
 
   /* Promote: C64 → C128 (lossless) */
   for (size_t i = 0; i < A_size; i++) {
-    A_d[i] =
-        (fb_complex_double_t){(double)((const fb_complex_float_t *)A)[i].real,
-                              (double)((const fb_complex_float_t *)A)[i].imag};
+    A_d[i] = (fb_complex_double_t)((const fb_complex_float_t *)A)[i];
   }
   for (size_t i = 0; i < B_size; i++) {
-    B_d[i] =
-        (fb_complex_double_t){(double)((const fb_complex_float_t *)B)[i].real,
-                              (double)((const fb_complex_float_t *)B)[i].imag};
+    B_d[i] = (fb_complex_double_t)((const fb_complex_float_t *)B)[i];
   }
   for (size_t i = 0; i < C_size; i++) {
-    C_d[i] =
-        (fb_complex_double_t){(double)((const fb_complex_float_t *)C)[i].real,
-                              (double)((const fb_complex_float_t *)C)[i].imag};
+    C_d[i] = (fb_complex_double_t)((const fb_complex_float_t *)C)[i];
   }
 
   /* Execute in FP64 */
-  fb_complex_double_t alpha_d = {(double)alpha.real, (double)alpha.imag};
-  fb_complex_double_t beta_d = {(double)beta.real, (double)beta.imag};
+  fb_complex_double_t alpha_d = {(double)__real__(alpha), (double)__imag__(alpha)};
+  fb_complex_double_t beta_d = {(double)__real__(beta), (double)__imag__(beta)};
 
   vtable->zgemm(layout, transa, transb, m, n, k, alpha_d, A_d, lda, B_d, ldb,
                 beta_d, C_d, ldc);

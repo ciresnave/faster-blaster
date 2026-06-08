@@ -1,2 +1,0 @@
-/* clacpy */
-void clacpy_() { }

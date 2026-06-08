@@ -1,2 +1,0 @@
-/* clahqr */
-void clahqr_() { }

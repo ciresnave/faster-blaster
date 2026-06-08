@@ -92,7 +92,7 @@ static inline int entry_is_stub(const fb_op_judge_meta_t *e)
  * Returns a pointer to the static table entry (or the static default).
  * Never returns NULL.
  *
- * @param op_id   Operation ID (0 … FB_JUDGE_MAX_OPERATIONS-1).
+ * @param op_id   Operation ID (0 to FB_JUDGE_MAX_OPERATIONS-1).
  */
 const fb_op_judge_meta_t *fb_judge_meta_get(uint32_t op_id)
 {

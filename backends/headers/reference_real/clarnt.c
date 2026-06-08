@@ -1,2 +1,0 @@
-/* clarnt */
-void clarnt_() { }

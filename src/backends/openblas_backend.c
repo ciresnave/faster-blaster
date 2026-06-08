@@ -400,20 +400,24 @@ static double openblas_dzasum(const int n, const fb_complex_double_t* x, const i
     return 0.0;
 }
 
-static void openblas_caxpy(const int n, const fb_complex_float_t alpha, const fb_complex_float_t* x, const int incx, fb_complex_float_t* y, const int incy) {
-    typedef void (*fn_t)(int, const void*, const void*, int, void*, int);
-    fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_caxpy");
-    if (fn) {
-        fn(n, &alpha, x, incx, y, incy);
-    }
+static void openblas_caxpy(const int n, const fb_complex_float_t *alpha,
+                           const fb_complex_float_t *x, const int incx,
+                           fb_complex_float_t *y, const int incy) {
+  typedef void (*fn_t)(int, const void *, const void *, int, void *, int);
+  fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_caxpy");
+  if (fn) {
+    fn(n, alpha, x, incx, y, incy);
+  }
 }
 
-static void openblas_zaxpy(const int n, const fb_complex_double_t alpha, const fb_complex_double_t* x, const int incx, fb_complex_double_t* y, const int incy) {
-    typedef void (*fn_t)(int, const void*, const void*, int, void*, int);
-    fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zaxpy");
-    if (fn) {
-        fn(n, &alpha, x, incx, y, incy);
-    }
+static void openblas_zaxpy(const int n, const fb_complex_double_t *alpha,
+                           const fb_complex_double_t *x, const int incx,
+                           fb_complex_double_t *y, const int incy) {
+  typedef void (*fn_t)(int, const void *, const void *, int, void *, int);
+  fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zaxpy");
+  if (fn) {
+    fn(n, alpha, x, incx, y, incy);
+  }
 }
 
 static void openblas_ccopy(const int n, const fb_complex_float_t* x, const int incx, fb_complex_float_t* y, const int incy) {
@@ -432,20 +436,22 @@ static void openblas_zcopy(const int n, const fb_complex_double_t* x, const int 
     }
 }
 
-static void openblas_cscal(const int n, const fb_complex_float_t alpha, fb_complex_float_t* x, const int incx) {
-    typedef void (*fn_t)(int, const void*, void*, int);
-    fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cscal");
-    if (fn) {
-        fn(n, &alpha, x, incx);
-    }
+static void openblas_cscal(const int n, const fb_complex_float_t *alpha,
+                           fb_complex_float_t *x, const int incx) {
+  typedef void (*fn_t)(int, const void *, void *, int);
+  fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_cscal");
+  if (fn) {
+    fn(n, alpha, x, incx);
+  }
 }
 
-static void openblas_zscal(const int n, const fb_complex_double_t alpha, fb_complex_double_t* x, const int incx) {
-    typedef void (*fn_t)(int, const void*, void*, int);
-    fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zscal");
-    if (fn) {
-        fn(n, &alpha, x, incx);
-    }
+static void openblas_zscal(const int n, const fb_complex_double_t *alpha,
+                           fb_complex_double_t *x, const int incx) {
+  typedef void (*fn_t)(int, const void *, void *, int);
+  fn_t fn = (fn_t)FB_GET_PROC_ADDRESS(g_openblas.handle, "cblas_zscal");
+  if (fn) {
+    fn(n, alpha, x, incx);
+  }
 }
 
 static void openblas_csscal(const int n, const float alpha, fb_complex_float_t* x, const int incx) {

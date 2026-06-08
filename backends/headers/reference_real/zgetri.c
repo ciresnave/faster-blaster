@@ -1,2 +1,0 @@
-/* zgetri */
-void zgetri_() { }

@@ -1,2 +1,0 @@
-/* cberb */
-void cberb_() { }

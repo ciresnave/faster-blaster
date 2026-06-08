@@ -1,2 +1,0 @@
-/* zlantr */
-void zlantr_() { }

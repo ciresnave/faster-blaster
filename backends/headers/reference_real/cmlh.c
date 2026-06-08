@@ -1,2 +1,0 @@
-/* cmlh */
-void cmlh_() { }

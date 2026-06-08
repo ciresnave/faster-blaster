@@ -1,2 +1,0 @@
-/* zarno */
-void zarno_() { }

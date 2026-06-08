@@ -1,2 +1,0 @@
-/* csygvd */
-void csygvd_() { }

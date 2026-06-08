@@ -1,2 +1,0 @@
-/* cherfs */
-void cherfs_() { }

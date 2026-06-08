@@ -11,6 +11,11 @@ if(NOT CMAKE_GENERATOR STREQUAL "Ninja")
         "Current generator: ${CMAKE_GENERATOR}")
 endif()
 
+if(WIN32)
+    set(VCPKG_TARGET_TRIPLET "x64-windows" CACHE STRING
+        "Windows builds must use the x64 vcpkg triplet" FORCE)
+endif()
+
 # Auto-configure vcpkg toolchain if not already set
 # This allows `cmake -B build` to work without --preset or -DCMAKE_TOOLCHAIN_FILE
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
@@ -25,7 +30,302 @@ if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     endif()
 endif()
 
+# Bootstrap the x64 Windows SDK/MSVC environment before project().
+# CMake's compiler sanity checks for clang-cl + lld-link run inside project(),
+# so missing LIB/INCLUDE search paths must be fixed here rather than later.
+if(WIN32)
+    set(FB_WIN_BOOTSTRAP_LIB_DIRS "")
+    set(FB_WIN_BOOTSTRAP_INCLUDE_DIRS "")
+    set(FB_WIN_BOOTSTRAP_MISSING "")
+    set(FB_PROGRAM_FILES_X86 "C:/Program Files (x86)")
+    set(FB_VCTOOLS_DIR "")
+    set(FB_UCRT_ROOT "")
+    set(FB_UCRT_VERSION "")
+    set(FB_WINDOWS_SDK_ROOT "")
+    set(FB_WINDOWS_SDK_VERSION "")
+
+    if(DEFINED ENV{ProgramFiles} AND NOT "$ENV{ProgramFiles}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{ProgramFiles}" FB_PROGRAM_FILES_DIR)
+        get_filename_component(FB_PROGRAM_FILES_ROOT "${FB_PROGRAM_FILES_DIR}" DIRECTORY)
+        if(FB_PROGRAM_FILES_ROOT)
+            set(FB_PROGRAM_FILES_X86 "${FB_PROGRAM_FILES_ROOT}/Program Files (x86)")
+        endif()
+    endif()
+
+    if(DEFINED ENV{VCToolsInstallDir} AND NOT "$ENV{VCToolsInstallDir}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{VCToolsInstallDir}" FB_VCTOOLS_DIR)
+    else()
+        find_program(FB_VSWHERE
+            NAMES vswhere
+            PATHS
+                "${FB_PROGRAM_FILES_X86}/Microsoft Visual Studio/Installer"
+                "$ENV{ProgramFiles}/Microsoft Visual Studio/Installer"
+            NO_DEFAULT_PATH)
+        if(NOT FB_VSWHERE)
+            find_program(FB_VSWHERE NAMES vswhere)
+        endif()
+
+        if(FB_VSWHERE)
+            execute_process(
+                COMMAND "${FB_VSWHERE}" -latest -products *
+                        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+                        -property installationPath
+                OUTPUT_VARIABLE FB_VS_INSTALL_DIR
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+            if(FB_VS_INSTALL_DIR)
+                file(TO_CMAKE_PATH "${FB_VS_INSTALL_DIR}" FB_VS_INSTALL_DIR)
+                file(GLOB FB_VCTOOLS_CANDIDATES LIST_DIRECTORIES TRUE
+                    "${FB_VS_INSTALL_DIR}/VC/Tools/MSVC/*")
+                if(FB_VCTOOLS_CANDIDATES)
+                    list(SORT FB_VCTOOLS_CANDIDATES COMPARE NATURAL ORDER DESCENDING)
+                    list(GET FB_VCTOOLS_CANDIDATES 0 FB_VCTOOLS_DIR)
+                endif()
+            endif()
+        endif()
+    endif()
+
+    if(FB_VCTOOLS_DIR)
+        if(EXISTS "${FB_VCTOOLS_DIR}/lib/x64")
+            list(APPEND FB_WIN_BOOTSTRAP_LIB_DIRS "${FB_VCTOOLS_DIR}/lib/x64")
+        endif()
+        if(EXISTS "${FB_VCTOOLS_DIR}/ATLMFC/lib/x64")
+            list(APPEND FB_WIN_BOOTSTRAP_LIB_DIRS "${FB_VCTOOLS_DIR}/ATLMFC/lib/x64")
+        endif()
+        if(EXISTS "${FB_VCTOOLS_DIR}/include")
+            list(APPEND FB_WIN_BOOTSTRAP_INCLUDE_DIRS "${FB_VCTOOLS_DIR}/include")
+        endif()
+        if(EXISTS "${FB_VCTOOLS_DIR}/ATLMFC/include")
+            list(APPEND FB_WIN_BOOTSTRAP_INCLUDE_DIRS "${FB_VCTOOLS_DIR}/ATLMFC/include")
+        endif()
+    endif()
+
+    if(DEFINED ENV{UniversalCRTSdkDir} AND DEFINED ENV{UCRTVersion}
+       AND NOT "$ENV{UniversalCRTSdkDir}" STREQUAL "" AND NOT "$ENV{UCRTVersion}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{UniversalCRTSdkDir}" FB_UCRT_ROOT)
+        set(FB_UCRT_VERSION "$ENV{UCRTVersion}")
+    endif()
+
+    if(DEFINED ENV{WindowsSdkDir} AND DEFINED ENV{WindowsSDKLibVersion}
+       AND NOT "$ENV{WindowsSdkDir}" STREQUAL "" AND NOT "$ENV{WindowsSDKLibVersion}" STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{WindowsSdkDir}" FB_WINDOWS_SDK_ROOT)
+        set(FB_WINDOWS_SDK_VERSION "$ENV{WindowsSDKLibVersion}")
+    endif()
+
+    if(NOT FB_WINDOWS_SDK_ROOT)
+        if(EXISTS "${FB_PROGRAM_FILES_X86}/Windows Kits/10/Lib")
+            set(FB_WINDOWS_SDK_ROOT "${FB_PROGRAM_FILES_X86}/Windows Kits/10")
+        elseif(DEFINED ENV{ProgramFiles} AND EXISTS "$ENV{ProgramFiles}/Windows Kits/10/Lib")
+            file(TO_CMAKE_PATH "$ENV{ProgramFiles}/Windows Kits/10" FB_WINDOWS_SDK_ROOT)
+        endif()
+    endif()
+
+    if(NOT FB_UCRT_ROOT)
+        set(FB_UCRT_ROOT "${FB_WINDOWS_SDK_ROOT}")
+    endif()
+
+    if(FB_WINDOWS_SDK_ROOT AND NOT FB_WINDOWS_SDK_VERSION)
+        set(FB_WINDOWS_SDK_VERSION_CANDIDATES "")
+        file(GLOB FB_WINDOWS_SDK_LIB_DIRS LIST_DIRECTORIES TRUE
+            "${FB_WINDOWS_SDK_ROOT}/Lib/10.*")
+        foreach(FB_WINDOWS_SDK_LIB_DIR ${FB_WINDOWS_SDK_LIB_DIRS})
+            if(EXISTS "${FB_WINDOWS_SDK_LIB_DIR}/ucrt/x64" AND EXISTS "${FB_WINDOWS_SDK_LIB_DIR}/um/x64")
+                list(APPEND FB_WINDOWS_SDK_VERSION_CANDIDATES "${FB_WINDOWS_SDK_LIB_DIR}")
+            endif()
+        endforeach()
+        if(FB_WINDOWS_SDK_VERSION_CANDIDATES)
+            list(SORT FB_WINDOWS_SDK_VERSION_CANDIDATES COMPARE NATURAL ORDER DESCENDING)
+            list(GET FB_WINDOWS_SDK_VERSION_CANDIDATES 0 FB_WINDOWS_SDK_LIB_DIR)
+            get_filename_component(FB_WINDOWS_SDK_VERSION "${FB_WINDOWS_SDK_LIB_DIR}" NAME)
+        endif()
+    endif()
+
+    if(NOT FB_UCRT_VERSION)
+        set(FB_UCRT_VERSION "${FB_WINDOWS_SDK_VERSION}")
+    endif()
+
+    if(FB_UCRT_ROOT AND FB_UCRT_VERSION
+       AND EXISTS "${FB_UCRT_ROOT}/Include/${FB_UCRT_VERSION}/ucrt")
+        list(APPEND FB_WIN_BOOTSTRAP_INCLUDE_DIRS "${FB_UCRT_ROOT}/Include/${FB_UCRT_VERSION}/ucrt")
+    endif()
+
+    foreach(FB_WINDOWS_SDK_INCLUDE_SUBDIR shared um winrt cppwinrt)
+        if(FB_WINDOWS_SDK_ROOT AND FB_WINDOWS_SDK_VERSION
+           AND EXISTS "${FB_WINDOWS_SDK_ROOT}/Include/${FB_WINDOWS_SDK_VERSION}/${FB_WINDOWS_SDK_INCLUDE_SUBDIR}")
+            list(APPEND FB_WIN_BOOTSTRAP_INCLUDE_DIRS
+                "${FB_WINDOWS_SDK_ROOT}/Include/${FB_WINDOWS_SDK_VERSION}/${FB_WINDOWS_SDK_INCLUDE_SUBDIR}")
+        endif()
+    endforeach()
+
+    if(FB_UCRT_ROOT AND FB_UCRT_VERSION
+       AND EXISTS "${FB_UCRT_ROOT}/Lib/${FB_UCRT_VERSION}/ucrt/x64")
+        list(APPEND FB_WIN_BOOTSTRAP_LIB_DIRS "${FB_UCRT_ROOT}/Lib/${FB_UCRT_VERSION}/ucrt/x64")
+    endif()
+
+    if(FB_WINDOWS_SDK_ROOT AND FB_WINDOWS_SDK_VERSION
+       AND EXISTS "${FB_WINDOWS_SDK_ROOT}/Lib/${FB_WINDOWS_SDK_VERSION}/um/x64")
+        list(APPEND FB_WIN_BOOTSTRAP_LIB_DIRS "${FB_WINDOWS_SDK_ROOT}/Lib/${FB_WINDOWS_SDK_VERSION}/um/x64")
+    endif()
+
+    if(NOT FB_VCTOOLS_DIR)
+        list(APPEND FB_WIN_BOOTSTRAP_MISSING "MSVC build tools were not found")
+    endif()
+    if(NOT FB_WINDOWS_SDK_ROOT)
+        list(APPEND FB_WIN_BOOTSTRAP_MISSING "Windows SDK root was not found")
+    endif()
+    if(FB_WINDOWS_SDK_ROOT AND NOT FB_WINDOWS_SDK_VERSION)
+        list(APPEND FB_WIN_BOOTSTRAP_MISSING "No Windows SDK version with x64 um/ucrt libraries was found")
+    endif()
+
+    if(FB_WIN_BOOTSTRAP_MISSING)
+        string(JOIN "\n  - " FB_WIN_BOOTSTRAP_MISSING_TEXT ${FB_WIN_BOOTSTRAP_MISSING})
+        message(FATAL_ERROR
+            "Windows x64 toolchain bootstrap failed before project().\n"
+            "Configure is using clang-cl/lld-link, so CMake's compiler test cannot run without MSVC + Windows SDK x64 libraries.\n"
+            "Resolved values:\n"
+            "  VCToolsInstallDir='${FB_VCTOOLS_DIR}'\n"
+            "  UniversalCRTSdkDir='${FB_UCRT_ROOT}'\n"
+            "  UCRTVersion='${FB_UCRT_VERSION}'\n"
+            "  WindowsSdkDir='${FB_WINDOWS_SDK_ROOT}'\n"
+            "  WindowsSDKLibVersion='${FB_WINDOWS_SDK_VERSION}'\n"
+            "Missing components:\n  - ${FB_WIN_BOOTSTRAP_MISSING_TEXT}\n"
+            "Fix one of the following:\n"
+            "  1. Install Visual Studio Build Tools with Desktop development with C++.\n"
+            "  2. Install the Windows 10/11 SDK.\n"
+            "  3. Configure from an x64 developer shell, or let this bootstrap resolve the tools automatically.")
+    endif()
+
+    list(REMOVE_DUPLICATES FB_WIN_BOOTSTRAP_INCLUDE_DIRS)
+    list(REMOVE_DUPLICATES FB_WIN_BOOTSTRAP_LIB_DIRS)
+
+    if(FB_WIN_BOOTSTRAP_INCLUDE_DIRS)
+        list(JOIN FB_WIN_BOOTSTRAP_INCLUDE_DIRS ";" FB_WIN_BOOTSTRAP_INCLUDE_ENV)
+        if(DEFINED ENV{INCLUDE} AND NOT "$ENV{INCLUDE}" STREQUAL "")
+            set(ENV{INCLUDE} "${FB_WIN_BOOTSTRAP_INCLUDE_ENV};$ENV{INCLUDE}")
+        else()
+            set(ENV{INCLUDE} "${FB_WIN_BOOTSTRAP_INCLUDE_ENV}")
+        endif()
+        message(STATUS "[WINDOWS TOOLCHAIN] Added x64 INCLUDE paths for clang-cl")
+    endif()
+
+    if(FB_WIN_BOOTSTRAP_LIB_DIRS)
+        list(JOIN FB_WIN_BOOTSTRAP_LIB_DIRS ";" FB_WIN_BOOTSTRAP_LIB_ENV)
+        if(DEFINED ENV{LIB} AND NOT "$ENV{LIB}" STREQUAL "")
+            set(ENV{LIB} "${FB_WIN_BOOTSTRAP_LIB_ENV};$ENV{LIB}")
+        else()
+            set(ENV{LIB} "${FB_WIN_BOOTSTRAP_LIB_ENV}")
+        endif()
+
+        foreach(FB_WIN_LINK_INIT_VAR
+                CMAKE_EXE_LINKER_FLAGS_INIT
+                CMAKE_SHARED_LINKER_FLAGS_INIT
+                CMAKE_MODULE_LINKER_FLAGS_INIT
+                CMAKE_STATIC_LINKER_FLAGS_INIT)
+            set(_fb_win_link_init_value "${${FB_WIN_LINK_INIT_VAR}}")
+            string(REGEX REPLACE "(^| )/machine:[^ ]+" " "
+                _fb_win_link_init_value "${_fb_win_link_init_value}")
+            string(STRIP "${_fb_win_link_init_value}" _fb_win_link_init_value)
+            set(${FB_WIN_LINK_INIT_VAR} "${_fb_win_link_init_value}")
+        endforeach()
+
+        set(FB_WIN_BOOTSTRAP_LINK_FLAGS "")
+        foreach(FB_WIN_LIB_DIR ${FB_WIN_BOOTSTRAP_LIB_DIRS})
+            string(APPEND FB_WIN_BOOTSTRAP_LINK_FLAGS " /libpath:\"${FB_WIN_LIB_DIR}\"")
+        endforeach()
+        string(APPEND FB_WIN_BOOTSTRAP_LINK_FLAGS " /machine:x64")
+        set(CMAKE_EXE_LINKER_FLAGS_INIT "${CMAKE_EXE_LINKER_FLAGS_INIT}${FB_WIN_BOOTSTRAP_LINK_FLAGS}")
+        set(CMAKE_SHARED_LINKER_FLAGS_INIT "${CMAKE_SHARED_LINKER_FLAGS_INIT}${FB_WIN_BOOTSTRAP_LINK_FLAGS}")
+        set(CMAKE_MODULE_LINKER_FLAGS_INIT "${CMAKE_MODULE_LINKER_FLAGS_INIT}${FB_WIN_BOOTSTRAP_LINK_FLAGS}")
+        set(CMAKE_STATIC_LINKER_FLAGS_INIT "${CMAKE_STATIC_LINKER_FLAGS_INIT} /machine:x64")
+        message(STATUS "[WINDOWS TOOLCHAIN] Added x64 LIB paths for lld-link")
+    endif()
+endif()
+
+function(fb_append_unique_flag flag_var flag_value)
+    set(_fb_flag_value "${${flag_var}}")
+    if(NOT " ${_fb_flag_value} " MATCHES "(^| )${flag_value}( |$)")
+        string(APPEND _fb_flag_value " ${flag_value}")
+        string(STRIP "${_fb_flag_value}" _fb_flag_value)
+        set(${flag_var} "${_fb_flag_value}" PARENT_SCOPE)
+    endif()
+endfunction()
+
+function(fb_append_unique_cached_flag flag_var flag_value)
+    set(_fb_flag_value "${${flag_var}}")
+    if(NOT " ${_fb_flag_value} " MATCHES "(^| )${flag_value}( |$)")
+        string(APPEND _fb_flag_value " ${flag_value}")
+        string(STRIP "${_fb_flag_value}" _fb_flag_value)
+        set(${flag_var} "${_fb_flag_value}" CACHE STRING
+            "Windows Clang linker flags normalized for LLVM LLD" FORCE)
+    endif()
+endfunction()
+
+set(FB_FORCE_LLD_WITH_CLANG OFF)
+if(WIN32)
+    foreach(FB_WIN_COMPILER_CANDIDATE
+            "${CMAKE_C_COMPILER}"
+            "${CMAKE_CXX_COMPILER}"
+            "$ENV{CC}"
+            "$ENV{CXX}")
+        if(FB_WIN_COMPILER_CANDIDATE MATCHES "(^|[\\/])clang(\\+\\+|-cl)?(\\.exe)?$")
+            set(FB_FORCE_LLD_WITH_CLANG ON)
+            break()
+        endif()
+    endforeach()
+endif()
+
+if(FB_FORCE_LLD_WITH_CLANG)
+    unset(CMAKE_LINKER CACHE)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.29")
+        set(CMAKE_LINKER_TYPE LLD CACHE STRING
+            "Prefer LLVM lld-link when Clang drives the Windows link step" FORCE)
+    endif()
+    foreach(FB_WIN_LLD_INIT_VAR
+            CMAKE_EXE_LINKER_FLAGS_INIT
+            CMAKE_SHARED_LINKER_FLAGS_INIT
+            CMAKE_MODULE_LINKER_FLAGS_INIT)
+        fb_append_unique_flag(${FB_WIN_LLD_INIT_VAR} "-fuse-ld=lld")
+    endforeach()
+endif()
+
 project(faster-blaster VERSION 0.1.0 LANGUAGES C CXX)
+
+if(WIN32)
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        unset(CMAKE_LINKER CACHE)
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.29")
+            set(CMAKE_LINKER_TYPE LLD CACHE STRING
+                "Prefer LLVM lld-link when Clang drives the Windows link step" FORCE)
+        endif()
+        foreach(FB_WIN_LLD_FLAG_VAR
+                CMAKE_EXE_LINKER_FLAGS
+                CMAKE_SHARED_LINKER_FLAGS
+                CMAKE_MODULE_LINKER_FLAGS)
+            fb_append_unique_cached_flag(${FB_WIN_LLD_FLAG_VAR} "-fuse-ld=lld")
+        endforeach()
+    endif()
+
+    function(fb_force_windows_x64_machine_flag flag_var)
+        set(_fb_flag_value "${${flag_var}}")
+        string(REGEX REPLACE "(^| )/machine:[^ ]+" " " _fb_flag_value "${_fb_flag_value}")
+        string(STRIP "${_fb_flag_value}" _fb_flag_value)
+        if(_fb_flag_value)
+            set(_fb_flag_value "${_fb_flag_value} /machine:x64")
+        else()
+            set(_fb_flag_value "/machine:x64")
+        endif()
+        set(${flag_var} "${_fb_flag_value}" CACHE STRING
+            "Windows x64 linker flags normalized for clang-cl/Ninja" FORCE)
+    endfunction()
+
+    foreach(FB_WIN_LINK_FLAG_VAR
+            CMAKE_EXE_LINKER_FLAGS
+            CMAKE_SHARED_LINKER_FLAGS
+            CMAKE_MODULE_LINKER_FLAGS
+            CMAKE_STATIC_LINKER_FLAGS)
+        fb_force_windows_x64_machine_flag(${FB_WIN_LINK_FLAG_VAR})
+    endforeach()
+endif()
 
 # Build backends from source with hardware-specific optimizations
 # Set FB_BUILD_BACKENDS_FROM_SOURCE=OFF to use system libraries instead
@@ -99,13 +399,14 @@ if(NOT cpuinfo_FOUND)
 endif()
 
 # Find OpenCL
-find_package(OpenCL REQUIRED)
+set(FB_ENABLE_OPENCL OFF)
+find_package(OpenCL QUIET)
 if(OpenCL_FOUND)
     message(STATUS "Found OpenCL: ${OpenCL_INCLUDE_DIRS}")
     set(FB_ENABLE_OPENCL ON)
     add_definitions(-DFB_ENABLE_OPENCL)
 else()
-    message(FATAL_ERROR "OpenCL not found. Please install OpenCL SDK.")
+    message(STATUS "OpenCL not found. OpenCL/CLBlast support will be disabled.")
 endif()
 
 # Find CLBlast (OpenCL BLAS library)
@@ -116,7 +417,7 @@ if(NOT CLBlast_FOUND)
     find_package(clblast CONFIG QUIET)
 endif()
 
-if(CLBlast_FOUND OR clblast_FOUND)
+if(OpenCL_FOUND AND (CLBlast_FOUND OR clblast_FOUND))
     message(STATUS "✓ Found CLBlast")
     set(CLBLAST_AVAILABLE ON)
 else()
@@ -145,11 +446,7 @@ if(FB_ENABLE_CUDA STREQUAL "AUTO" OR FB_ENABLE_CUDA OR ENABLE_CUBLAS)
                 # the CUDA language since nvcc does not support Clang-cl as a host compiler on
                 # Windows.  The cuBLAS plugin .c files are compiled by clang-cl, not nvcc.
                 message(STATUS "✓ CUDA compiler (nvcc) found: ${CUDA_NVCC_EXECUTABLE}")
-                message(STATUS "  Note: CUDA language not enabled with clang-cl (nvcc unsupported host on Windows)")
-                message(STATUS "  cuBLAS plugin links against CUDAToolkit::cublas directly")
-                set(CMAKE_CUDA_STANDARD 20)
-                set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-                message(STATUS "✓ CUDA compiler (nvcc) found and enabled with clang-cl host: ${CUDA_NVCC_EXECUTABLE}")
+                message(STATUS "  CUDA language remains disabled with clang-cl on Windows; cuBLAS links against CUDAToolkit::cublas directly")
             elseif(NOT MSVC)
                 enable_language(CUDA)
                 set(CMAKE_CUDA_STANDARD 20)
@@ -549,41 +846,13 @@ set(SYM_TABLE_SOURCES
 set(BACKEND_SOURCES
     ${SYM_TABLE_SOURCES}
     src/backends/reference.c
-    src/backends/openblas_backend.c
     src/backends/backend_loader.c
     src/backends/backend_matcher.c
-    # CPU trait implementations
-    src/backends/cpu/blis_trait_impl.c
-    src/backends/cpu/openblas_trait_impl.c
     src/backends/cpu/reference_trait_impl.c
 )
 
 # Plugin sources (new architecture)
 set(PLUGIN_SOURCES
-    # CPU plugins
-    src/plugins/plugin_aocl_blis.c
-    src/plugins/plugin_standard_blis.c
-    src/plugins/plugin_openblas.c
-    src/plugins/plugin_oxiblas.c
-    src/plugins/plugin_mkl.c
-    src/plugins/plugin_accelerate.c
-    # GPU plugins
-    # cuBLAS plugins enabled
-    src/backends/gpu/cublas_trait_impl.c  # Real trait impl (replaces backend_cublas.c stub)
-    src/plugins/plugin_cublas.c
-    src/plugins/cublas_vtable_wrappers.c
-    src/plugins/cublas_smart_wrappers.c
-    src/plugins/cublas_complete_smart_wrappers.c
-    src/plugins/cublas_blas_level1_smart.c
-    src/plugins/cublas_blas_level2_smart.c
-    src/plugins/cublas_blas_level3_smart.c
-    src/plugins/plugin_rocblas.c
-    # src/plugins/rocblas_vtable_wrappers.c  # Requires HIP compiler - needs add_custom_command like hip_detect.c
-    src/plugins/plugin_onemkl.c
-    src/plugins/plugin_metal.c
-    src/plugins/plugin_clblast.c
-    src/plugins/clblast_vtable_wrappers.c
-    src/plugins/plugin_clblas.c
     # Reference backend: always-available correctness oracle and last-resort fallback
     src/plugins/plugin_reference.c
 )
@@ -618,48 +887,171 @@ if(BLIS_CPU_AVAILABLE)
 endif()
 
 if(OPENBLAS_CPU_AVAILABLE)
-    # OpenBLAS backend already has sources in BACKEND_SOURCES
+    list(APPEND BACKEND_SOURCES
+        src/backends/openblas_backend.c
+        src/backends/cpu/openblas_trait_impl.c
+    )
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_openblas.c)
     message(STATUS "Adding OpenBLAS CPU backend source")
 endif()
 
 if(AOCL_CPU_AVAILABLE)
     list(APPEND BACKEND_SOURCES src/backends/aocl_backend.c)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_aocl_blis.c)
     message(STATUS "Adding AMD AOCL CPU backend source")
 endif()
 
 if(ACCELERATE_CPU_AVAILABLE)
     list(APPEND BACKEND_SOURCES src/backends/accelerate_backend.c)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_accelerate.c)
     message(STATUS "Adding Apple Accelerate backend source")
+endif()
+
+if(BLIS_CPU_AVAILABLE)
+    list(APPEND BACKEND_SOURCES src/backends/cpu/blis_trait_impl.c)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_standard_blis.c)
+endif()
+
+if(OXIBLAS_CPU_AVAILABLE)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_oxiblas.c)
+endif()
+
+if(MKL_CPU_AVAILABLE)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_mkl.c)
 endif()
 
 # cuBLAS: pure dynamic loading — no CUDA headers required at compile time
 file(GLOB CUBLAS_SOURCES src/backends/gpu/*cublas*.c)
 # Exclude trait_impl/vtable_wrappers which statically link CUDA symbols
 list(FILTER CUBLAS_SOURCES EXCLUDE REGEX "trait_impl\.c$|vtable_wrappers\.c$|smart.*\.c$")
-list(APPEND BACKEND_SOURCES ${CUBLAS_SOURCES})
+if(CUDA_AVAILABLE)
+    list(APPEND BACKEND_SOURCES ${CUBLAS_SOURCES})
+endif()
 
 # rocBLAS: pure dynamic loading — no HIP/ROCm headers required at compile time
 # Only rocblas_backend.c uses dynamic loading; legacy step1/trait_impl files need HIP headers
 file(GLOB ROCBLAS_SOURCES src/backends/gpu/*rocblas*.c)
 list(FILTER ROCBLAS_SOURCES EXCLUDE REGEX "trait_impl.*\\.c$|step[0-9]+\\.c$")
-list(APPEND BACKEND_SOURCES ${ROCBLAS_SOURCES})
-message(STATUS "rocBLAS backend included (dynamic loading, deferred to runtime availability)")
+if(ROCM_AVAILABLE)
+    list(APPEND BACKEND_SOURCES ${ROCBLAS_SOURCES})
+    message(STATUS "rocBLAS backend included (dynamic loading, deferred to runtime availability)")
+endif()
+
+if(CUDA_AVAILABLE)
+    list(APPEND PLUGIN_SOURCES
+        src/backends/gpu/cublas_trait_impl.c
+        src/plugins/plugin_cublas.c
+        src/plugins/cublas_vtable_wrappers.c
+        src/plugins/cublas_smart_wrappers.c
+        src/plugins/cublas_complete_smart_wrappers.c
+        src/plugins/cublas_blas_level1_smart.c
+        src/plugins/cublas_blas_level2_smart.c
+        src/plugins/cublas_blas_level3_smart.c
+    )
+endif()
+
+if(ROCM_AVAILABLE)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_rocblas.c)
+endif()
 
 if(ONEMKL_AVAILABLE)
     # Add oneMKL GPU backend trait implementations
     file(GLOB ONEMKL_SOURCES src/backends/gpu/*onemkl*.cpp)
     list(APPEND BACKEND_SOURCES ${ONEMKL_SOURCES})
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_onemkl.c)
 endif()
 
-if(FB_ENABLE_OPENCL)
+if(METAL_AVAILABLE)
+    list(APPEND PLUGIN_SOURCES src/plugins/plugin_metal.c)
+endif()
+
+if(CLBLAST_AVAILABLE)
     # Add CLBlast GPU backend trait implementation
     file(GLOB CLBLAST_SOURCES src/backends/gpu/*clblast*.c)
     list(APPEND BACKEND_SOURCES ${CLBLAST_SOURCES})
+    list(APPEND PLUGIN_SOURCES
+        src/plugins/plugin_clblast.c
+        src/plugins/clblast_vtable_wrappers.c
+        src/plugins/plugin_clblas.c
+    )
     message(STATUS "Adding CLBlast backend trait implementation")
 endif()
 
 if(ENABLE_AOCL)
     list(APPEND BACKEND_SOURCES src/backends/aocl_backend.c)
+endif()
+
+# Remove backend/plugin sources that do not match the final resolved configuration.
+if(NOT MKL_CPU_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES src/backends/mkl_backend.c)
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_mkl.c)
+endif()
+
+if(NOT OPENBLAS_CPU_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES
+        src/backends/openblas_backend.c
+        src/backends/cpu/openblas_trait_impl.c
+    )
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_openblas.c)
+endif()
+
+if(NOT OXIBLAS_CPU_AVAILABLE)
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_oxiblas.c)
+endif()
+
+if(NOT BLIS_CPU_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES
+        src/backends/blis_backend.c
+        src/backends/cpu/blis_trait_impl.c
+    )
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_standard_blis.c)
+endif()
+
+if(NOT AOCL_CPU_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES src/backends/aocl_backend.c)
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_aocl_blis.c)
+endif()
+
+if(NOT ACCELERATE_CPU_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES src/backends/accelerate_backend.c)
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_accelerate.c)
+endif()
+
+if(NOT CUDA_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES ${CUBLAS_SOURCES})
+    list(REMOVE_ITEM PLUGIN_SOURCES
+        src/backends/gpu/cublas_trait_impl.c
+        src/plugins/plugin_cublas.c
+        src/plugins/cublas_vtable_wrappers.c
+        src/plugins/cublas_smart_wrappers.c
+        src/plugins/cublas_complete_smart_wrappers.c
+        src/plugins/cublas_blas_level1_smart.c
+        src/plugins/cublas_blas_level2_smart.c
+        src/plugins/cublas_blas_level3_smart.c
+    )
+endif()
+
+if(NOT ROCM_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES ${ROCBLAS_SOURCES})
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_rocblas.c)
+endif()
+
+if(NOT ONEMKL_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES ${ONEMKL_SOURCES})
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_onemkl.c)
+endif()
+
+if(NOT METAL_AVAILABLE)
+    list(REMOVE_ITEM PLUGIN_SOURCES src/plugins/plugin_metal.c)
+endif()
+
+if(NOT CLBLAST_AVAILABLE)
+    list(REMOVE_ITEM BACKEND_SOURCES ${CLBLAST_SOURCES})
+    list(REMOVE_ITEM PLUGIN_SOURCES
+        src/plugins/plugin_clblast.c
+        src/plugins/clblast_vtable_wrappers.c
+        src/plugins/plugin_clblas.c
+    )
 endif()
 
 # Create main library
@@ -689,63 +1081,30 @@ target_include_directories(faster-blaster
 )
 
 # ---- faster-blaster-reference: canonical BLAS/LAPACK correctness oracle ----
-# faster-blaster-reference is DLL-only.  faster-blaster links against the DLL
-# import library (libfaster_blaster_reference.dll.a) so the _ref symbols in
-# reference.c resolve at load time through the DLL.
-# fb_enumerate_and_populate() also scans the DLL export table at runtime.
-# Use IMPORTED (not add_subdirectory) to avoid CMake CACHE FORCE conflicts.
+# faster-blaster-reference is loaded at runtime via LoadLibrary/dlopen by
+# plugin_reference.c; NO import library or link-time dependency is needed.
+# fb_enumerate_and_populate() scans the DLL export table on load.
+# _FBR_DLL is located here only so we can copy it to the tests directory.
 set(_FBR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../faster-blaster-reference")
 
-# ── DLL import library for link-time symbol resolution ───────────────────────
-# MinGW/clang produces lib-prefixed import lib names (libfoo.dll.a).
-file(GLOB _FBR_IMPLIB_CANDIDATES
-    "${_FBR_DIR}/build-extended/libfaster_blaster_reference.dll.a"
-    "${_FBR_DIR}/build-extended/faster_blaster_reference.lib")
-if(_FBR_IMPLIB_CANDIDATES)
-    list(GET _FBR_IMPLIB_CANDIDATES 0 _FBR_IMPLIB)
-    message(STATUS "Reference import lib: ${_FBR_IMPLIB}")
-else()
-    message(FATAL_ERROR
-        "faster-blaster-reference import library not found in:\n"
-        "  ${_FBR_DIR}/build-extended/\n"
-        "Build it first:\n"
-        "  cd ../faster-blaster-reference\n"
-        "  cmake -B build-extended -G Ninja -DCMAKE_BUILD_TYPE=Release\n"
-        "  cmake --build build-extended")
-endif()
-
-# ── DLL (linked via import lib; also copied to tests for fb_enumerate) ────────
+# ── Optional: locate the DLL for the test-copy step below ─────────────────
 # MinGW/clang produces lib-prefixed DLL names (libfoo.dll), MSVC does not.
 file(GLOB _FBR_DLL_CANDIDATES
     "${_FBR_DIR}/build-extended/libfaster_blaster_reference.dll"
     "${_FBR_DIR}/build-extended/faster_blaster_reference.dll")
 if(_FBR_DLL_CANDIDATES)
     list(GET _FBR_DLL_CANDIDATES 0 _FBR_DLL)
-    message(STATUS "Reference DLL: ${_FBR_DLL}")
+    message(STATUS "Reference DLL (for test copy): ${_FBR_DLL}")
 else()
-    message(FATAL_ERROR
-        "faster-blaster-reference DLL not found in:\n"
-        "  ${_FBR_DIR}/build-extended/\n"
-        "Build faster-blaster-reference first.")
+    message(STATUS
+        "faster-blaster-reference DLL not found — reference backend will be "
+        "unavailable at runtime. Build it with:\n"
+        "  cd ../faster-blaster-reference && "
+        "cmake -B build-extended -G Ninja && cmake --build build-extended")
 endif()
-
-add_library(faster_blaster_reference SHARED IMPORTED GLOBAL)
-set_target_properties(faster_blaster_reference PROPERTIES
-    IMPORTED_LOCATION "${_FBR_DLL}"
-    IMPORTED_IMPLIB   "${_FBR_IMPLIB}")
-target_include_directories(faster-blaster PRIVATE "${_FBR_DIR}/include")
-# DLL consumers get __declspec(dllimport) from fbr_export.h automatically;
-# do NOT define FBR_STATIC_LIB.
-# ---------------------------------------------------------------------------
-
-# The LAPACK *_ref symbols are now exported directly from the DLL via
-# src/lapack/lapack_ref_exports.def (wired in fbr's CMakeLists.txt with
-# /DEF:).  faster-blaster resolves them through the import library alone —
-# no separate static archive or cross-project rebuild trigger needed.
 
 target_link_libraries(faster-blaster
     PRIVATE
-        faster_blaster_reference
         cpuinfo_internals
         OpenCL::OpenCL
 )
@@ -931,6 +1290,7 @@ endif()
 # CLBlast library
 if(CLBLAST_AVAILABLE)
     target_link_libraries(faster-blaster PRIVATE clblast)
+    target_compile_definitions(faster-blaster PRIVATE FB_ENABLE_CLBLAST)
     message(STATUS "Linking CLBlast")
 endif()
 
@@ -965,13 +1325,15 @@ if(BUILD_TESTS)
     )
     # Also copy the reference DLL so test_judge_runner can load it at runtime.
     # Preserve the original filename (lib-prefixed on MinGW/clang, no prefix on MSVC).
-    cmake_path(GET _FBR_DLL FILENAME _FBR_DLL_FILENAME)
-    add_custom_command(TARGET faster-blaster POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${_FBR_DLL}"
-            ${CMAKE_CURRENT_BINARY_DIR}/tests/${_FBR_DLL_FILENAME}
-        COMMENT "Copying ${_FBR_DLL_FILENAME} to tests directory"
-    )
+    if(_FBR_DLL_CANDIDATES)
+        cmake_path(GET _FBR_DLL FILENAME _FBR_DLL_FILENAME)
+        add_custom_command(TARGET faster-blaster POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_FBR_DLL}"
+                ${CMAKE_CURRENT_BINARY_DIR}/tests/${_FBR_DLL_FILENAME}
+            COMMENT "Copying ${_FBR_DLL_FILENAME} to tests directory"
+        )
+    endif()
     add_subdirectory(tests)
 endif()
 
@@ -1049,11 +1411,11 @@ message(STATUS "  Examples: ${BUILD_EXAMPLES}")
 message(STATUS "  Statistics: ${ENABLE_STATISTICS}")
 message(STATUS "")
 message(STATUS "Backend Support:")
-message(STATUS "  OpenBLAS: ${ENABLE_OPENBLAS}")
-message(STATUS "  BLIS: ${ENABLE_BLIS}")
-message(STATUS "  Intel MKL: ${ENABLE_MKL}")
-message(STATUS "  NVIDIA cuBLAS: ${ENABLE_CUBLAS}")
-message(STATUS "  AMD rocBLAS: ${ENABLE_ROCBLAS}")
-message(STATUS "  Apple Accelerate: ${ENABLE_ACCELERATE}")
+message(STATUS "  OpenBLAS: ${OPENBLAS_CPU_AVAILABLE}")
+message(STATUS "  BLIS: ${BLIS_CPU_AVAILABLE}")
+message(STATUS "  Intel MKL: ${MKL_CPU_AVAILABLE}")
+message(STATUS "  NVIDIA cuBLAS: ${CUDA_AVAILABLE}")
+message(STATUS "  AMD rocBLAS: ${ROCM_AVAILABLE}")
+message(STATUS "  Apple Accelerate: ${ACCELERATE_CPU_AVAILABLE}")
 message(STATUS "===========================================")
 message(STATUS "")

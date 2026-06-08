@@ -1,2 +1,0 @@
-/* Schur */
-void cgees_() { }

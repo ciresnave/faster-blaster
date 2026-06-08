@@ -1,2 +1,0 @@
-/* zbdsdc */
-void zbdsdc_() { }

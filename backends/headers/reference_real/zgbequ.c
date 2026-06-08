@@ -1,2 +1,0 @@
-/* zgbequ */
-void zgbequ_() { }

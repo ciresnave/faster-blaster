@@ -190,6 +190,52 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     DIRECT_ENTRY(FB_OP_DGBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_CGBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_ZGBMV, 5, 12),
+        DIRECT_ENTRY(FB_OP_SGBMVX, 5, 12),
+        DIRECT_ENTRY(FB_OP_DGBMVX, 5, 12),
+        DIRECT_ENTRY(FB_OP_CGBMVX, 5, 12),
+        DIRECT_ENTRY(FB_OP_ZGBMVX, 5, 12),
+
+        /* Banded LAPACK helpers with direct scalar/vector outputs */
+        DIRECT_ENTRY(FB_OP_SGBCON, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGBCON, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGBCON, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGBCON, 4, 10),
+        DIRECT_ENTRY(FB_OP_SGBEQU, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGBEQU, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGBEQU, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGBEQU, 4, 10),
+        DIRECT_ENTRY(FB_OP_SGBRFS, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGBRFS, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGBRFS, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGBRFS, 4, 10),
+
+        /* GEBAK scales balanced eigenvectors elementwise like SCAL */
+        DIRECT_ENTRY(FB_OP_SGEBAK, 6, 13),
+        DIRECT_ENTRY(FB_OP_DGEBAK, 6, 13),
+        DIRECT_ENTRY(FB_OP_CGEBAK, 6, 13),
+        DIRECT_ENTRY(FB_OP_ZGEBAK, 6, 13),
+
+        /* GEBAL balances matrices with norm estimates, sqrt, and scaling */
+        DIRECT_ENTRY(FB_OP_SGEBAL, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGEBAL, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGEBAL, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGEBAL, 4, 10),
+
+        /* GEBRD exposes bidiagonal reduction outputs directly */
+        DIRECT_ENTRY(FB_OP_SGEBRD, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGEBRD, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGEBRD, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGEBRD, 4, 10),
+
+        /* GECON reports reciprocal condition estimates directly */
+        DIRECT_ENTRY(FB_OP_SGECON, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGECON, 4, 10),
+        DIRECT_ENTRY(FB_OP_CGECON, 4, 10),
+        DIRECT_ENTRY(FB_OP_ZGECON, 4, 10),
+
+        /* GEEQU reports row/column scaling factors and condition metrics */
+        DIRECT_ENTRY(FB_OP_SGEEQU, 4, 10),
+        DIRECT_ENTRY(FB_OP_DGEEQU, 4, 10),
 
     /* GEMV */
     DIRECT_ENTRY(FB_OP_SGEMV, 5, 12),
@@ -238,6 +284,8 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     DIRECT_ENTRY(FB_OP_DSPMV, 5, 12),
     DIRECT_ENTRY(FB_OP_CHPMV, 5, 12),
     DIRECT_ENTRY(FB_OP_ZHPMV, 5, 12),
+    DIRECT_ENTRY(FB_OP_SBMV, 5, 12),
+    DIRECT_ENTRY(FB_OP_DBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_SSBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_DSBMV, 5, 12),
     DIRECT_ENTRY(FB_OP_CHBMV, 5, 12),
@@ -343,12 +391,40 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     FACTOR_ENTRY(FB_OP_DGETRF, 4, 10),
     FACTOR_ENTRY(FB_OP_CGETRF, 4, 10),
     FACTOR_ENTRY(FB_OP_ZGETRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_SGBTRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGBTRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_CGBTRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZGBTRF, 4, 10),
 
     /* LU solve (GETRS) */
     SOLVE_ENTRY(FB_OP_SGETRS, 4, 10),
     SOLVE_ENTRY(FB_OP_DGETRS, 4, 10),
     SOLVE_ENTRY(FB_OP_CGETRS, 4, 10),
     SOLVE_ENTRY(FB_OP_ZGETRS, 4, 10),
+
+    /* General iterative refinement (GERFS) */
+    SOLVE_ENTRY(FB_OP_SGERFS, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGERFS, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGERFS, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGERFS, 4, 10),
+
+    /* General band solve/follow-on solve (GBSV / GBSVX / GBTRS) */
+    SOLVE_ENTRY(FB_OP_SGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PSGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PDGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PCGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PZGBSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_SGBSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGBSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGBSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGBSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_SGBTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGBTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGBTRS, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGBTRS, 4, 10),
 
     /* Cholesky factorisation (POTRF) */
     FACTOR_ENTRY(FB_OP_SPOTRF, 4, 10),
@@ -404,11 +480,13 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     FACTOR_ENTRY(FB_OP_CPOTRI, 4, 10),
     FACTOR_ENTRY(FB_OP_ZPOTRI, 4, 10),
 
-    /* Symmetric/Hermitian indefinite factorisation (SYTRF) */
+    /* Symmetric/Hermitian indefinite factorisation (SYTRF / HETRF) */
     FACTOR_ENTRY(FB_OP_SSYTRF, 4, 10),
     FACTOR_ENTRY(FB_OP_DSYTRF, 4, 10),
     FACTOR_ENTRY(FB_OP_CSYTRF, 4, 10),
     FACTOR_ENTRY(FB_OP_ZSYTRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_CHETRF, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZHETRF, 4, 10),
 
     /* Symmetric/Hermitian indefinite solve (SYTRS) */
     SOLVE_ENTRY(FB_OP_SSYTRS, 4, 10),
@@ -416,17 +494,69 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     SOLVE_ENTRY(FB_OP_CSYTRS, 4, 10),
     SOLVE_ENTRY(FB_OP_ZSYTRS, 4, 10),
 
+    /* Symmetric/Hermitian driver: factor + solve in one call (SYSV / HESV) */
+    SOLVE_ENTRY(FB_OP_SSYSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_DSYSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_CSYSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZSYSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_CHESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZHESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_SSYSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DSYSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CSYSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZSYSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CHESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZHESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_SSYSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DSYSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CSYSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZSYSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CHESVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZHESVXX, 4, 10),
+
     /* Expert driver: general system (GESV) */
     SOLVE_ENTRY(FB_OP_SGESV, 4, 10),
     SOLVE_ENTRY(FB_OP_DGESV, 4, 10),
     SOLVE_ENTRY(FB_OP_CGESV, 4, 10),
     SOLVE_ENTRY(FB_OP_ZGESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_SGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_SGESVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DGESVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CGESVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZGESVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PSGESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PDGESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PCGESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PZGESV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PSGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PDGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PCGESVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PZGESVX, 4, 10),
 
     /* Expert driver: positive-definite system (POSV) */
     SOLVE_ENTRY(FB_OP_SPOSV, 4, 10),
     SOLVE_ENTRY(FB_OP_DPOSV, 4, 10),
     SOLVE_ENTRY(FB_OP_CPOSV, 4, 10),
     SOLVE_ENTRY(FB_OP_ZPOSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_SPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_SPOSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_DPOSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_CPOSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_ZPOSVXX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PSPOSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PDPOSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PCPOSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PZPOSV, 4, 10),
+    SOLVE_ENTRY(FB_OP_PSPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PDPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PCPOSVX, 4, 10),
+    SOLVE_ENTRY(FB_OP_PZPOSVX, 4, 10),
 
     /* Least-squares: minimum-norm (GELS) */
     SOLVE_ENTRY(FB_OP_SGELS, 4, 10),
@@ -452,11 +582,41 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     SOLVE_ENTRY(FB_OP_CGELSY, 4, 10),
     SOLVE_ENTRY(FB_OP_ZGELSY, 4, 10),
 
+    /* LQ factorization exposes in-place Householder data (A, tau) */
+    FACTOR_ENTRY(FB_OP_SGELQF, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGELQF, 4, 10),
+
+    /* QL factorization exposes in-place Householder data (A, tau) */
+    FACTOR_ENTRY(FB_OP_SGEQLF, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGEQLF, 4, 10),
+    FACTOR_ENTRY(FB_OP_CGEQLF, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZGEQLF, 4, 10),
+
+    /* RQ factorization exposes in-place Householder data (A, tau) */
+    FACTOR_ENTRY(FB_OP_SGERQF, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGERQF, 4, 10),
+    FACTOR_ENTRY(FB_OP_CGERQF, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZGERQF, 4, 10),
+
+    /* Legacy pivoted QR exposes in-place Householder data plus jpvt */
+    FACTOR_ENTRY(FB_OP_SGEQPF, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGEQPF, 4, 10),
+
+    /* Pivoted QR factorization exposes in-place Householder data plus jpvt */
+    FACTOR_ENTRY(FB_OP_SGEQP3, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGEQP3, 4, 10),
+
     /* Symmetric/Hermitian eigenvalue (SYEV/HEEV) */
     SPECTRAL_ENTRY(FB_OP_SSYEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_DSYEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_CHEEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_ZHEEV, 4, 10),
+
+    /* Symmetric/Hermitian divide‑and‑conquer eigenvalue (SYEVD/HEEVD) */
+    SPECTRAL_ENTRY(FB_OP_SSYEVD, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DSYEVD, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CHEEVD, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZHEEVD, 4, 10),
 
     /* Singular value decomposition (GESVD) */
     SPECTRAL_ENTRY(FB_OP_SGESVD, 4, 10),
@@ -464,7 +624,36 @@ const fb_op_judge_meta_t fb_op_judge_table[FB_JUDGE_MAX_OPERATIONS] = {
     SPECTRAL_ENTRY(FB_OP_CGESVD, 4, 10),
     SPECTRAL_ENTRY(FB_OP_ZGESVD, 4, 10),
 
+    /* Bidiagonal SVD helpers */
+    SPECTRAL_ENTRY(FB_OP_SBDSDC, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DBDSDC, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CBDSDC, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZBDSDC, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_SBDSQR, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DBDSQR, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CBDSQR, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZBDSQR, 4, 10),
+
     /* Non-symmetric eigenvalue (GEEV — all 4 precisions) */
+    SPECTRAL_ENTRY(FB_OP_SGEES, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DGEES, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CGEES, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZGEES, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_SGEESX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DGEESX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CGEESX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZGEESX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_SGEEVX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_DGEEVX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_CGEEVX, 4, 10),
+    SPECTRAL_ENTRY(FB_OP_ZGEEVX, 4, 10),
+
+    /* Hessenberg reduction exposes in-place Householder data (A, tau) */
+    FACTOR_ENTRY(FB_OP_SGEHRD, 4, 10),
+    FACTOR_ENTRY(FB_OP_DGEHRD, 4, 10),
+    FACTOR_ENTRY(FB_OP_CGEHRD, 4, 10),
+    FACTOR_ENTRY(FB_OP_ZGEHRD, 4, 10),
+
     SPECTRAL_ENTRY(FB_OP_SGEEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_DGEEV, 4, 10),
     SPECTRAL_ENTRY(FB_OP_CGEEV, 4, 10),

@@ -111,9 +111,11 @@ void fb_backend_matcher_shutdown(void) {
  * Select optimal backend for a CPU device
  */
 static fb_backend_type_t select_cpu_backend(const fb_compute_device_t* device) {
+    (void)device;
     char vendor[64] = {0};
     uint64_t features = 0;
     fb_backend_detect_cpu(vendor, &features);
+    (void)features;
     
     /* Intel CPU -> prefer MKL */
     if (strstr(vendor, "Intel") || strstr(vendor, "GenuineIntel")) {
@@ -415,8 +417,7 @@ void fb_backend_print_configuration(void) {
     
     /* Device-to-backend mapping */
     printf("Device-to-Backend Mapping:\n");
-    int total_devices, gpu_count;
-    fb_registry_get_device_count(&total_devices, &gpu_count);
+    int total_devices = fb_registry_get_device_count();
     
     for (int i = 0; i < total_devices; i++) {
         const fb_compute_device_t* device = fb_registry_get_device(i);

@@ -1,2 +1,0 @@
-/* cbdsvd */
-void cbdsvd_() { }

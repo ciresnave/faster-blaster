@@ -1,2 +1,0 @@
-/* csymmx */
-void csymmx_() { }

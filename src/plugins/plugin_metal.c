@@ -55,7 +55,7 @@ static int is_metal_gpu_available(void) {
 /**
  * @brief Probe for Metal Performance Shaders library
  */
-static fb_plugin_probe_result_t metal_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t metal_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #ifndef __APPLE__
@@ -125,9 +125,9 @@ static fb_plugin_probe_result_t metal_probe(fb_plugin_context_t* unused_ctx, con
  * Note: Returns empty vtable as GPU operations use trait interface.
  * This plugin handles detection/scoring; actual GPU operations use existing traits.
  */
-static int metal_init(fb_plugin_context_t* ctx, const char* lib_path) {
-    (void)ctx;
-    (void)lib_path;
+static int metal_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) {
+    (void)lib_handle;
+    (void)ctx_out;
     
 #if defined(__APPLE__) && defined(FB_ENABLE_METAL)
     /* Metal GPU backend initialization would go here */

@@ -1,2 +1,0 @@
-/* zcycl */
-void zcycl_() { }

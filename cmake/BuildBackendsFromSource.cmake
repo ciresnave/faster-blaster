@@ -18,8 +18,8 @@ option(FB_BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with clang-cl" 
 option(FB_BUILD_CLBLAST_FROM_SOURCE "Build CLBlast from source" ON)
 
 # OxiBLAS: Pure-Rust BLAS/LAPACK via oxiblas-ffi.
-# Auto-detected at configure time: enabled by default when both `cargo` (Rust
-# 1.85+) and `git` are found on PATH.  Override with
+# Upstream retired oxiblas-ffi in v0.2.0+, so the auto-clone uses the last
+# FFI-capable release by default. Override with
 #   -DFB_BUILD_OXIBLAS_FROM_SOURCE=ON|OFF
 # Set OXIBLAS_CARGO_SOURCE_DIR to an existing checkout to skip the git clone.
 find_program(CARGO_EXECUTABLE cargo DOC "Rust cargo package manager (https://rustup.rs)")
@@ -40,6 +40,8 @@ option(FB_BUILD_OXIBLAS_FROM_SOURCE
     ${_oxiblas_default})
 set(OXIBLAS_CARGO_SOURCE_DIR "" CACHE PATH
     "Path to oxiblas repository root (leave empty to auto-clone from GitHub)")
+set(FB_OXIBLAS_FFI_GIT_TAG "v0.1.1" CACHE STRING
+    "OxiBLAS git tag/branch containing the oxiblas-ffi workspace member")
 
 # Installation prefix for built libraries
 set(FB_BACKENDS_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/backends-install" CACHE PATH 
@@ -162,13 +164,18 @@ endfunction()
 # Detect GPU architectures
 function(detect_gpu_architectures OUT_HAS_NVIDIA OUT_CUDA_ARCH OUT_HAS_AMD OUT_ROCM_ARCH OUT_HAS_OPENCL)
     set(${OUT_HAS_NVIDIA} FALSE PARENT_SCOPE)
+    set(${OUT_CUDA_ARCH} "" PARENT_SCOPE)
     set(${OUT_HAS_AMD} FALSE PARENT_SCOPE)
+    set(${OUT_ROCM_ARCH} "" PARENT_SCOPE)
     set(${OUT_HAS_OPENCL} FALSE PARENT_SCOPE)
+    set(FB_DETECTED_CUDA_VERSION "" PARENT_SCOPE)
     
     # NVIDIA CUDA detection
     find_package(CUDAToolkit QUIET)
     if(CUDAToolkit_FOUND)
+        set(_detected_cuda_arch "")
         set(${OUT_HAS_NVIDIA} TRUE PARENT_SCOPE)
+        set(FB_DETECTED_CUDA_VERSION "${CUDAToolkit_VERSION}" PARENT_SCOPE)
         
         # Try to detect GPU compute capability
         if(CMAKE_CUDA_COMPILER)
@@ -180,15 +187,16 @@ function(detect_gpu_architectures OUT_HAS_NVIDIA OUT_CUDA_ARCH OUT_HAS_AMD OUT_R
             
             # Default to common architectures if detection fails
             if(CUDA_ARCHS)
-                set(${OUT_CUDA_ARCH} "${CUDA_ARCHS}" PARENT_SCOPE)
+                string(STRIP "${CUDA_ARCHS}" _detected_cuda_arch)
             else()
                 # Common modern architectures: Pascal, Turing, Ampere, Ada, Hopper
-                set(${OUT_CUDA_ARCH} "60;61;70;75;80;86;89;90" PARENT_SCOPE)
+                set(_detected_cuda_arch "60;61;70;75;80;86;89;90")
             endif()
         else()
-            set(${OUT_CUDA_ARCH} "60;70;75;80;86" PARENT_SCOPE)
+            set(_detected_cuda_arch "60;70;75;80;86")
         endif()
-        message(STATUS "NVIDIA CUDA detected - targeting architectures: ${${OUT_CUDA_ARCH}}")
+        set(${OUT_CUDA_ARCH} "${_detected_cuda_arch}" PARENT_SCOPE)
+        message(STATUS "NVIDIA CUDA detected - targeting architectures: ${_detected_cuda_arch}")
     endif()
     
     # AMD ROCm detection
@@ -503,13 +511,32 @@ function(build_oxiblas_from_source)
     # Determine source directory
     if(OXIBLAS_CARGO_SOURCE_DIR AND EXISTS "${OXIBLAS_CARGO_SOURCE_DIR}/Cargo.toml")
         set(OXIBLAS_SRC "${OXIBLAS_CARGO_SOURCE_DIR}")
+        set(_oxiblas_user_source TRUE)
     else()
         # Clone from GitHub if not provided
         set(OXIBLAS_SRC "${CMAKE_BINARY_DIR}/oxiblas-src")
+        set(_oxiblas_user_source FALSE)
+        if(EXISTS "${OXIBLAS_SRC}/Cargo.toml")
+            set(_oxiblas_refresh_checkout FALSE)
+            if(NOT EXISTS "${OXIBLAS_SRC}/crates/oxiblas-ffi/Cargo.toml")
+                set(_oxiblas_refresh_checkout TRUE)
+            else()
+                file(READ "${OXIBLAS_SRC}/Cargo.toml" _oxiblas_existing_manifest)
+                if(NOT _oxiblas_existing_manifest MATCHES "\"crates/oxiblas-ffi\"")
+                    set(_oxiblas_refresh_checkout TRUE)
+                endif()
+            endif()
+
+            if(_oxiblas_refresh_checkout)
+                message(STATUS
+                    "Refreshing OxiBLAS checkout to ${FB_OXIBLAS_FFI_GIT_TAG} because the existing clone no longer exposes oxiblas-ffi as a workspace member")
+                file(REMOVE_RECURSE "${OXIBLAS_SRC}")
+            endif()
+        endif()
         if(NOT EXISTS "${OXIBLAS_SRC}/Cargo.toml")
-            message(STATUS "Cloning OxiBLAS repository...")
+            message(STATUS "Cloning OxiBLAS repository (${FB_OXIBLAS_FFI_GIT_TAG})...")
             execute_process(
-                COMMAND git clone --depth 1
+                COMMAND ${GIT_EXECUTABLE} clone --depth 1 --branch "${FB_OXIBLAS_FFI_GIT_TAG}" --single-branch
                     https://github.com/cool-japan/oxiblas.git
                     "${OXIBLAS_SRC}"
                 RESULT_VARIABLE _clone_result
@@ -520,6 +547,33 @@ function(build_oxiblas_from_source)
                 return()
             endif()
         endif()
+    endif()
+
+    if(NOT EXISTS "${OXIBLAS_SRC}/crates/oxiblas-ffi/Cargo.toml")
+        message(WARNING
+            "The selected OxiBLAS checkout does not contain crates/oxiblas-ffi/Cargo.toml. "
+            "Upstream retired the C FFI in v0.2.0+. "
+            "Set FB_OXIBLAS_FFI_GIT_TAG to a pre-v0.2.0 tag such as v0.1.1, "
+            "point OXIBLAS_CARGO_SOURCE_DIR at a compatible checkout, "
+            "or disable FB_BUILD_OXIBLAS_FROM_SOURCE.")
+        return()
+    endif()
+
+    file(READ "${OXIBLAS_SRC}/Cargo.toml" _oxiblas_workspace_manifest)
+    if(NOT _oxiblas_workspace_manifest MATCHES "\"crates/oxiblas-ffi\"")
+        if(_oxiblas_user_source)
+            message(WARNING
+                "The selected OxiBLAS checkout has retired oxiblas-ffi from workspace members, so "
+                "'cargo build -p oxiblas-ffi' cannot succeed. "
+                "Point OXIBLAS_CARGO_SOURCE_DIR at a pre-v0.2.0 checkout, "
+                "set FB_OXIBLAS_FFI_GIT_TAG to a compatible tag such as v0.1.1 for auto-clone mode, "
+                "or disable FB_BUILD_OXIBLAS_FROM_SOURCE.")
+        else()
+            message(WARNING
+                "The auto-cloned OxiBLAS checkout retired oxiblas-ffi from workspace members unexpectedly. "
+                "Check FB_OXIBLAS_FFI_GIT_TAG (currently ${FB_OXIBLAS_FFI_GIT_TAG}) or disable FB_BUILD_OXIBLAS_FROM_SOURCE.")
+        endif()
+        return()
     endif()
 
     set(OXIBLAS_INSTALL_DIR "${FB_BACKENDS_INSTALL_PREFIX}/oxiblas")
@@ -575,7 +629,7 @@ if(FB_BUILD_BACKENDS_FROM_SOURCE)
     message(STATUS "  CPU Architecture: ${CPU_ARCH}")
     message(STATUS "  CPU Config: ${CPU_CONFIG}")
     if(HAS_NVIDIA)
-        message(STATUS "  NVIDIA GPU: Yes (CUDA ${CUDAToolkit_VERSION})")
+        message(STATUS "  NVIDIA GPU: Yes (CUDA ${FB_DETECTED_CUDA_VERSION})")
     endif()
     if(HAS_AMD)
         message(STATUS "  AMD GPU: Yes (ROCm)")
@@ -603,7 +657,8 @@ if(FB_BUILD_BACKENDS_FROM_SOURCE)
     message(STATUS "=================================================================")
     message(STATUS "")
     
-    # Add install directory to CMAKE_PREFIX_PATH so find_package can find them
-    list(APPEND CMAKE_PREFIX_PATH ${FB_BACKENDS_INSTALL_PREFIX})
-    set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
+    # Add install directory to CMAKE_PREFIX_PATH so later find_package calls can see built backends.
+    if(NOT FB_BACKENDS_INSTALL_PREFIX IN_LIST CMAKE_PREFIX_PATH)
+        list(APPEND CMAKE_PREFIX_PATH "${FB_BACKENDS_INSTALL_PREFIX}")
+    endif()
 endif()

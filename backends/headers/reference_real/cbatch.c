@@ -1,2 +1,0 @@
-/* cbatch */
-void cbatch_() { }

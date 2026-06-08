@@ -64,7 +64,7 @@ void fb_register_all_plugins(void) {
     #ifdef FB_ENABLE_METAL
     fb_register_metal_plugin();
     #endif
-        #ifdef FB_ENABLE_OPENCL
+        #ifdef FB_ENABLE_CLBLAST
     fb_register_clblast_plugin();
     fb_register_clblas_plugin();
     #endif

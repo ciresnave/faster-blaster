@@ -238,69 +238,6 @@ static void cublas_set_num_threads(void* handle, int num_threads) {
  * GPU use, consider direct trait interface access (Option B).
  * ======================================================================== */
 
-/* BLAS Level 2: sgemv (single precision general matrix-vector multiply) */
-static void cublas_sgemv_wrapper(
-    fb_layout_t layout, fb_transpose_t trans,
-    int m, int n,
-    float alpha,
-    const float* a, int lda,
-    const float* x, int incx,
-    float beta,
-    float* y, int incy)
-{
-    if (!g_cublas_backend_handle || !a || !x || !y || !fb_cublas_trait.sgemv) {
-        return;
-    }
-    
-    /* Use global backend handle */
-    void* cublas_handle = g_cublas_backend_handle;
-    
-    /* Convert transpose enum to char */
-    char trans_char = (trans == FB_NO_TRANS) ? 'N' : 
-                      (trans == FB_TRANS) ? 'T' : 'C';
-    
-    /* For column-major (standard BLAS), matrix is stored as A[lda*n] */
-    size_t size_a = (layout == FB_LAYOUT_COL_MAJOR) ? 
-                    (size_t)lda * n : (size_t)lda * m;
-    size_t size_x = (size_t)(1 + (n - 1) * abs(incx));
-    size_t size_y = (size_t)(1 + (m - 1) * abs(incy));
-    
-    /* Allocate device memory */
-    fb_gpu_ptr_t d_a = NULL, d_x = NULL, d_y = NULL;
-    
-    if (fb_cublas_trait.malloc(cublas_handle, &d_a, size_a * sizeof(float)) != 0) {
-        return;
-    }
-    if (fb_cublas_trait.malloc(cublas_handle, &d_x, size_x * sizeof(float)) != 0) {
-        fb_cublas_trait.free(cublas_handle, d_a);
-        return;
-    }
-    if (fb_cublas_trait.malloc(cublas_handle, &d_y, size_y * sizeof(float)) != 0) {
-        fb_cublas_trait.free(cublas_handle, d_a);
-        fb_cublas_trait.free(cublas_handle, d_x);
-        return;
-    }
-    
-    /* Copy host → device */
-    fb_cublas_trait.memcpy_h2d(cublas_handle, d_a, a, size_a * sizeof(float));
-    fb_cublas_trait.memcpy_h2d(cublas_handle, d_x, x, size_x * sizeof(float));
-    fb_cublas_trait.memcpy_h2d(cublas_handle, d_y, y, size_y * sizeof(float));
-    
-    /* Call GPU trait sgemv (NULL stream = synchronous) */
-    fb_cublas_trait.sgemv(cublas_handle, NULL, trans_char, m, n, alpha,
-                          d_a, lda, d_x, incx, beta, d_y, incy);
-    
-    /* NULL stream is synchronous - no explicit sync needed */
-    
-    /* Copy device → host */
-    fb_cublas_trait.memcpy_d2h(cublas_handle, y, d_y, size_y * sizeof(float));
-    
-    /* Free device memory */
-    fb_cublas_trait.free(cublas_handle, d_a);
-    fb_cublas_trait.free(cublas_handle, d_x);
-    fb_cublas_trait.free(cublas_handle, d_y);
-}
-
 /* ========================================================================
  * FORWARD DECLARATIONS FOR SMART WRAPPER FUNCTIONS
  * ======================================================================== */

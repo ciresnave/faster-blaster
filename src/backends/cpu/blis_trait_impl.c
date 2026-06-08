@@ -92,63 +92,63 @@ static void blis_trait_set_num_threads(void* backend_handle, int num_threads) {
 static void blis_trait_saxpy(void* handle, int n, float alpha, const float* x, int incx, float* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->saxpy) {
-        ctx->vtable->saxpy((int64_t)n, alpha, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->saxpy((int)n, alpha, x, (int)incx, y, (int)incy);
     }
 }
 
 static void blis_trait_daxpy(void* handle, int n, double alpha, const double* x, int incx, double* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->daxpy) {
-        ctx->vtable->daxpy((int64_t)n, alpha, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->daxpy((int)n, alpha, x, (int)incx, y, (int)incy);
     }
 }
 
 static void blis_trait_sscal(void* handle, int n, float alpha, float* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sscal) {
-        ctx->vtable->sscal((int64_t)n, alpha, x, (int64_t)incx);
+        ctx->vtable->sscal((int)n, alpha, x, (int)incx);
     }
 }
 
 static void blis_trait_dscal(void* handle, int n, double alpha, double* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dscal) {
-        ctx->vtable->dscal((int64_t)n, alpha, x, (int64_t)incx);
+        ctx->vtable->dscal((int)n, alpha, x, (int)incx);
     }
 }
 
 static void blis_trait_scopy(void* handle, int n, const float* x, int incx, float* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->scopy) {
-        ctx->vtable->scopy((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->scopy((int)n, x, (int)incx, y, (int)incy);
     }
 }
 
 static void blis_trait_dcopy(void* handle, int n, const double* x, int incx, double* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dcopy) {
-        ctx->vtable->dcopy((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->dcopy((int)n, x, (int)incx, y, (int)incy);
     }
 }
 
 static void blis_trait_sswap(void* handle, int n, float* x, int incx, float* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sswap) {
-        ctx->vtable->sswap((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->sswap((int)n, x, (int)incx, y, (int)incy);
     }
 }
 
 static void blis_trait_dswap(void* handle, int n, double* x, int incx, double* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dswap) {
-        ctx->vtable->dswap((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        ctx->vtable->dswap((int)n, x, (int)incx, y, (int)incy);
     }
 }
 
 static float blis_trait_sdot(void* handle, int n, const float* x, int incx, const float* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sdot) {
-        return ctx->vtable->sdot((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        return ctx->vtable->sdot((int)n, x, (int)incx, y, (int)incy);
     }
     return 0.0f;
 }
@@ -156,7 +156,7 @@ static float blis_trait_sdot(void* handle, int n, const float* x, int incx, cons
 static double blis_trait_ddot(void* handle, int n, const double* x, int incx, const double* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->ddot) {
-        return ctx->vtable->ddot((int64_t)n, x, (int64_t)incx, y, (int64_t)incy);
+        return ctx->vtable->ddot((int)n, x, (int)incx, y, (int)incy);
     }
     return 0.0;
 }
@@ -164,7 +164,7 @@ static double blis_trait_ddot(void* handle, int n, const double* x, int incx, co
 static float blis_trait_snrm2(void* handle, int n, const float* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->snrm2) {
-        return ctx->vtable->snrm2((int64_t)n, x, (int64_t)incx);
+        return ctx->vtable->snrm2((int)n, x, (int)incx);
     }
     return 0.0f;
 }
@@ -172,7 +172,7 @@ static float blis_trait_snrm2(void* handle, int n, const float* x, int incx) {
 static double blis_trait_dnrm2(void* handle, int n, const double* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dnrm2) {
-        return ctx->vtable->dnrm2((int64_t)n, x, (int64_t)incx);
+        return ctx->vtable->dnrm2((int)n, x, (int)incx);
     }
     return 0.0;
 }
@@ -180,7 +180,7 @@ static double blis_trait_dnrm2(void* handle, int n, const double* x, int incx) {
 static float blis_trait_sasum(void* handle, int n, const float* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sasum) {
-        return ctx->vtable->sasum((int64_t)n, x, (int64_t)incx);
+        return ctx->vtable->sasum((int)n, x, (int)incx);
     }
     return 0.0f;
 }
@@ -188,7 +188,7 @@ static float blis_trait_sasum(void* handle, int n, const float* x, int incx) {
 static double blis_trait_dasum(void* handle, int n, const double* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dasum) {
-        return ctx->vtable->dasum((int64_t)n, x, (int64_t)incx);
+        return ctx->vtable->dasum((int)n, x, (int)incx);
     }
     return 0.0;
 }
@@ -196,7 +196,7 @@ static double blis_trait_dasum(void* handle, int n, const double* x, int incx) {
 static int blis_trait_isamax(void* handle, int n, const float* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->isamax) {
-        return (int)ctx->vtable->isamax((int64_t)n, x, (int64_t)incx);
+        return (int)ctx->vtable->isamax((int)n, x, (int)incx);
     }
     return 0;
 }
@@ -204,7 +204,7 @@ static int blis_trait_isamax(void* handle, int n, const float* x, int incx) {
 static int blis_trait_idamax(void* handle, int n, const double* x, int incx) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->idamax) {
-        return (int)ctx->vtable->idamax((int64_t)n, x, (int64_t)incx);
+        return (int)ctx->vtable->idamax((int)n, x, (int)incx);
     }
     return 0;
 }
@@ -213,27 +213,31 @@ static int blis_trait_idamax(void* handle, int n, const double* x, int incx) {
  * BLAS Level 2 - Wrapper implementations
  * ========================================================================== */
 
-static void blis_trait_sgemv(void* handle, int order, int trans, int m, int n,
+static void blis_trait_sgemv(void* handle, char trans, int m, int n,
                               float alpha, const float* a, int lda,
                               const float* x, int incx, float beta,
                               float* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sgemv) {
-        ctx->vtable->sgemv((fb_layout_t)order, (fb_transpose_t)trans, 
-                          (int64_t)m, (int64_t)n, alpha, a, (int64_t)lda,
-                          x, (int64_t)incx, beta, y, (int64_t)incy);
+        fb_transpose_t trans_e = (trans=='T'||trans=='t') ? FB_TRANS :
+                                  (trans=='C'||trans=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        ctx->vtable->sgemv(FB_LAYOUT_ROW_MAJOR, trans_e,
+                          m, n, alpha, a, lda,
+                          x, incx, beta, y, incy);
     }
 }
 
-static void blis_trait_dgemv(void* handle, int order, int trans, int m, int n,
+static void blis_trait_dgemv(void* handle, char trans, int m, int n,
                               double alpha, const double* a, int lda,
                               const double* x, int incx, double beta,
                               double* y, int incy) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dgemv) {
-        ctx->vtable->dgemv((fb_layout_t)order, (fb_transpose_t)trans,
-                          (int64_t)m, (int64_t)n, alpha, a, (int64_t)lda,
-                          x, (int64_t)incx, beta, y, (int64_t)incy);
+        fb_transpose_t trans_e = (trans=='T'||trans=='t') ? FB_TRANS :
+                                  (trans=='C'||trans=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        ctx->vtable->dgemv(FB_LAYOUT_ROW_MAJOR, trans_e,
+                          m, n, alpha, a, lda,
+                          x, incx, beta, y, incy);
     }
 }
 
@@ -241,27 +245,31 @@ static void blis_trait_dgemv(void* handle, int order, int trans, int m, int n,
  * BLAS Level 3 - Wrapper implementations
  * ========================================================================== */
 
-static void blis_trait_sgemm(void* handle, int order, int transa, int transb,
+static void blis_trait_sgemm(void* handle, char transa, char transb,
                               int m, int n, int k, float alpha,
                               const float* a, int lda, const float* b, int ldb,
                               float beta, float* c, int ldc) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->sgemm) {
-        ctx->vtable->sgemm((fb_layout_t)order, (fb_transpose_t)transa, (fb_transpose_t)transb,
-                          (int64_t)m, (int64_t)n, (int64_t)k, alpha,
-                          a, (int64_t)lda, b, (int64_t)ldb, beta, c, (int64_t)ldc);
+        fb_transpose_t ta = (transa=='T'||transa=='t') ? FB_TRANS : (transa=='C'||transa=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        fb_transpose_t tb = (transb=='T'||transb=='t') ? FB_TRANS : (transb=='C'||transb=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        ctx->vtable->sgemm(FB_LAYOUT_ROW_MAJOR, ta, tb,
+                          m, n, k, alpha,
+                          a, lda, b, ldb, beta, c, ldc);
     }
 }
 
-static void blis_trait_dgemm(void* handle, int order, int transa, int transb,
+static void blis_trait_dgemm(void* handle, char transa, char transb,
                               int m, int n, int k, double alpha,
                               const double* a, int lda, const double* b, int ldb,
                               double beta, double* c, int ldc) {
     blis_trait_context_t* ctx = (blis_trait_context_t*)handle;
     if (ctx && ctx->vtable && ctx->vtable->dgemm) {
-        ctx->vtable->dgemm((fb_layout_t)order, (fb_transpose_t)transa, (fb_transpose_t)transb,
-                          (int64_t)m, (int64_t)n, (int64_t)k, alpha,
-                          a, (int64_t)lda, b, (int64_t)ldb, beta, c, (int64_t)ldc);
+        fb_transpose_t ta = (transa=='T'||transa=='t') ? FB_TRANS : (transa=='C'||transa=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        fb_transpose_t tb = (transb=='T'||transb=='t') ? FB_TRANS : (transb=='C'||transb=='c') ? FB_CONJ_TRANS : FB_NO_TRANS;
+        ctx->vtable->dgemm(FB_LAYOUT_ROW_MAJOR, ta, tb,
+                          m, n, k, alpha,
+                          a, lda, b, ldb, beta, c, ldc);
     }
 }
 

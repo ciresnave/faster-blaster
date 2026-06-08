@@ -1,2 +1,0 @@
-/* cgerm */
-void cgerm_() { }

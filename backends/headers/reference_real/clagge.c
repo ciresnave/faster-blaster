@@ -1,2 +1,0 @@
-/* clagge */
-void clagge_() { }

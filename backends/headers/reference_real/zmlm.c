@@ -1,2 +1,0 @@
-/* zmlm */
-void zmlm_() { }

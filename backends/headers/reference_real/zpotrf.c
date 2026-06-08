@@ -1,2 +1,0 @@
-/* zpotrf */
-void zpotrf_() { }

@@ -1,2 +1,0 @@
-/* clantr */
-void clantr_() { }

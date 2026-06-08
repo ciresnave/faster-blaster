@@ -1,2 +1,0 @@
-/* zhetrd */
-void zhetrd_() { }

@@ -1,2 +1,0 @@
-/* QR */
-void zgeqrf_() { }

@@ -1,2 +1,0 @@
-/* zmlh */
-void zmlh_() { }

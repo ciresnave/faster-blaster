@@ -1,2 +1,0 @@
-/* ccycl */
-void ccycl_() { }

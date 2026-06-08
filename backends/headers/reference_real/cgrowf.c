@@ -1,2 +1,0 @@
-/* cgrowf */
-void cgrowf_() { }

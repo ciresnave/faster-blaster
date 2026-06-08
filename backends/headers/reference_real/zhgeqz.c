@@ -1,2 +1,0 @@
-/* zhgeqz */
-void zhgeqz_() { }

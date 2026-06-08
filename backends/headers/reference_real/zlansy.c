@@ -1,2 +1,0 @@
-/* zlansy */
-void zlansy_() { }

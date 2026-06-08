@@ -1,2 +1,0 @@
-/* clarrm */
-void clarrm_() { }

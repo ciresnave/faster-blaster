@@ -1,2 +1,0 @@
-/* ctrsen */
-void ctrsen_() { }

@@ -1,2 +1,0 @@
-/* zgetrf */
-void zgetrf_() { }

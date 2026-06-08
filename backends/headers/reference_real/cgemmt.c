@@ -1,2 +1,0 @@
-/* cgemmt */
-void cgemmt_() { }

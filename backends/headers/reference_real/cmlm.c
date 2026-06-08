@@ -1,2 +1,0 @@
-/* cmlm */
-void cmlm_() { }

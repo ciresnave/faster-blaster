@@ -1,0 +1,52 @@
+-- Building backends with 32 parallel jobs
+-- 
+-- =================================================================
+--   Building Backends From Source for Maximum Performance
+-- =================================================================
+-- Detected AMD Zen 4 CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- NVIDIA CUDA detected - targeting architectures: 
+-- OpenCL detected: 3.0
+-- 
+-- Hardware Configuration:
+--   CPU Vendor: AMD
+--   CPU Architecture: zen4
+--   CPU Config: znver4
+--   NVIDIA GPU: Yes (CUDA )
+--   OpenCL: Yes
+-- 
+-- Optimized C Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- Optimized CXX Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- 
+-- Building backends:
+-- Configuring BLIS build from source (zen4 optimized)
+-- BLIS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/blis
+-- Configuring OpenBLAS build from source (znver4 optimized)
+-- OpenBLAS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas
+-- Configuring CLBlast build from source
+-- CLBlast will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/clblast
+-- 
+-- All backends will be installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install
+-- =================================================================
+-- 
+CMake Warning (dev) at cmake/BuildBackendsFromSource.cmake:479 (set):
+  Cannot set "CMAKE_PREFIX_PATH": current scope has no parent.
+Call Stack (most recent call first):
+  CMakeLists.txt:21 (include)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:

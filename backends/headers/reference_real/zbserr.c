@@ -1,2 +1,0 @@
-/* zbserr */
-void zbserr_() { }

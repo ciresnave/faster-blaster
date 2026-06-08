@@ -1,2 +1,0 @@
-/* znstb */
-void znstb_() { }

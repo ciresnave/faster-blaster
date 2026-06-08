@@ -1,2 +1,0 @@
-/* corgbr */
-void corgbr_() { }

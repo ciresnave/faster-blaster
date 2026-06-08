@@ -8,22 +8,25 @@
     "configurePresets": [
         {
             "name": "clang",
-            "displayName": "Clang/Ninja (Windows)",
-            "description": "Clang compiler with Ninja generator. Requires LLVM in PATH.",
+            "displayName": "Clang-CL/Ninja (Windows)",
+            "description": "Clang in MSVC-compatible mode with Ninja. Accepts /DELAYLOAD, /INCREMENTAL etc. nvcc uses clang-cl as host compiler.",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build",
+            "binaryDir": "${sourceDir}/build-clang",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang",
-                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_LINKER_TYPE": "LLD",
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "C:/libraries/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_TARGET_TRIPLET": "x64-windows"
+                "VCPKG_TARGET_TRIPLET": "x64-windows",
+                "CMAKE_CUDA_HOST_COMPILER": "clang-cl",
+                "CMAKE_CUDA_FLAGS": "--allow-unsupported-compiler"
             }
         },
         {
             "name": "clang-release",
             "inherits": "clang",
-            "displayName": "Clang/Ninja Release",
+            "displayName": "Clang-CL/Ninja Release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }

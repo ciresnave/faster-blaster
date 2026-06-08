@@ -19,6 +19,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+/* CPU/GPU vendor enums are canonical in device_detection headers */
+#include "../device_detection/cpu_detect.h"
+#include "../device_detection/gpu_detect.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,29 +40,29 @@ typedef enum {
     FB_DEVICE_TYPE_ACCELERATOR  /**< Other accelerators (TPU, IPU, etc.) */
 } fb_device_type_t;
 
-/**
- * @brief GPU vendor type
- */
-typedef enum {
-    FB_GPU_VENDOR_UNKNOWN = 0,
-    FB_GPU_VENDOR_NVIDIA,       /**< NVIDIA (CUDA) */
-    FB_GPU_VENDOR_AMD,          /**< AMD (ROCm/HIP) */
-    FB_GPU_VENDOR_INTEL,        /**< Intel (oneAPI) */
-    FB_GPU_VENDOR_APPLE,        /**< Apple (Metal) */
-    FB_GPU_VENDOR_ARM           /**< ARM Mali */
-} fb_gpu_vendor_t;
+/* fb_gpu_vendor_t is defined in gpu_detect.h (included above).
+ * FB_GPU_VENDOR_* aliases: */
+#ifndef FB_GPU_VENDOR_ALIASES_DEFINED
+#define FB_GPU_VENDOR_ALIASES_DEFINED
+#define FB_GPU_VENDOR_UNKNOWN GPU_VENDOR_UNKNOWN
+#define FB_GPU_VENDOR_NVIDIA  GPU_VENDOR_NVIDIA
+#define FB_GPU_VENDOR_AMD     GPU_VENDOR_AMD
+#define FB_GPU_VENDOR_INTEL   GPU_VENDOR_INTEL
+#define FB_GPU_VENDOR_APPLE   GPU_VENDOR_APPLE
+#define FB_GPU_VENDOR_ARM     GPU_VENDOR_ARM
+#endif
 
-/**
- * @brief CPU vendor type
- */
-typedef enum {
-    FB_CPU_VENDOR_UNKNOWN = 0,
-    FB_CPU_VENDOR_INTEL,        /**< Intel x86_64 */
-    FB_CPU_VENDOR_AMD,          /**< AMD x86_64 */
-    FB_CPU_VENDOR_ARM,          /**< ARM (Apple Silicon, AWS Graviton, etc.) */
-    FB_CPU_VENDOR_IBM,          /**< IBM Power */
-    FB_CPU_VENDOR_RISCV         /**< RISC-V */
-} fb_cpu_vendor_t;
+/* fb_cpu_vendor_t is defined in cpu_detect.h (included above).
+ * FB_CPU_VENDOR_* aliases: */
+#ifndef FB_CPU_VENDOR_ALIASES_DEFINED
+#define FB_CPU_VENDOR_ALIASES_DEFINED
+#define FB_CPU_VENDOR_UNKNOWN CPU_VENDOR_UNKNOWN
+#define FB_CPU_VENDOR_INTEL   CPU_VENDOR_INTEL
+#define FB_CPU_VENDOR_AMD     CPU_VENDOR_AMD
+#define FB_CPU_VENDOR_ARM     CPU_VENDOR_ARM
+#define FB_CPU_VENDOR_IBM     CPU_VENDOR_OTHER
+#define FB_CPU_VENDOR_RISCV   CPU_VENDOR_OTHER
+#endif
 
 /**
  * @brief Device capability flags

@@ -1,0 +1,166 @@
+-- The C compiler identification is Clang 22.1.0 with MSVC-like command-line
+-- The CXX compiler identification is Clang 22.1.0 with MSVC-like command-line
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/LLVM/bin/clang-cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/LLVM/bin/clang-cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Building backends with 32 parallel jobs
+-- 
+-- =================================================================
+--   Building Backends From Source for Maximum Performance
+-- =================================================================
+-- Detected AMD Zen 4 CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- NVIDIA CUDA detected - targeting architectures: 
+-- OpenCL detected: 3.0
+-- 
+-- Hardware Configuration:
+--   CPU Vendor: AMD
+--   CPU Architecture: zen4
+--   CPU Config: znver4
+--   NVIDIA GPU: Yes (CUDA )
+--   OpenCL: Yes
+-- 
+-- Optimized C Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- Optimized CXX Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- 
+-- Building backends:
+-- Configuring BLIS build from source (zen4 optimized)
+-- BLIS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/blis
+-- Configuring OpenBLAS build from source (znver4 optimized)
+-- OpenBLAS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas
+-- Configuring CLBlast build from source
+-- CLBlast will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/clblast
+CMake Warning (dev) at cmake/BuildBackendsFromSource.cmake:479 (set):
+  Cannot set "CMAKE_PREFIX_PATH": current scope has no parent.
+Call Stack (most recent call first):
+  CMakeLists.txt:21 (include)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+-- 
+-- All backends will be installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install
+-- =================================================================
+-- 
+
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+-- Performing Test COMPILER_FSYCL_SUPPORT
+-- Performing Test COMPILER_FSYCL_SUPPORT - Failed
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:
+--   Γ£ô cuBLAS: 13.0.88 (found)
+  Γ£ù AMD rocBLAS: Not found
+  Γ£ô CLBlast: (found)
+
+
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- ≡ƒÆí AMD CPU detected without AOCL-BLIS
+--    AOCL provides 2-4x better performance on AMD CPUs
+   Install AMD AOCL? [Y/n]
+  [Y/n] (default: yes): 
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  AMD AOCL Installation
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- AMD AOCL provides optimized BLIS/FLAME for AMD CPUs
+--   ΓåÆ 2-4x faster than OpenBLAS on AMD Ryzen/EPYC
+-- 
+-- Windows Installation:
+--   1. Download installer from:
+--      https://www.amd.com/en/developer/aocl/blis.html
+--   2. Run AOCL-Windows installer
+--   3. Default install: C:/Program Files/AMD/AOCL-Windows
+--   4. Reconfigure: cmake ..
+-- 
+-- After installation, AOCL will be auto-detected
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- 
+-- Γ£à NVIDIA GPU with CUDA Toolkit 13.0.88
+-- 
+-- Γ£à OpenCL available with CLBlast
+--    ΓåÆ All GPUs can be accelerated (NVIDIA, AMD, Intel, etc.)
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Γä╣∩╕Å  Some recommended backends are missing
+--    You can install them later and reconfigure
+--    Or disable prompts with: -DINTERACTIVE_BACKEND_SETUP=OFF
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- cpuinfo not found, will fetch from source
+-- Found OpenCL: C:/libraries/vcpkg/installed/x64-windows/debug/lib/OpenCL.lib (found version "3.0")
+-- Found OpenCL: C:/libraries/vcpkg/installed/x64-windows/include
+-- Γ£ô Found CLBlast
+CMake Error at C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:934 (message):
+  Compiling the CUDA compiler identification source file
+  "CMakeCUDACompilerId.cu" failed.
+
+  Compiler: C:/Program Files/NVIDIA GPU Computing
+  Toolkit/CUDA/v13.0/bin/nvcc.exe
+
+  Build flags:
+
+  Id flags: --keep;--keep-dir;tmp;-ccbin=C:/Program
+  Files/LLVM/bin/clang-cl.exe -v
+
+
+
+  The output was:
+
+  1
+
+  nvcc fatal : Host compiler targets unsupported OS.
+
+
+
+
+
+  Compiling the CUDA compiler identification source file
+  "CMakeCUDACompilerId.cu" failed.
+
+  Compiler: C:/Program Files/NVIDIA GPU Computing
+  Toolkit/CUDA/v13.0/bin/nvcc.exe
+
+  Build flags: --allow-unsupported-compiler\;--allow-unsupported-compiler
+
+  Id flags: --keep;--keep-dir;tmp;-ccbin=C:/Program
+  Files/LLVM/bin/clang-cl.exe -v
+
+
+
+  The output was:
+
+  1
+
+  nvcc fatal : Unknown option
+  '--allow-unsupported-compiler;--allow-unsupported-compiler'
+
+
+
+
+
+Call Stack (most recent call first):
+  C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)
+  C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:53 (__determine_compiler_id_test)
+  C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCUDACompiler.cmake:163 (CMAKE_DETERMINE_COMPILER_ID)
+  CMakeLists.txt:138 (enable_language)
+
+
+-- Configuring incomplete, errors occurred!

@@ -1,0 +1,42 @@
+Test project C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang
+      Start  1: plugin_architecture
+ 1/14 Test  #1: plugin_architecture ..............   Passed    0.65 sec
+      Start  2: benchmark_system
+ 2/14 Test  #2: benchmark_system .................***Exception: SegFault  5.51 sec
+      Start  3: benchmark_minimal
+ 3/14 Test  #3: benchmark_minimal ................   Passed    0.07 sec
+      Start  4: device_api
+ 4/14 Test  #4: device_api .......................***Failed    7.80 sec
+      Start  5: device_memory_simple
+ 5/14 Test  #5: device_memory_simple .............   Passed    0.13 sec
+      Start  6: smart_wrappers
+ 6/14 Test  #6: smart_wrappers ...................   Passed    1.90 sec
+      Start  7: phase1_gpu_operations
+ 7/14 Test  #7: phase1_gpu_operations ............   Passed    1.77 sec
+      Start  8: comprehensive_correctness
+ 8/14 Test  #8: comprehensive_correctness ........***Exception: SegFault 21.73 sec
+      Start  9: blas_level1_reference_expanded
+ 9/14 Test  #9: blas_level1_reference_expanded ...   Passed    0.11 sec
+      Start 10: judge_module
+10/14 Test #10: judge_module .....................   Passed    0.17 sec
+      Start 11: backend_loader_integration
+11/14 Test #11: backend_loader_integration .......   Passed   16.85 sec
+      Start 12: clblast_execution
+12/14 Test #12: clblast_execution ................   Passed   22.65 sec
+      Start 13: AOCL_Backend_Tests
+13/14 Test #13: AOCL_Backend_Tests ...............   Passed    0.20 sec
+      Start 14: BLIS_Backend_Tests
+14/14 Test #14: BLIS_Backend_Tests ...............***Exception: SegFault  5.81 sec
+
+71% tests passed, 4 tests failed out of 14
+
+Total Test time (real) =  85.55 sec
+
+The following tests FAILED:
+	  2 - benchmark_system (SEGFAULT)
+	  4 - device_api (Failed)
+	  8 - comprehensive_correctness (SEGFAULT)
+	 14 - BLIS_Backend_Tests (SEGFAULT)
+Errors while running CTest
+Output from these tests are in: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.

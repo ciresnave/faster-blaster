@@ -1,2 +1,0 @@
-/* croth */
-void croth_() { }

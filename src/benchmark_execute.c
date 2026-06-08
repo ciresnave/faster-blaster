@@ -27,21 +27,21 @@ extern bool fb_validate_output(void* output, size_t size,
                                uint8_t* accuracy_mean, uint8_t* accuracy_worst);
 
 // Timing helper
-static uint64_t get_time_ns(void) {
+static unsigned int get_time_ns(void) {
 #ifdef _WIN32
     LARGE_INTEGER freq, count;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&count);
-    return (uint64_t)((count.QuadPart * 1000000000) / freq.QuadPart);
+    return (unsigned int)((count.QuadPart * 1000000000) / freq.QuadPart);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000 + (uint64_t)ts.tv_nsec;
+    return (unsigned int)ts.tv_sec * 1000000000 + (unsigned int)ts.tv_nsec;
 #endif
 }
 
 // Calculate mean and standard deviation
-static void calc_stats(uint64_t* samples, size_t count,
+static void calc_stats(unsigned int* samples, size_t count,
                       uint32_t* mean_out, uint32_t* stddev_out, uint32_t* p99_out) {
     if (count == 0) {
         *mean_out = *stddev_out = *p99_out = 0;
@@ -67,13 +67,13 @@ static void calc_stats(uint64_t* samples, size_t count,
     
     // P99 (sort and pick 99th percentile)
     // Simple bubble sort for small arrays
-    uint64_t* sorted = (uint64_t*)malloc(count * sizeof(uint64_t));
-    memcpy(sorted, samples, count * sizeof(uint64_t));
+    unsigned int* sorted = (unsigned int*)malloc(count * sizeof(unsigned int));
+    memcpy(sorted, samples, count * sizeof(unsigned int));
     
     for (size_t i = 0; i < count - 1; i++) {
         for (size_t j = 0; j < count - i - 1; j++) {
             if (sorted[j] > sorted[j + 1]) {
-                uint64_t temp = sorted[j];
+                unsigned int temp = sorted[j];
                 sorted[j] = sorted[j + 1];
                 sorted[j + 1] = temp;
             }
@@ -176,7 +176,7 @@ int fb_benchmark_run_safe(uint32_t operation_id,
     memset(input, 0, buffer_size);
     
     // Timing samples
-    uint64_t* time_samples = (uint64_t*)malloc(config->sample_iters * sizeof(uint64_t));
+    unsigned int* time_samples = (unsigned int*)malloc(config->sample_iters * sizeof(unsigned int));
     if (!time_samples) {
         free(input);
         free(output);
@@ -210,7 +210,7 @@ int fb_benchmark_run_safe(uint32_t operation_id,
     
     // Sample iterations
     for (uint32_t i = 0; i < config->sample_iters; i++) {
-        uint64_t start = get_time_ns();
+        unsigned int start = get_time_ns();
         
 #ifdef _WIN32
         int ret = run_protected_windows(operation_id, backend_device_id,
@@ -222,7 +222,7 @@ int fb_benchmark_run_safe(uint32_t operation_id,
                                     input, output, config->timeout_ms);
 #endif
         
-        uint64_t end = get_time_ns();
+        unsigned int end = get_time_ns();
         
         if (ret != 0) {
             result_out->stats.flags = FB_BENCH_FLAG_CRASHED;

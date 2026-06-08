@@ -1,2 +1,0 @@
-/* csysvx */
-void csysvx_() { }

@@ -1,0 +1,30 @@
+CMake Warning:
+  Ignoring extra path from command line:
+
+   "Files/LLVM/bin/clang-cl.exe"
+
+
+CMake Error at CMakeLists.txt:291 (project):
+  The CMAKE_C_COMPILER:
+
+    C:/Program
+
+  is not a full path to an existing compiler tool.
+
+  Tell CMake where to find the compiler by setting either the environment
+  variable "CC" or the CMake cache entry CMAKE_C_COMPILER to the full path to
+  the compiler, or to the compiler name if it is in the PATH.
+
+
+CMake Error at CMakeLists.txt:291 (project):
+  The CMAKE_CXX_COMPILER:
+
+    C:/Program
+
+  is not a full path to an existing compiler tool.
+
+  Tell CMake where to find the compiler by setting either the environment
+  variable "CXX" or the CMake cache entry CMAKE_CXX_COMPILER to the full path
+  to the compiler, or to the compiler name if it is in the PATH.
+
+

@@ -1,2 +1,0 @@
-/* zsum */
-void zsum_() { }

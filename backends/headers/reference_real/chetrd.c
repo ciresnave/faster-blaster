@@ -1,2 +1,0 @@
-/* chetrd */
-void chetrd_() { }

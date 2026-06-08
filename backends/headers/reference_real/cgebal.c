@@ -1,2 +1,0 @@
-/* cgebal */
-void cgebal_() { }

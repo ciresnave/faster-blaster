@@ -156,7 +156,7 @@ static void accelerate_sgemm_wrapper(char transa, char transb, int m, int n, int
                alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
-static fb_plugin_probe_result_t accelerate_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t accelerate_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #ifndef __APPLE__

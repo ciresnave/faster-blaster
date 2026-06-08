@@ -1,2 +1,0 @@
-/* zsyr */
-void zsyr_() { }

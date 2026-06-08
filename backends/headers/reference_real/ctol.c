@@ -1,2 +1,0 @@
-/* ctol */
-void ctol_() { }

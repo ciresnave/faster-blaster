@@ -1,2 +1,0 @@
-/* zdgmm */
-void zdgmm_() { }

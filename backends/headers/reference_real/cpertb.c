@@ -1,2 +1,0 @@
-/* cpertb */
-void cpertb_() { }

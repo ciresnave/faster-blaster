@@ -1,2 +1,0 @@
-/* zlannb */
-void zlannb_() { }

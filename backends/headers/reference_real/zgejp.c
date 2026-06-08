@@ -1,2 +1,0 @@
-/* zgejp */
-void zgejp_() { }

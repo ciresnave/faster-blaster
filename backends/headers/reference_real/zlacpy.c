@@ -1,2 +1,0 @@
-/* zlacpy */
-void zlacpy_() { }

@@ -1,2 +1,0 @@
-/* cgglse */
-void cgglse_() { }

@@ -1,2 +1,0 @@
-/* zbdqri */
-void zbdqri_() { }

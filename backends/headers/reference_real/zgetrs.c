@@ -1,2 +1,0 @@
-/* zgetrs */
-void zgetrs_() { }

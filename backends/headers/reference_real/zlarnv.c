@@ -1,2 +1,0 @@
-/* zlarnv */
-void zlarnv_() { }

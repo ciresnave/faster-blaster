@@ -1,2 +1,0 @@
-/* chemmv */
-void chemmv_() { }

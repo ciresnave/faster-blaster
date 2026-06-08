@@ -1,2 +1,0 @@
-/* zgdmm */
-void zgdmm_() { }

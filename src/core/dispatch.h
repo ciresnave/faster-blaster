@@ -449,6 +449,14 @@ int fb_dispatch_init_global(void);
 fb_dispatch_table_t* fb_dispatch_global(void);
 
 /**
+ * @brief Get the active backend vtable from a dispatch table
+ * 
+ * @param table Dispatch table
+ * @return Active backend vtable, or NULL if none
+ */
+const fb_backend_vtable_t *fb_dispatch_get_backend(const fb_dispatch_table_t *table);
+
+/**
  * @brief Cleanup global dispatch system
  */
 void fb_dispatch_finalize_global(void);

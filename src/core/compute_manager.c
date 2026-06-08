@@ -146,6 +146,9 @@ static double score_device_data_locality(const fb_compute_device_t* device,
                                          fb_precision_t precision,
                                          const void** data_ptrs,
                                          uint32_t num_data_ptrs) {
+    (void)data_ptrs;
+    (void)num_data_ptrs;
+
     if (!device || !device->is_available) return -1.0;
     if (!device_supports_precision(device, precision)) return -1.0;
     

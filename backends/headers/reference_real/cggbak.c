@@ -1,2 +1,0 @@
-/* cggbak */
-void cggbak_() { }

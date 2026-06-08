@@ -1,2 +1,0 @@
-/* ctrmvm */
-void ctrmvm_() { }

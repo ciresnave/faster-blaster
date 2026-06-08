@@ -1,2 +1,0 @@
-/* zlahb */
-void zlahb_() { }

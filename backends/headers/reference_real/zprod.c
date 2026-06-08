@@ -1,2 +1,0 @@
-/* zprod */
-void zprod_() { }

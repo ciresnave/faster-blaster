@@ -135,7 +135,6 @@ const fb_backend_plugin_t *fb_load_best_plugin(const char *backend_name,
 
   const fb_backend_plugin_t *best_plugin = NULL;
   fb_plugin_probe_result_t best_result = {0};
-  fb_lib_handle_t best_lib_handle = NULL;
 
   /* Probe all registered plugins */
   for (fb_plugin_registry_entry_t *entry = g_plugin_registry; entry;
@@ -163,7 +162,6 @@ const fb_backend_plugin_t *fb_load_best_plugin(const char *backend_name,
       /* Plugin will load library in init() */
       best_plugin = plugin;
       best_result = result;
-      best_lib_handle = NULL; /* Plugin init will handle loading */
     }
   }
 
@@ -409,20 +407,38 @@ void fb_init_plugins(void) {
   /* Initialise data-location tracking before any plugin is loaded */
   fb_data_tracker_init();
   /* Register all built-in CPU plugins */
+#ifdef FB_ENABLE_AOCL
   fb_register_aocl_plugin();
+#endif
+#ifdef FB_ENABLE_BLIS
   fb_register_standard_blis_plugin();
+#endif
+#ifdef FB_ENABLE_OPENBLAS
   fb_register_openblas_plugin();
+#endif
+#ifdef FB_ENABLE_MKL
   fb_register_mkl_plugin();
+#endif
+#ifdef FB_ENABLE_ACCELERATE
   fb_register_accelerate_plugin();
+#endif
 
   /* Register all built-in GPU plugins */
   /* fb_register_cublas_plugin(); */ /* Disabled - using pure dynamic loading
                                         via dispatch system */
+#ifdef FB_ENABLE_ROCM
   fb_register_rocblas_plugin();
+#endif
+#ifdef FB_ENABLE_ONEMKL
   fb_register_onemkl_plugin();
+#endif
+#ifdef FB_ENABLE_METAL
   fb_register_metal_plugin();
+#endif
+#ifdef FB_ENABLE_CLBLAST
   fb_register_clblast_plugin();
   fb_register_clblas_plugin();
+#endif
 
   /* Reference backend: correctness oracle and last-resort fallback.
    * Always available (statically linked); deliberately lowest score. */

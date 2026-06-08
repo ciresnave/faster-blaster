@@ -1,2 +1,0 @@
-/* cgejp */
-void cgejp_() { }

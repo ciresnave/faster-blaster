@@ -1,2 +1,0 @@
-/* cherkv */
-void cherkv_() { }

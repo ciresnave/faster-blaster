@@ -1,2 +1,0 @@
-/* ctrord */
-void ctrord_() { }

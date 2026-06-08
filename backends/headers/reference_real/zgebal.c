@@ -1,2 +1,0 @@
-/* zgebal */
-void zgebal_() { }

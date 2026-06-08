@@ -1,0 +1,11 @@
+======================================================
+  faster-blaster Judge Runner — end-to-end CI test
+  Oracle:      reference (built-in)
+  Profile dir: C:\Users\cires\AppData\Local\Temp/fb_judge_runner_profiles
+  Ops tested:  4  |  Backends: 1
+  Op filter:   [1829, 1832]
+======================================================
+
+Backend: reference  (id=11)
+  op        dtype  digits    metric      result
+  --------  -----  --------  ----------  ------

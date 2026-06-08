@@ -1,2 +1,0 @@
-/* ztoleq */
-void ztoleq_() { }

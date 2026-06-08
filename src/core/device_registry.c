@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Forward declaration: defined in opencl_detect.c, conditionally compiled */
+extern int fb_detect_opencl_gpus(fb_gpu_info_t* gpus, int max_gpus, int* count_out);
+
 /* Maximum devices we can support */
 #define MAX_DEVICES 32
 #define MAX_CALLBACKS 16
@@ -315,11 +318,13 @@ int fb_registry_init(fb_discovery_flags_t flags) {
     if (flags & FB_DISCOVERY_GPU) {
         fb_gpu_info_t gpus[MAX_DEVICES];
         uint32_t num_gpus = 0;
+        int result = -1;
         
         /* Try CUDA GPUs */
+#ifdef FB_ENABLE_CUDA
         memset(gpus, 0, sizeof(gpus));
         num_gpus = 0;
-        int result = fb_detect_cuda_gpus(gpus, MAX_DEVICES - g_device_count, &num_gpus);
+        result = fb_detect_cuda_gpus(gpus, MAX_DEVICES - g_device_count, &num_gpus);
         if (result == 0 && num_gpus > 0) {
             printf("  Found %u CUDA GPU(s)\n", num_gpus);
             for (uint32_t i = 0; i < num_gpus && g_device_count < MAX_DEVICES; i++) {
@@ -332,6 +337,7 @@ int fb_registry_init(fb_discovery_flags_t flags) {
                 g_device_count++;
             }
         }
+#endif
         
         /* Try ROCm GPUs */
         memset(gpus, 0, sizeof(gpus));

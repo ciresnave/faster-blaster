@@ -68,7 +68,7 @@ static const fb_plugin_metadata_t g_rocblas_metadata = {
                    FB_PLUGIN_CAP_THREADSAFE
 };
 
-static fb_plugin_probe_result_t rocblas_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t rocblas_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #if !ROCBLAS_AVAILABLE

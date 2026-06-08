@@ -78,6 +78,15 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
             *out_op_id = id;
             return FB_CONV_CBLAS;
         }
+        /* Fallback: try the full symbol name as the map key.
+           Extended MKL-convention batch ops (cblas_cgemm_batch_strided, etc.)
+           are stored in k_op_stem_map[] with the "cblas_" prefix intact,
+           mapping to their own FB_OP_CBLAS_* ids.                          */
+        id = fb_stem_to_op_id(name);
+        if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+          *out_op_id = id;
+          return FB_CONV_CBLAS;
+        }
         return FB_CONV_COUNT;
     }
 
@@ -103,6 +112,20 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
         return FB_CONV_COUNT;
     }
 
+    /* ---- LAPACKE: "LAPACKE_<stem>" ----------------------------------------
+     */
+    /* LAPACKE uses char uplo ('U'/'L') unlike CBLAS which uses int enum. */
+    /* Same C calling convention as CBLAS — slot directly into FB_CONV_CBLAS. */
+    if (len > 8 && memcmp(name, "LAPACKE_", 8) == 0) {
+      const char *stem = name + 8;
+      uint32_t id = fb_stem_to_op_id(stem);
+      if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+        *out_op_id = id;
+        return FB_CONV_CBLAS;
+      }
+      return FB_CONV_COUNT;
+    }
+
     /* ---- FORTRAN: "<stem>_" (single trailing underscore) ---------------- */
     /* Note: "<stem>_ref" is not recognised — _ref is an internal naming
        convention, not a backend export convention.  Such symbols fall
@@ -121,6 +144,17 @@ fb_conv_t fb_classify_symbol(const char *name, uint32_t *out_op_id)
         return FB_CONV_COUNT;
     }
 
+    /* ---- Plain stem fallback (no prefix, no trailing underscore) --------- */
+    /* Covers C-ABI exports like "sgemm_ptr", "dgemm_ptr" that are stored in
+       k_op_stem_map[] directly as plain stems (FB_OP_SGEMM_PTR etc.).       */
+    {
+      uint32_t id = fb_stem_to_op_id(name);
+      if (id < (uint32_t)FB_JUDGE_MAX_OPERATIONS) {
+        *out_op_id = id;
+        return FB_CONV_CBLAS;
+      }
+    }
+
     return FB_CONV_COUNT;
 }
 
@@ -131,12 +165,70 @@ static void fill_slot(fb_backend_vtable_t *vtable, const char *name,
 {
     uint32_t op_id;
     fb_conv_t conv = fb_classify_symbol(name, &op_id);
-    if (conv == FB_CONV_COUNT) return;  /* not a recognised BLAS/LAPACK name */
-    if (vtable->ext_ops[op_id][conv] != NULL) return;  /* already filled    */
+    if (conv == FB_CONV_COUNT)
+      return; /* not a recognised BLAS/LAPACK name */
 
-    void *fn = FB_LOAD_SYM(lib_handle, name);
-    if (fn) {
-        vtable->ext_ops[op_id][conv] = (fb_generic_fn)fn;
+        size_t len = strlen(name);
+
+        /* Some reference-LAPACK exports publish a plain C symbol name (for
+             example, "cgelsy") while still using the pointer-based Fortran ABI.
+             If a trailing-underscore twin exists in the same DLL, treat the plain
+             symbol as a Fortran alias rather than hydrating a CBLAS slot with the
+             wrong prototype. */
+        if (conv == FB_CONV_CBLAS && len > 0 && name[len - 1] != '_' &&
+                !(len > 6 && memcmp(name, "cblas_", 6) == 0) &&
+                !(len > 3 && memcmp(name, "fb_", 3) == 0) &&
+                !(len > 8 && memcmp(name, "LAPACKE_", 8) == 0)) {
+            char *fortran_alias = (char *)malloc(len + 2);
+            if (fortran_alias != NULL) {
+                memcpy(fortran_alias, name, len);
+                fortran_alias[len] = '_';
+                fortran_alias[len + 1] = '\0';
+                if (FB_LOAD_SYM(lib_handle, fortran_alias) != NULL) {
+                    conv = FB_CONV_FORTRAN;
+                }
+                free(fortran_alias);
+            }
+        }
+
+        uint32_t primary_id = op_id;
+        uint32_t cblas_alt_id = UINT32_MAX;
+        bool preserve_plain_stem_slot = false;
+
+        if (len > 6 && memcmp(name, "cblas_", 6) == 0) {
+            const char *stem = name + 6;
+
+            cblas_alt_id = fb_stem_to_op_id(name);
+            if (cblas_alt_id < (uint32_t)FB_JUDGE_MAX_OPERATIONS &&
+                    cblas_alt_id != op_id &&
+                    FB_LOAD_SYM(lib_handle, stem) != NULL) {
+                primary_id = cblas_alt_id;
+                preserve_plain_stem_slot = true;
+            }
+        }
+
+        void *fn = NULL;
+        if (vtable->ext_ops[primary_id][conv] == NULL) {
+      fn = FB_LOAD_SYM(lib_handle, name);
+      if (fn) {
+                vtable->ext_ops[primary_id][conv] = (fb_generic_fn)fn;
+      }
+    }
+
+    /* For "cblas_*" symbols: the stripped-stem lookup above fills the generic
+       slot (e.g. FB_OP_CGEMM_BATCH_STRIDED from "cblas_cgemm_batch_strided").
+       But the stem map also has the full name as a KEY for the MKL-convention
+       FB_OP_CBLAS_* ids.  Fill that secondary slot with the same pointer so
+       callers using the vendor-prefixed op id also get coverage.            */
+        if (len > 6 && memcmp(name, "cblas_", 6) == 0 && !preserve_plain_stem_slot) {
+            uint32_t alt_id = fb_stem_to_op_id(name); /* full name as key */
+            if (alt_id < (uint32_t)FB_JUDGE_MAX_OPERATIONS && alt_id != op_id &&
+                    vtable->ext_ops[alt_id][FB_CONV_CBLAS] == NULL) {
+        if (!fn)
+          fn = FB_LOAD_SYM(lib_handle, name); /* reuse if already loaded */
+        if (fn)
+          vtable->ext_ops[alt_id][FB_CONV_CBLAS] = (fb_generic_fn)fn;
+      }
     }
 }
 

@@ -1,2 +1,0 @@
-/* ctrsvm */
-void ctrsvm_() { }

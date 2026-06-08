@@ -159,6 +159,16 @@ static bool init_case_buffers(fb_corpus_case_t *c,
                                int m, int n, int k)
 {
     size_t elt = fb_dtype_element_size[dtype];
+
+    /* Corpus generation currently materializes reduced-precision and integer
+     * test values through widened host buffers. Match the storage that
+     * fill_typed() actually writes so full-range sweeps do not overrun. */
+    if (dtype == FB_DTYPE_F16 || dtype == FB_DTYPE_BF16) {
+        elt = sizeof(float);
+    } else if (dtype == FB_DTYPE_I8 || dtype == FB_DTYPE_I32) {
+        elt = sizeof(int32_t);
+    }
+
     int vec_len = (m > 0) ? m : n;
 
     /* Level-3 (k>0):  A is m×k matrix → a_elts = m*k
@@ -557,13 +567,47 @@ fb_judge_status_t fb_corpus_generate(uint32_t op_id,
         c->meta.is_degenerate_spectrum = true;
 
         if (dtype == FB_DTYPE_F64 || dtype == FB_DTYPE_CF64) {
+            fill_case(c, dtype, 1.0, &rng);
+
             /* Generate degenerate matrices based on operation type */
             if (n > 0 && m == n && c->A) {
                 /* Symmetric case: SYEV/HEEV */
-                gen_degenerate_symmetric_f64((double *)c->A, n, c->lda, seed);
+                if (dtype == FB_DTYPE_F64) {
+                    gen_degenerate_symmetric_f64((double *)c->A, n, c->lda, seed);
+                } else {
+                    double *tmp = (double *)calloc(c->A_elems, sizeof(double));
+                    if (tmp) {
+                        double _Complex *ac = (double _Complex *)c->A;
+                        gen_degenerate_symmetric_f64(tmp, n, c->lda, seed);
+                        for (int i = 0; i < n; ++i) {
+                            for (int j = 0; j < n; ++j) {
+                                __real__ ac[(size_t)i * (size_t)c->lda + (size_t)j] =
+                                    tmp[(size_t)i * (size_t)c->lda + (size_t)j];
+                                __imag__ ac[(size_t)i * (size_t)c->lda + (size_t)j] = 0.0;
+                            }
+                        }
+                        free(tmp);
+                    }
+                }
             } else if (n > 0 && m > 0 && c->A) {
                 /* Rectangular case: GESVD/GESDD */
-                gen_degenerate_svd_f64((double *)c->A, m, n, c->lda, seed);
+                if (dtype == FB_DTYPE_F64) {
+                    gen_degenerate_svd_f64((double *)c->A, m, n, c->lda, seed);
+                } else {
+                    double *tmp = (double *)calloc(c->A_elems, sizeof(double));
+                    if (tmp) {
+                        double _Complex *ac = (double _Complex *)c->A;
+                        gen_degenerate_svd_f64(tmp, m, n, c->lda, seed);
+                        for (int i = 0; i < m; ++i) {
+                            for (int j = 0; j < n; ++j) {
+                                __real__ ac[(size_t)i * (size_t)c->lda + (size_t)j] =
+                                    tmp[(size_t)i * (size_t)c->lda + (size_t)j];
+                                __imag__ ac[(size_t)i * (size_t)c->lda + (size_t)j] = 0.0;
+                            }
+                        }
+                        free(tmp);
+                    }
+                }
             } else {
                 fill_case(c, dtype, 1.0, &rng);
             }

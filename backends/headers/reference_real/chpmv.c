@@ -1,2 +1,0 @@
-/* chpmv */
-void chpmv_() { }

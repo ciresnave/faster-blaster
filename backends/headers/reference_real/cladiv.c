@@ -1,2 +1,0 @@
-/* cladiv */
-void cladiv_() { }

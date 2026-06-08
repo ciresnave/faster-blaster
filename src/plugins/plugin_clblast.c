@@ -82,7 +82,7 @@ static const fb_plugin_metadata_t g_clblast_metadata = {
 };
 
 /* Probe function */
-static fb_plugin_probe_result_t clblast_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t clblast_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #if !CLBLAST_AVAILABLE

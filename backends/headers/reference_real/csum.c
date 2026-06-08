@@ -1,2 +1,0 @@
-/* csum */
-void csum_() { }

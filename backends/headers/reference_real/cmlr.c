@@ -1,2 +1,0 @@
-/* cmlr */
-void cmlr_() { }

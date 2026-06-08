@@ -1,2 +1,0 @@
-/* zrotg */
-void zrotg_() { }

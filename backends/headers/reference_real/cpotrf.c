@@ -1,2 +1,0 @@
-/* cpotrf */
-void cpotrf_() { }

@@ -1,2 +1,0 @@
-/* cbase */
-void cbase_() { }

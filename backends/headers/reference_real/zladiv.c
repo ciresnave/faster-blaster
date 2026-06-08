@@ -1,2 +1,0 @@
-/* zladiv */
-void zladiv_() { }

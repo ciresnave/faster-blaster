@@ -1,2 +1,0 @@
-/* cgebak */
-void cgebak_() { }

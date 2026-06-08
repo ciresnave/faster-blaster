@@ -18,16 +18,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* These wrappers require extended vtable with batched GEMM operations.
+ * Guard compilation until vtable is extended. */
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
+
 /* ============================================================================
  * GEMM Single from Batched (Strided): SGEMM
  * ========================================================================= */
 
 void fb_sgemm_from_sgemm_batch_strided(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const float alpha, const float *A, const int64_t lda,
-    const float *B, const int64_t ldb, const float beta, float *C,
-    const int64_t ldc) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const float alpha, const float *A, const int lda,
+    const float *B, const int ldb, const float beta, float *C,
+    const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->sgemm_batch_strided) {
@@ -49,10 +53,10 @@ void fb_sgemm_from_sgemm_batch_strided(
 
 void fb_dgemm_from_dgemm_batch_strided(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const double alpha, const double *A, const int64_t lda,
-    const double *B, const int64_t ldb, const double beta, double *C,
-    const int64_t ldc) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const double alpha, const double *A, const int lda,
+    const double *B, const int ldb, const double beta, double *C,
+    const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->dgemm_batch_strided) {
@@ -69,11 +73,11 @@ void fb_dgemm_from_dgemm_batch_strided(
 
 void fb_cgemm_from_cgemm_batch_strided(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const fb_complex_float_t alpha,
-    const fb_complex_float_t *A, const int64_t lda, const fb_complex_float_t *B,
-    const int64_t ldb, const fb_complex_float_t beta, fb_complex_float_t *C,
-    const int64_t ldc) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const fb_complex_float_t alpha,
+    const fb_complex_float_t *A, const int lda, const fb_complex_float_t *B,
+    const int ldb, const fb_complex_float_t beta, fb_complex_float_t *C,
+    const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->cgemm_batch_strided) {
@@ -90,11 +94,11 @@ void fb_cgemm_from_cgemm_batch_strided(
 
 void fb_zgemm_from_zgemm_batch_strided(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const fb_complex_double_t alpha,
-    const fb_complex_double_t *A, const int64_t lda,
-    const fb_complex_double_t *B, const int64_t ldb,
-    const fb_complex_double_t beta, fb_complex_double_t *C, const int64_t ldc) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const fb_complex_double_t alpha,
+    const fb_complex_double_t *A, const int lda,
+    const fb_complex_double_t *B, const int ldb,
+    const fb_complex_double_t beta, fb_complex_double_t *C, const int ldc) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->zgemm_batch_strided) {
@@ -174,11 +178,11 @@ void fb_daxpy_from_daxpy_batch(int n, double alpha, const double *x, int incx,
 
 void fb_sgemv_from_sgemv_batch_strided(const fb_layout_t layout,
                                        const fb_transpose_t trans,
-                                       const int64_t m, const int64_t n,
+                                       const int m, const int n,
                                        const float alpha, const float *A,
-                                       const int64_t lda, const float *x,
-                                       const int64_t incx, const float beta,
-                                       float *y, const int64_t incy) {
+                                       const int lda, const float *x,
+                                       const int incx, const float beta,
+                                       float *y, const int incy) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->sgemv_batch_strided) {
@@ -195,11 +199,11 @@ void fb_sgemv_from_sgemv_batch_strided(const fb_layout_t layout,
 
 void fb_dgemv_from_dgemv_batch_strided(const fb_layout_t layout,
                                        const fb_transpose_t trans,
-                                       const int64_t m, const int64_t n,
+                                       const int m, const int n,
                                        const double alpha, const double *A,
-                                       const int64_t lda, const double *x,
-                                       const int64_t incx, const double beta,
-                                       double *y, const int64_t incy) {
+                                       const int lda, const double *x,
+                                       const int incx, const double beta,
+                                       double *y, const int incy) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->dgemv_batch_strided) {
@@ -315,3 +319,5 @@ void fb_autofill_all_from_batched(fb_backend_vtable_t *vtable) {
   /* TODO: Phase 3.3 - Add normalization batched → single */
   /* TODO: Phase 3.4 - Add reduction batched → single */
 }
+
+#endif /* FB_EXTENDED_VTABLE_SUPPORT */

@@ -1,2 +1,0 @@
-/* ctrtri */
-void ctrtri_() { }

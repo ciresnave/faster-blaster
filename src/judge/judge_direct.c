@@ -37,6 +37,8 @@
 #define FB_JUDGE_WARMUP_RUNS   2
 /** Number of timed calls; best (minimum) is recorded. */
 #define FB_JUDGE_TIMING_RUNS   5
+/** Small replicated batch count used to exercise batched runners. */
+#define FB_JUDGE_BATCH_COUNT   2
 
 /* =========================================================================
  * Private utilities
@@ -53,6 +55,53 @@ static void *clone_buf(const void *src, size_t n, size_t elem_size)
     if (dst && src)
         memcpy(dst, src, n * elem_size);
     return dst;
+}
+
+static void *repeat_buf(const void *src, size_t n, size_t elem_size, int repeat)
+{
+    if (!src || n == 0 || elem_size == 0 || repeat <= 0) return NULL;
+
+    size_t block_bytes = n * elem_size;
+    size_t total_bytes = block_bytes * (size_t)repeat;
+    unsigned char *dst = (unsigned char *)malloc(total_bytes);
+    if (!dst) return NULL;
+
+    for (int batch_index = 0; batch_index < repeat; batch_index++) {
+        memcpy(dst + ((size_t)batch_index * block_bytes), src, block_bytes);
+    }
+
+    return dst;
+}
+
+static const void **make_const_batch_ptrs(const void *base, size_t stride_bytes,
+                                          int batch_count)
+{
+    if (!base || stride_bytes == 0 || batch_count <= 0) return NULL;
+
+    const unsigned char *bytes = (const unsigned char *)base;
+    const void **ptrs = (const void **)malloc((size_t)batch_count * sizeof(*ptrs));
+    if (!ptrs) return NULL;
+
+    for (int batch_index = 0; batch_index < batch_count; batch_index++) {
+        ptrs[batch_index] = bytes + ((size_t)batch_index * stride_bytes);
+    }
+
+    return ptrs;
+}
+
+static void **make_batch_ptrs(void *base, size_t stride_bytes, int batch_count)
+{
+    if (!base || stride_bytes == 0 || batch_count <= 0) return NULL;
+
+    unsigned char *bytes = (unsigned char *)base;
+    void **ptrs = (void **)malloc((size_t)batch_count * sizeof(*ptrs));
+    if (!ptrs) return NULL;
+
+    for (int batch_index = 0; batch_index < batch_count; batch_index++) {
+        ptrs[batch_index] = bytes + ((size_t)batch_index * stride_bytes);
+    }
+
+    return ptrs;
 }
 
 /** Mark result as candidate fatal (NaN/Inf/crash). */
@@ -985,6 +1034,983 @@ static fb_judge_status_t run_dgemv(
  *   tc->m, tc->n, tc->k, tc->lda, tc->ldb, tc->ldc, tc->alpha, tc->beta
  * ========================================================================= */
 
+#define FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER(fn_name, field) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef int (*fn_t)(const char *, const int *, const int *, const int *); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    char identifier = 'A'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int oracle_val = oracle_fn(&identifier, &m, &n, &k); \
+    int cand_val = cand_fn(&identifier, &m, &n, &k); \
+    result_from_relerr(res, (oracle_val == cand_val) ? 0.0 : 1.0); \
+    if (ns_out) { \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+            (void)cand_fn(&identifier, &m, &n, &k); \
+        uint64_t best = UINT64_MAX; \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            uint64_t t0 = fb_judge_time_ns(); \
+            (void)cand_fn(&identifier, &m, &n, &k); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER(fn_name, field) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef int (*fn_t)(int, int, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int identifier = 0; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int oracle_val = oracle_fn(identifier, m, n, k); \
+    int cand_val = cand_fn(identifier, m, n, k); \
+    result_from_relerr(res, (oracle_val == cand_val) ? 0.0 : 1.0); \
+    if (ns_out) { \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+            (void)cand_fn(identifier, m, n, k); \
+        uint64_t best = UINT64_MAX; \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            uint64_t t0 = fb_judge_time_ns(); \
+            (void)cand_fn(identifier, m, n, k); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER(run_sgemm_pack_get_size, sgemm_pack_get_size)
+FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER(run_dgemm_pack_get_size, dgemm_pack_get_size)
+FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER(run_cgemm_pack_get_size, cgemm_pack_get_size)
+FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER(run_zgemm_pack_get_size, zgemm_pack_get_size)
+FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER(run_cblas_sgemm_pack_get_size, cblas_sgemm_pack_get_size)
+FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER(run_cblas_dgemm_pack_get_size, cblas_dgemm_pack_get_size)
+FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER(run_cblas_cgemm_pack_get_size, cblas_cgemm_pack_get_size)
+FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER(run_cblas_zgemm_pack_get_size, cblas_zgemm_pack_get_size)
+
+#undef FB_DEFINE_GEMM_PACK_GET_SIZE_RUNNER
+#undef FB_DEFINE_CBLAS_GEMM_PACK_GET_SIZE_RUNNER
+
+typedef void (*fb_sgemm_compute_fn_t)(const char *, const char *, const int *,
+                                      const int *, const int *, const float *,
+                                      const int *, const float *, const int *,
+                                      const float *, float *, const int *);
+typedef void (*fb_dgemm_compute_fn_t)(const char *, const char *, const int *,
+                                      const int *, const int *, const double *,
+                                      const int *, const double *, const int *,
+                                      const double *, double *, const int *);
+typedef void (*fb_cgemm_compute_fn_t)(const char *, const char *, const int *,
+                                      const int *, const int *,
+                                      const fb_complex_float_t *, const int *,
+                                      const fb_complex_float_t *, const int *,
+                                      const fb_complex_float_t *,
+                                      fb_complex_float_t *, const int *);
+typedef void (*fb_zgemm_compute_fn_t)(const char *, const char *, const int *,
+                                      const int *, const int *,
+                                      const fb_complex_double_t *, const int *,
+                                      const fb_complex_double_t *, const int *,
+                                      const fb_complex_double_t *,
+                                      fb_complex_double_t *, const int *);
+
+typedef void (*fb_cblas_sgemm_compute_fn_t)(int, int, int, int, int, int,
+                                            const float *, int,
+                                            const float *, int, float,
+                                            float *, int);
+typedef void (*fb_cblas_dgemm_compute_fn_t)(int, int, int, int, int, int,
+                                            const double *, int,
+                                            const double *, int, double,
+                                            double *, int);
+typedef void (*fb_cblas_cgemm_compute_fn_t)(int, int, int, int, int, int,
+                                            const fb_complex_float_t *, int,
+                                            const fb_complex_float_t *, int,
+                                            fb_complex_float_t,
+                                            fb_complex_float_t *, int);
+typedef void (*fb_cblas_zgemm_compute_fn_t)(int, int, int, int, int, int,
+                                            const fb_complex_double_t *, int,
+                                            const fb_complex_double_t *, int,
+                                            fb_complex_double_t,
+                                            fb_complex_double_t *, int);
+
+#define FB_DEFINE_GEMM_COMPUTE_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    size_t C_sz = tc->C_elems; \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Co, &ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Cc, &ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn(Co, m, n, ldc))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM_COMPUTE_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta; __real__(beta) = (real_type)tc->beta; __imag__(beta) = 0; \
+    size_t C_sz = (size_t)(m * ldc); \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Co, &ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Cc, &ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn((const real_type *)Co, C_sz))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int order = FB_LAYOUT_ROW_MAJOR; \
+    int trans = FB_NO_TRANS; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    size_t C_sz = tc->C_elems; \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Co, ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Cc, ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn(Co, m, n, ldc))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Ct, ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Ct, ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int order = FB_LAYOUT_ROW_MAJOR; \
+    int trans = FB_NO_TRANS; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta; __real__(beta) = (real_type)tc->beta; __imag__(beta) = 0; \
+    size_t C_sz = (size_t)(m * ldc); \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Co, ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Cc, ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn((const real_type *)Co, C_sz))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Ct, ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(order, trans, trans, m, n, k, A, lda, B, ldb, beta, Ct, ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMM_COMPUTE_RUNNER_REAL(run_sgemm_compute, sgemm_compute, fb_sgemm_compute_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_GEMM_COMPUTE_RUNNER_REAL(run_dgemm_compute, dgemm_compute, fb_dgemm_compute_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_GEMM_COMPUTE_RUNNER_COMPLEX(run_cgemm_compute, cgemm_compute, fb_cgemm_compute_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_GEMM_COMPUTE_RUNNER_COMPLEX(run_zgemm_compute, zgemm_compute, fb_zgemm_compute_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_REAL(run_cblas_sgemm_compute, cblas_sgemm_compute, fb_cblas_sgemm_compute_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_REAL(run_cblas_dgemm_compute, cblas_dgemm_compute, fb_cblas_dgemm_compute_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_COMPLEX(run_cblas_cgemm_compute, cblas_cgemm_compute, fb_cblas_cgemm_compute_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_COMPLEX(run_cblas_zgemm_compute, cblas_zgemm_compute, fb_cblas_zgemm_compute_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+typedef void *(*fb_gemm_ptr_getter_fn_t)(void);
+
+#define FB_DEFINE_GEMM_PTR_RUNNER_REAL(fn_name, field, compute_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fb_gemm_ptr_getter_fn_t oracle_get = (fb_gemm_ptr_getter_fn_t)oracle->field; \
+    fb_gemm_ptr_getter_fn_t cand_get = (fb_gemm_ptr_getter_fn_t)cand->field; \
+    compute_type oracle_fn = (compute_type)oracle_get(); \
+    if (!oracle_fn) { result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    compute_type cand_fn = (compute_type)cand_get(); \
+    if (!cand_fn) { result_fatal(res); return FB_JUDGE_OK; } \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    size_t C_sz = tc->C_elems; \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Co, &ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Cc, &ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn(Co, m, n, ldc))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM_PTR_RUNNER_COMPLEX(fn_name, field, compute_type, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fb_gemm_ptr_getter_fn_t oracle_get = (fb_gemm_ptr_getter_fn_t)oracle->field; \
+    fb_gemm_ptr_getter_fn_t cand_get = (fb_gemm_ptr_getter_fn_t)cand->field; \
+    compute_type oracle_fn = (compute_type)oracle_get(); \
+    if (!oracle_fn) { result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    compute_type cand_fn = (compute_type)cand_get(); \
+    if (!cand_fn) { result_fatal(res); return FB_JUDGE_OK; } \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    scalar_type beta; __real__(beta) = (real_type)tc->beta; __imag__(beta) = 0; \
+    size_t C_sz = (size_t)(m * ldc); \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Co, &ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Cc, &ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn((const real_type *)Co, C_sz))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&trans, &trans, &m, &n, &k, A, &lda, B, &ldb, &beta, Ct, &ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMM_PTR_RUNNER_REAL(run_sgemm_ptr, sgemm_ptr, fb_sgemm_compute_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_GEMM_PTR_RUNNER_REAL(run_dgemm_ptr, dgemm_ptr, fb_dgemm_compute_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_GEMM_PTR_RUNNER_COMPLEX(run_cgemm_ptr, cgemm_ptr, fb_cgemm_compute_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_GEMM_PTR_RUNNER_COMPLEX(run_zgemm_ptr, zgemm_ptr, fb_zgemm_compute_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+typedef void *(*fb_mkl_jit_get_ptr_fn_t)(void *);
+typedef void (*fb_mkl_jit_destroy_fn_t)(void *);
+typedef int (*fb_mkl_jit_create_sgemm_fn_t)(void **, char, char, int, int, int,
+                                            float, int, int, float, int);
+typedef int (*fb_mkl_jit_create_dgemm_fn_t)(void **, char, char, int, int, int,
+                                            double, int, int, double, int);
+typedef int (*fb_mkl_jit_create_cgemm_fn_t)(void **, char, char, int, int, int,
+                                            fb_complex_float_t, int, int,
+                                            fb_complex_float_t, int);
+typedef int (*fb_mkl_jit_create_zgemm_fn_t)(void **, char, char, int, int, int,
+                                            fb_complex_double_t, int, int,
+                                            fb_complex_double_t, int);
+typedef void (*fb_mkl_jit_sgemm_kernel_fn_t)(void *, const float *, const float *, float *);
+typedef void (*fb_mkl_jit_dgemm_kernel_fn_t)(void *, const double *, const double *, double *);
+typedef void (*fb_mkl_jit_cgemm_kernel_fn_t)(void *, const fb_complex_float_t *, const fb_complex_float_t *, fb_complex_float_t *);
+typedef void (*fb_mkl_jit_zgemm_kernel_fn_t)(void *, const fb_complex_double_t *, const fb_complex_double_t *, fb_complex_double_t *);
+
+#define FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_REAL(fn_name, create_field, get_field, create_type, kernel_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->create_field || !oracle->get_field || !oracle->mkl_jit_destroy || \
+        !cand->create_field || !cand->get_field || !cand->mkl_jit_destroy) return FB_JUDGE_ERR_NOT_IMPL; \
+    create_type oracle_create = (create_type)oracle->create_field; \
+    create_type cand_create = (create_type)cand->create_field; \
+    fb_mkl_jit_get_ptr_fn_t oracle_get = (fb_mkl_jit_get_ptr_fn_t)oracle->get_field; \
+    fb_mkl_jit_get_ptr_fn_t cand_get = (fb_mkl_jit_get_ptr_fn_t)cand->get_field; \
+    fb_mkl_jit_destroy_fn_t oracle_destroy = (fb_mkl_jit_destroy_fn_t)oracle->mkl_jit_destroy; \
+    fb_mkl_jit_destroy_fn_t cand_destroy = (fb_mkl_jit_destroy_fn_t)cand->mkl_jit_destroy; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    size_t C_sz = tc->C_elems; \
+    void *oracle_jitter = NULL; \
+    void *cand_jitter = NULL; \
+    if (oracle_create(&oracle_jitter, trans, trans, m, n, k, alpha, lda, ldb, beta, ldc) != 0 || !oracle_jitter) { \
+        if (oracle_jitter) oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    kernel_type oracle_kernel = (kernel_type)oracle_get(oracle_jitter); \
+    if (!oracle_kernel) { \
+        oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (cand_create(&cand_jitter, trans, trans, m, n, k, alpha, lda, ldb, beta, ldc) != 0 || !cand_jitter) { \
+        if (cand_jitter) cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    kernel_type cand_kernel = (kernel_type)cand_get(cand_jitter); \
+    if (!cand_kernel) { \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_kernel(oracle_jitter, A, B, Co); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { \
+        free(Co); \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { \
+        free(Co); \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_kernel(cand_jitter, A, B, Cc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn(Co, m, n, ldc))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_kernel(cand_jitter, A, B, Ct); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_kernel(cand_jitter, A, B, Ct); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); \
+    cand_destroy(cand_jitter); \
+    oracle_destroy(oracle_jitter); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_COMPLEX(fn_name, create_field, get_field, create_type, kernel_type, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->create_field || !oracle->get_field || !oracle->mkl_jit_destroy || \
+        !cand->create_field || !cand->get_field || !cand->mkl_jit_destroy) return FB_JUDGE_ERR_NOT_IMPL; \
+    create_type oracle_create = (create_type)oracle->create_field; \
+    create_type cand_create = (create_type)cand->create_field; \
+    fb_mkl_jit_get_ptr_fn_t oracle_get = (fb_mkl_jit_get_ptr_fn_t)oracle->get_field; \
+    fb_mkl_jit_get_ptr_fn_t cand_get = (fb_mkl_jit_get_ptr_fn_t)cand->get_field; \
+    fb_mkl_jit_destroy_fn_t oracle_destroy = (fb_mkl_jit_destroy_fn_t)oracle->mkl_jit_destroy; \
+    fb_mkl_jit_destroy_fn_t cand_destroy = (fb_mkl_jit_destroy_fn_t)cand->mkl_jit_destroy; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = 0; \
+    scalar_type beta; __real__(beta) = (real_type)tc->beta; __imag__(beta) = 0; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    size_t C_sz = (size_t)(m * ldc); \
+    void *oracle_jitter = NULL; \
+    void *cand_jitter = NULL; \
+    if (oracle_create(&oracle_jitter, trans, trans, m, n, k, alpha, lda, ldb, beta, ldc) != 0 || !oracle_jitter) { \
+        if (oracle_jitter) oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    kernel_type oracle_kernel = (kernel_type)oracle_get(oracle_jitter); \
+    if (!oracle_kernel) { \
+        oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (cand_create(&cand_jitter, trans, trans, m, n, k, alpha, lda, ldb, beta, ldc) != 0 || !cand_jitter) { \
+        if (cand_jitter) cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    kernel_type cand_kernel = (kernel_type)cand_get(cand_jitter); \
+    if (!cand_kernel) { \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_kernel(oracle_jitter, A, B, Co); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { \
+        free(Co); \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { \
+        free(Co); \
+        cand_destroy(cand_jitter); \
+        oracle_destroy(oracle_jitter); \
+        result_fatal(res); \
+        return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_kernel(cand_jitter, A, B, Cc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, dtype_enum, norm_fn((const real_type *)Co, C_sz))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_kernel(cand_jitter, A, B, Ct); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_kernel(cand_jitter, A, B, Ct); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); \
+    cand_destroy(cand_jitter); \
+    oracle_destroy(oracle_jitter); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_REAL(run_mkl_jit_get_sgemm_ptr, mkl_jit_create_sgemm, mkl_jit_get_sgemm_ptr, fb_mkl_jit_create_sgemm_fn_t, fb_mkl_jit_sgemm_kernel_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_REAL(run_mkl_jit_get_dgemm_ptr, mkl_jit_create_dgemm, mkl_jit_get_dgemm_ptr, fb_mkl_jit_create_dgemm_fn_t, fb_mkl_jit_dgemm_kernel_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_COMPLEX(run_mkl_jit_get_cgemm_ptr, mkl_jit_create_cgemm, mkl_jit_get_cgemm_ptr, fb_mkl_jit_create_cgemm_fn_t, fb_mkl_jit_cgemm_kernel_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_COMPLEX(run_mkl_jit_get_zgemm_ptr, mkl_jit_create_zgemm, mkl_jit_get_zgemm_ptr, fb_mkl_jit_create_zgemm_fn_t, fb_mkl_jit_zgemm_kernel_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+static fb_judge_status_t run_mkl_jit_create_sgemm(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    return run_mkl_jit_get_sgemm_ptr(oracle, cand, tc, res, ns_out);
+}
+
+static fb_judge_status_t run_mkl_jit_create_dgemm(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    return run_mkl_jit_get_dgemm_ptr(oracle, cand, tc, res, ns_out);
+}
+
+static fb_judge_status_t run_mkl_jit_create_cgemm(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    return run_mkl_jit_get_cgemm_ptr(oracle, cand, tc, res, ns_out);
+}
+
+static fb_judge_status_t run_mkl_jit_create_zgemm(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    return run_mkl_jit_get_zgemm_ptr(oracle, cand, tc, res, ns_out);
+}
+
+static fb_judge_status_t run_mkl_jit_destroy(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->mkl_jit_create_sgemm || !oracle->mkl_jit_get_sgemm_ptr ||
+        !oracle->mkl_jit_destroy || !cand->mkl_jit_create_sgemm ||
+        !cand->mkl_jit_get_sgemm_ptr || !cand->mkl_jit_destroy) {
+        return FB_JUDGE_ERR_NOT_IMPL;
+    }
+
+    fb_mkl_jit_create_sgemm_fn_t oracle_create =
+        (fb_mkl_jit_create_sgemm_fn_t)oracle->mkl_jit_create_sgemm;
+    fb_mkl_jit_create_sgemm_fn_t cand_create =
+        (fb_mkl_jit_create_sgemm_fn_t)cand->mkl_jit_create_sgemm;
+    fb_mkl_jit_get_ptr_fn_t oracle_get =
+        (fb_mkl_jit_get_ptr_fn_t)oracle->mkl_jit_get_sgemm_ptr;
+    fb_mkl_jit_get_ptr_fn_t cand_get =
+        (fb_mkl_jit_get_ptr_fn_t)cand->mkl_jit_get_sgemm_ptr;
+    fb_mkl_jit_destroy_fn_t oracle_destroy =
+        (fb_mkl_jit_destroy_fn_t)oracle->mkl_jit_destroy;
+    fb_mkl_jit_destroy_fn_t cand_destroy =
+        (fb_mkl_jit_destroy_fn_t)cand->mkl_jit_destroy;
+    char trans = 'N';
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    float alpha = (float)tc->alpha;
+    float beta = (float)tc->beta;
+    const float *A = (const float *)tc->A;
+    const float *B = (const float *)tc->B;
+    size_t C_sz = tc->C_elems;
+    void *oracle_jitter = NULL;
+    void *cand_jitter = NULL;
+
+    oracle_destroy(NULL);
+    cand_destroy(NULL);
+
+    if (oracle_create(&oracle_jitter, trans, trans, m, n, k, alpha, lda, ldb,
+                      beta, ldc) != 0 || !oracle_jitter) {
+        if (oracle_jitter) oracle_destroy(oracle_jitter);
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+    fb_mkl_jit_sgemm_kernel_fn_t oracle_kernel =
+        (fb_mkl_jit_sgemm_kernel_fn_t)oracle_get(oracle_jitter);
+    if (!oracle_kernel) {
+        oracle_destroy(oracle_jitter);
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    if (cand_create(&cand_jitter, trans, trans, m, n, k, alpha, lda, ldb,
+                    beta, ldc) != 0 || !cand_jitter) {
+        if (cand_jitter) cand_destroy(cand_jitter);
+        oracle_destroy(oracle_jitter);
+        result_fatal(res);
+        return FB_JUDGE_OK;
+    }
+    fb_mkl_jit_sgemm_kernel_fn_t cand_kernel =
+        (fb_mkl_jit_sgemm_kernel_fn_t)cand_get(cand_jitter);
+    if (!cand_kernel) {
+        cand_destroy(cand_jitter);
+        oracle_destroy(oracle_jitter);
+        result_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *Co = (float *)clone_buf(tc->C_init, C_sz, sizeof(float));
+    if (!Co) {
+        cand_destroy(cand_jitter);
+        oracle_destroy(oracle_jitter);
+        result_fatal(res);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    oracle_kernel(oracle_jitter, A, B, Co);
+    if (fb_judge_has_nan_inf(Co, C_sz, FB_DTYPE_F32)) {
+        free(Co);
+        cand_destroy(cand_jitter);
+        oracle_destroy(oracle_jitter);
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    float *Cc = (float *)clone_buf(tc->C_init, C_sz, sizeof(float));
+    if (!Cc) {
+        free(Co);
+        cand_destroy(cand_jitter);
+        oracle_destroy(oracle_jitter);
+        result_fatal(res);
+        return FB_JUDGE_ERR_ALLOC;
+    }
+    cand_kernel(cand_jitter, A, B, Cc);
+    result_from_relerr(res,
+        fb_judge_relerr_matrix(Cc, Co, m, n, ldc, ldc, FB_DTYPE_F32,
+                               fb_matrix_norm_frob_f32(Co, m, n, ldc)));
+    if (fb_judge_has_nan_inf(Cc, C_sz, FB_DTYPE_F32)) {
+        res->is_fatal = true;
+    }
+
+    if (ns_out) {
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            void *tmp = NULL;
+            if (cand_create(&tmp, trans, trans, m, n, k, alpha, lda, ldb,
+                            beta, ldc) == 0 && tmp) {
+                cand_destroy(tmp);
+            }
+        }
+
+        uint64_t best = UINT64_MAX;
+        for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) {
+            void *tmp = NULL;
+            if (cand_create(&tmp, trans, trans, m, n, k, alpha, lda, ldb,
+                            beta, ldc) != 0 || !tmp) {
+                best = 0;
+                break;
+            }
+            uint64_t t0 = fb_judge_time_ns();
+            cand_destroy(tmp);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = (best == UINT64_MAX) ? 0 : best;
+    }
+
+    free(Cc);
+    free(Co);
+    cand_destroy(cand_jitter);
+    oracle_destroy(oracle_jitter);
+    return FB_JUDGE_OK;
+}
+
+#undef FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_REAL
+#undef FB_DEFINE_MKL_JIT_GET_GEMM_PTR_RUNNER_COMPLEX
+
+#undef FB_DEFINE_GEMM_PTR_RUNNER_REAL
+#undef FB_DEFINE_GEMM_PTR_RUNNER_COMPLEX
+
+#undef FB_DEFINE_GEMM_COMPUTE_RUNNER_REAL
+#undef FB_DEFINE_GEMM_COMPUTE_RUNNER_COMPLEX
+#undef FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_REAL
+#undef FB_DEFINE_CBLAS_GEMM_COMPUTE_RUNNER_COMPLEX
+
+typedef void (*fb_sgemm_pack_fn_t)(const char *, const char *, const int *,
+                                   const int *, const int *, const float *,
+                                   const float *, const int *, float *);
+typedef void (*fb_dgemm_pack_fn_t)(const char *, const char *, const int *,
+                                   const int *, const int *, const double *,
+                                   const double *, const int *, double *);
+typedef void (*fb_cgemm_pack_fn_t)(const char *, const char *, const int *,
+                                   const int *, const int *,
+                                   const fb_complex_float_t *,
+                                   const fb_complex_float_t *, const int *,
+                                   fb_complex_float_t *);
+typedef void (*fb_zgemm_pack_fn_t)(const char *, const char *, const int *,
+                                   const int *, const int *,
+                                   const fb_complex_double_t *,
+                                   const fb_complex_double_t *, const int *,
+                                   fb_complex_double_t *);
+
+typedef void (*fb_cblas_sgemm_pack_fn_t)(int, int, int, int, int, int, float,
+                                         const float *, int, float *);
+typedef void (*fb_cblas_dgemm_pack_fn_t)(int, int, int, int, int, int, double,
+                                         const double *, int, double *);
+typedef void (*fb_cblas_cgemm_pack_fn_t)(int, int, int, int, int, int,
+                                         fb_complex_float_t,
+                                         const fb_complex_float_t *, int,
+                                         fb_complex_float_t *);
+typedef void (*fb_cblas_zgemm_pack_fn_t)(int, int, int, int, int, int,
+                                         fb_complex_double_t,
+                                         const fb_complex_double_t *, int,
+                                         fb_complex_double_t *);
+
+#define FB_DEFINE_GEMM_PACK_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    char identifier = 'A'; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k, pld = (int)tc->lda; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    const scalar_type *src = (const scalar_type *)tc->A; \
+    size_t dest_count = (size_t)m * (size_t)k; \
+    scalar_type *Do = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Do) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Do); \
+    if (fb_judge_has_nan_inf(Do, dest_count, dtype_enum)) { free(Do); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Dc = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Dc) { free(Do); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dc); \
+    result_from_relerr(res, fb_judge_relerr(Dc, Do, dest_count, dtype_enum, norm_fn(Do, dest_count))); \
+    if (fb_judge_has_nan_inf(Dc, dest_count, dtype_enum)) res->is_fatal = true; \
+    free(Dc); \
+    if (ns_out) { \
+        scalar_type *Dt = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+        if (Dt) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dt); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dt); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Dt); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Do); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM_PACK_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    char identifier = 'A'; \
+    char trans = 'N'; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k, pld = (int)tc->lda; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    const scalar_type *src = (const scalar_type *)tc->A; \
+    size_t dest_count = (size_t)m * (size_t)k; \
+    scalar_type *Do = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Do) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Do); \
+    if (fb_judge_has_nan_inf(Do, dest_count, dtype_enum)) { free(Do); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Dc = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Dc) { free(Do); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dc); \
+    result_from_relerr(res, fb_judge_relerr(Dc, Do, dest_count, dtype_enum, norm_fn((const real_type *)Do, dest_count))); \
+    if (fb_judge_has_nan_inf(Dc, dest_count, dtype_enum)) res->is_fatal = true; \
+    free(Dc); \
+    if (ns_out) { \
+        scalar_type *Dt = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+        if (Dt) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dt); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(&identifier, &trans, &m, &n, &k, &alpha, src, &pld, Dt); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Dt); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Do); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int order = FB_LAYOUT_ROW_MAJOR; \
+    int identifier = 'A'; \
+    int trans = FB_NO_TRANS; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k, pld = (int)tc->lda; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    const scalar_type *src = (const scalar_type *)tc->A; \
+    size_t dest_count = (size_t)m * (size_t)k; \
+    scalar_type *Do = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Do) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(order, identifier, trans, m, n, k, alpha, src, pld, Do); \
+    if (fb_judge_has_nan_inf(Do, dest_count, dtype_enum)) { free(Do); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Dc = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Dc) { free(Do); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dc); \
+    result_from_relerr(res, fb_judge_relerr(Dc, Do, dest_count, dtype_enum, norm_fn(Do, dest_count))); \
+    if (fb_judge_has_nan_inf(Dc, dest_count, dtype_enum)) res->is_fatal = true; \
+    free(Dc); \
+    if (ns_out) { \
+        scalar_type *Dt = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+        if (Dt) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dt); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dt); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Dt); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Do); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int order = FB_LAYOUT_ROW_MAJOR; \
+    int identifier = 'A'; \
+    int trans = FB_NO_TRANS; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k, pld = (int)tc->lda; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    const scalar_type *src = (const scalar_type *)tc->A; \
+    size_t dest_count = (size_t)m * (size_t)k; \
+    scalar_type *Do = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Do) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(order, identifier, trans, m, n, k, alpha, src, pld, Do); \
+    if (fb_judge_has_nan_inf(Do, dest_count, dtype_enum)) { free(Do); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Dc = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+    if (!Dc) { free(Do); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dc); \
+    result_from_relerr(res, fb_judge_relerr(Dc, Do, dest_count, dtype_enum, norm_fn((const real_type *)Do, dest_count))); \
+    if (fb_judge_has_nan_inf(Dc, dest_count, dtype_enum)) res->is_fatal = true; \
+    free(Dc); \
+    if (ns_out) { \
+        scalar_type *Dt = (scalar_type *)clone_buf(tc->C_init, dest_count, sizeof(scalar_type)); \
+        if (Dt) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dt); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(order, identifier, trans, m, n, k, alpha, src, pld, Dt); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Dt); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Do); return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMM_PACK_RUNNER_REAL(run_sgemm_pack, sgemm_pack, fb_sgemm_pack_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_GEMM_PACK_RUNNER_REAL(run_dgemm_pack, dgemm_pack, fb_dgemm_pack_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_GEMM_PACK_RUNNER_COMPLEX(run_cgemm_pack, cgemm_pack, fb_cgemm_pack_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMM_PACK_RUNNER_COMPLEX(run_zgemm_pack, zgemm_pack, fb_zgemm_pack_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_REAL(run_cblas_sgemm_pack, cblas_sgemm_pack, fb_cblas_sgemm_pack_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_REAL(run_cblas_dgemm_pack, cblas_dgemm_pack, fb_cblas_dgemm_pack_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_COMPLEX(run_cblas_cgemm_pack, cblas_cgemm_pack, fb_cblas_cgemm_pack_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_COMPLEX(run_cblas_zgemm_pack, cblas_zgemm_pack, fb_cblas_zgemm_pack_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+#undef FB_DEFINE_GEMM_PACK_RUNNER_REAL
+#undef FB_DEFINE_GEMM_PACK_RUNNER_COMPLEX
+#undef FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_REAL
+#undef FB_DEFINE_CBLAS_GEMM_PACK_RUNNER_COMPLEX
+
 /* ---- SGEMM -------------------------------------------------------------- */
 static fb_judge_status_t run_sgemm(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
@@ -1131,13 +2157,13 @@ static fb_judge_status_t run_caxpy(
 
     fb_complex_float_t *y_oracle = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!y_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    oracle->caxpy(n, alpha, x, 1, y_oracle, 1);
+    oracle->caxpy(n, &alpha, x, 1, y_oracle, 1);
     if (fb_judge_has_nan_inf(y_oracle, (size_t)n, FB_DTYPE_CF32)) {
         free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK;
     }
     fb_complex_float_t *y_cand = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
     if (!y_cand) { free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    cand->caxpy(n, alpha, x, 1, y_cand, 1);
+    cand->caxpy(n, &alpha, x, 1, y_cand, 1);
     double scale = fb_norm_frob_cf32((const float *)y_oracle, (size_t)n);
     double relerr = fb_judge_relerr(y_cand, y_oracle, (size_t)n, FB_DTYPE_CF32, scale);
     result_from_relerr(res, relerr);
@@ -1146,12 +2172,16 @@ static fb_judge_status_t run_caxpy(
     if (ns_out) {
         fb_complex_float_t *y_time = (fb_complex_float_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_float_t));
         if (y_time) {
-            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand->caxpy(n, alpha, x, 1, y_time, 1);
-            uint64_t best = UINT64_MAX;
-            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
-                uint64_t t0 = fb_judge_time_ns(); cand->caxpy(n, alpha, x, 1, y_time, 1);
-                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt;
-            }
+          for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+            cand->caxpy(n, &alpha, x, 1, y_time, 1);
+          uint64_t best = UINT64_MAX;
+          for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            uint64_t t0 = fb_judge_time_ns();
+            cand->caxpy(n, &alpha, x, 1, y_time, 1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+              best = dt;
+          }
             free(y_time); *ns_out = best;
         } else { *ns_out = 0; }
     }
@@ -1172,13 +2202,13 @@ static fb_judge_status_t run_zaxpy(
 
     fb_complex_double_t *y_oracle = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!y_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    oracle->zaxpy(n, alpha, x, 1, y_oracle, 1);
+    oracle->zaxpy(n, &alpha, x, 1, y_oracle, 1);
     if (fb_judge_has_nan_inf(y_oracle, (size_t)n, FB_DTYPE_CF64)) {
         free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK;
     }
     fb_complex_double_t *y_cand = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
     if (!y_cand) { free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    cand->zaxpy(n, alpha, x, 1, y_cand, 1);
+    cand->zaxpy(n, &alpha, x, 1, y_cand, 1);
     double scale = fb_norm_frob_cf64((const double *)y_oracle, (size_t)n);
     double relerr = fb_judge_relerr(y_cand, y_oracle, (size_t)n, FB_DTYPE_CF64, scale);
     result_from_relerr(res, relerr);
@@ -1187,12 +2217,16 @@ static fb_judge_status_t run_zaxpy(
     if (ns_out) {
         fb_complex_double_t *y_time = (fb_complex_double_t *)clone_buf(tc->B, (size_t)n, sizeof(fb_complex_double_t));
         if (y_time) {
-            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand->zaxpy(n, alpha, x, 1, y_time, 1);
-            uint64_t best = UINT64_MAX;
-            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
-                uint64_t t0 = fb_judge_time_ns(); cand->zaxpy(n, alpha, x, 1, y_time, 1);
-                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt;
-            }
+          for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+            cand->zaxpy(n, &alpha, x, 1, y_time, 1);
+          uint64_t best = UINT64_MAX;
+          for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            uint64_t t0 = fb_judge_time_ns();
+            cand->zaxpy(n, &alpha, x, 1, y_time, 1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+              best = dt;
+          }
             free(y_time); *ns_out = best;
         } else { *ns_out = 0; }
     }
@@ -1212,13 +2246,13 @@ static fb_judge_status_t run_cscal(
 
     fb_complex_float_t *x_oracle = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
     if (!x_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    oracle->cscal(n, alpha, x_oracle, 1);
+    oracle->cscal(n, &alpha, x_oracle, 1);
     if (fb_judge_has_nan_inf(x_oracle, (size_t)n, FB_DTYPE_CF32)) {
         free(x_oracle); result_oracle_fatal(res); return FB_JUDGE_OK;
     }
     fb_complex_float_t *x_cand = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
     if (!x_cand) { free(x_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    cand->cscal(n, alpha, x_cand, 1);
+    cand->cscal(n, &alpha, x_cand, 1);
     double scale = fb_norm_frob_cf32((const float *)x_oracle, (size_t)n);
     double relerr = fb_judge_relerr(x_cand, x_oracle, (size_t)n, FB_DTYPE_CF32, scale);
     result_from_relerr(res, relerr);
@@ -1227,12 +2261,16 @@ static fb_judge_status_t run_cscal(
     if (ns_out) {
         fb_complex_float_t *x_time = (fb_complex_float_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_float_t));
         if (x_time) {
-            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand->cscal(n, alpha, x_time, 1);
-            uint64_t best = UINT64_MAX;
-            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
-                uint64_t t0 = fb_judge_time_ns(); cand->cscal(n, alpha, x_time, 1);
-                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt;
-            }
+          for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+            cand->cscal(n, &alpha, x_time, 1);
+          uint64_t best = UINT64_MAX;
+          for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            uint64_t t0 = fb_judge_time_ns();
+            cand->cscal(n, &alpha, x_time, 1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+              best = dt;
+          }
             free(x_time); *ns_out = best;
         } else { *ns_out = 0; }
     }
@@ -1252,13 +2290,13 @@ static fb_judge_status_t run_zscal(
 
     fb_complex_double_t *x_oracle = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
     if (!x_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    oracle->zscal(n, alpha, x_oracle, 1);
+    oracle->zscal(n, &alpha, x_oracle, 1);
     if (fb_judge_has_nan_inf(x_oracle, (size_t)n, FB_DTYPE_CF64)) {
         free(x_oracle); result_oracle_fatal(res); return FB_JUDGE_OK;
     }
     fb_complex_double_t *x_cand = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
     if (!x_cand) { free(x_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; }
-    cand->zscal(n, alpha, x_cand, 1);
+    cand->zscal(n, &alpha, x_cand, 1);
     double scale = fb_norm_frob_cf64((const double *)x_oracle, (size_t)n);
     double relerr = fb_judge_relerr(x_cand, x_oracle, (size_t)n, FB_DTYPE_CF64, scale);
     result_from_relerr(res, relerr);
@@ -1267,12 +2305,16 @@ static fb_judge_status_t run_zscal(
     if (ns_out) {
         fb_complex_double_t *x_time = (fb_complex_double_t *)clone_buf(tc->A, (size_t)n, sizeof(fb_complex_double_t));
         if (x_time) {
-            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand->zscal(n, alpha, x_time, 1);
-            uint64_t best = UINT64_MAX;
-            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
-                uint64_t t0 = fb_judge_time_ns(); cand->zscal(n, alpha, x_time, 1);
-                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt;
-            }
+          for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++)
+            cand->zscal(n, &alpha, x_time, 1);
+          uint64_t best = UINT64_MAX;
+          for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            uint64_t t0 = fb_judge_time_ns();
+            cand->zscal(n, &alpha, x_time, 1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best)
+              best = dt;
+          }
             free(x_time); *ns_out = best;
         } else { *ns_out = 0; }
     }
@@ -1435,6 +2477,562 @@ static fb_judge_status_t run_zcopy(
     free(y_oracle);
     return FB_JUDGE_OK;
 }
+
+/* =========================================================================
+ * Extended BLAS L1 — AXPBY and batched AXPY
+ * ========================================================================= */
+
+#define FB_DEFINE_AXPBY_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, scalar_type, scalar_type *, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    const scalar_type *x = (const scalar_type *)tc->A; \
+    scalar_type *y_oracle = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+    if (!y_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(n, alpha, x, 1, beta, y_oracle, 1); \
+    if (fb_judge_has_nan_inf(y_oracle, (size_t)n, dtype_enum)) { \
+        free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+    if (!y_cand) { free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(n, alpha, x, 1, beta, y_cand, 1); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, (size_t)n, dtype_enum, norm_fn(y_oracle, (size_t)n))); \
+    if (fb_judge_has_nan_inf(y_cand, (size_t)n, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x, 1, beta, y_time, 1); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x, 1, beta, y_time, 1); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_AXPBY_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, scalar_type, scalar_type *, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    const scalar_type *x = (const scalar_type *)tc->A; \
+    scalar_type *y_oracle = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+    if (!y_oracle) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn(n, alpha, x, 1, beta, y_oracle, 1); \
+    if (fb_judge_has_nan_inf(y_oracle, (size_t)n, dtype_enum)) { \
+        free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+    if (!y_cand) { free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn(n, alpha, x, 1, beta, y_cand, 1); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, (size_t)n, dtype_enum, norm_fn((const real_type *)y_oracle, (size_t)n))); \
+    if (fb_judge_has_nan_inf(y_cand, (size_t)n, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)clone_buf(tc->B, (size_t)n, sizeof(scalar_type)); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x, 1, beta, y_time, 1); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x, 1, beta, y_time, 1); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_AXPY_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, alpha, x_batch, 1, y_oracle, 1, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, alpha, x_batch, 1, y_cand, 1, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_AXPY_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, alpha, x_batch, 1, y_oracle, 1, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, alpha, x_batch, 1, y_cand, 1, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, alpha, x_batch, 1, (long long)x_stride, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, scalar_type, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    scalar_type alpha; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, alpha, x_batch, 1, (long long)x_stride, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, alpha, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_COPY_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, x_batch, 1, y_oracle, 1, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, x_batch, 1, y_cand, 1, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_COPY_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, x_batch, 1, y_oracle, 1, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, x_batch, 1, y_cand, 1, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, x_batch, 1, y_time, 1, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, x_batch, 1, (long long)x_stride, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, x_batch, 1, (long long)x_stride, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(int, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->m; \
+    size_t x_stride = tc->A_elems; \
+    size_t y_stride = tc->B_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->A, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!x_batch || !y_oracle) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(n, x_batch, 1, (long long)x_stride, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(x_batch); free(y_oracle); result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(x_batch); free(y_oracle); result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(n, x_batch, 1, (long long)x_stride, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->B, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) cand_fn(n, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(n, x_batch, 1, (long long)x_stride, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(y_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_AXPBY_RUNNER_REAL(run_saxpby, saxpby, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_AXPBY_RUNNER_REAL(run_daxpby, daxpby, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_AXPBY_RUNNER_COMPLEX(run_caxpby, caxpby, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_AXPBY_RUNNER_COMPLEX(run_zaxpby, zaxpby, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_AXPY_BATCH_RUNNER_REAL(run_saxpy_batch, saxpy_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_AXPY_BATCH_RUNNER_REAL(run_daxpy_batch, daxpy_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_AXPY_BATCH_RUNNER_COMPLEX(run_caxpy_batch, caxpy_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_AXPY_BATCH_RUNNER_COMPLEX(run_zaxpy_batch, zaxpy_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_REAL(run_saxpy_batch_strided, saxpy_batch_strided, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_REAL(run_daxpy_batch_strided, daxpy_batch_strided, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_COMPLEX(run_caxpy_batch_strided, caxpy_batch_strided, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_COMPLEX(run_zaxpy_batch_strided, zaxpy_batch_strided, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_COPY_BATCH_RUNNER_REAL(run_scopy_batch, scopy_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_COPY_BATCH_RUNNER_REAL(run_dcopy_batch, dcopy_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_COPY_BATCH_RUNNER_COMPLEX(run_ccopy_batch, ccopy_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_COPY_BATCH_RUNNER_COMPLEX(run_zcopy_batch, zcopy_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_REAL(run_scopy_batch_strided, scopy_batch_strided, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_REAL(run_dcopy_batch_strided, dcopy_batch_strided, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_COMPLEX(run_ccopy_batch_strided, ccopy_batch_strided, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_COMPLEX(run_zcopy_batch_strided, zcopy_batch_strided, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+#undef FB_DEFINE_AXPBY_RUNNER_REAL
+#undef FB_DEFINE_AXPBY_RUNNER_COMPLEX
+#undef FB_DEFINE_AXPY_BATCH_RUNNER_REAL
+#undef FB_DEFINE_AXPY_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_AXPY_BATCH_STRIDED_RUNNER_COMPLEX
+#undef FB_DEFINE_COPY_BATCH_RUNNER_REAL
+#undef FB_DEFINE_COPY_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_COPY_BATCH_STRIDED_RUNNER_COMPLEX
 
 /* ---- CSWAP: swap x,y (complex single) --------------------------------- */
 static fb_judge_status_t run_cswap(
@@ -2467,6 +4065,1351 @@ static fb_judge_status_t run_zgemv(
     return FB_JUDGE_OK;
 }
 
+#define FB_DEFINE_GEMV_BATCH_RUNNER_REAL(fn_name, field, single_field, scalar_type, single_fn_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*batch_fn_t)(char, int, int, scalar_type, \
+                               const scalar_type **, int, const scalar_type **, int, \
+                               scalar_type, scalar_type **, int, int); \
+    bool oracle_has_batch = (oracle->field != NULL); \
+    bool cand_has_batch = (cand->field != NULL); \
+    bool oracle_has_single = (oracle->single_field != NULL); \
+    bool cand_has_single = (cand->single_field != NULL); \
+    if ((!oracle_has_batch && !oracle_has_single) || (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL; \
+    batch_fn_t oracle_batch_fn = (batch_fn_t)oracle->field; \
+    batch_fn_t cand_batch_fn = (batch_fn_t)cand->field; \
+    single_fn_type oracle_single_fn = (single_fn_type)oracle->single_field; \
+    single_fn_type cand_single_fn = (single_fn_type)cand->single_field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, y_stride = tc->C_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **x_array = (const scalar_type **)make_const_batch_ptrs(x_batch, x_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **y_oracle_array = (scalar_type **)make_batch_ptrs(y_oracle, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !y_oracle || !A_array || !x_array || !y_oracle_array) { \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (oracle_has_batch) { \
+        oracle_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_oracle_array, 1, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            oracle_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_oracle_array[b], 1); \
+        } \
+    } \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **y_cand_array = (scalar_type **)make_batch_ptrs(y_cand, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand || !y_cand_array) { \
+        free(y_cand_array); free(y_cand); \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (cand_has_batch) { \
+        cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_cand_array, 1, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_cand_array[b], 1); \
+        } \
+    } \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand_array); \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **y_time_array = (scalar_type **)make_batch_ptrs(y_time, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time && y_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_time_array, 1, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_time_array[b], 1); \
+                    } \
+                } \
+            } \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_time_array, 1, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_time_array[b], 1); \
+                    } \
+                } \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(y_time_array); \
+        free(y_time); \
+    } \
+    free((void *)A_array); \
+    free((void *)x_array); \
+    free(y_oracle_array); \
+    free(A_batch); \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMV_BATCH_RUNNER_COMPLEX(fn_name, field, single_field, scalar_type, single_fn_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*batch_fn_t)(char, int, int, scalar_type, \
+                               const scalar_type **, int, const scalar_type **, int, \
+                               scalar_type, scalar_type **, int, int); \
+    bool oracle_has_batch = (oracle->field != NULL); \
+    bool cand_has_batch = (cand->field != NULL); \
+    bool oracle_has_single = (oracle->single_field != NULL); \
+    bool cand_has_single = (cand->single_field != NULL); \
+    if ((!oracle_has_batch && !oracle_has_single) || (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL; \
+    batch_fn_t oracle_batch_fn = (batch_fn_t)oracle->field; \
+    batch_fn_t cand_batch_fn = (batch_fn_t)cand->field; \
+    single_fn_type oracle_single_fn = (single_fn_type)oracle->single_field; \
+    single_fn_type cand_single_fn = (single_fn_type)cand->single_field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, y_stride = tc->C_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **x_array = (const scalar_type **)make_const_batch_ptrs(x_batch, x_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **y_oracle_array = (scalar_type **)make_batch_ptrs(y_oracle, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !y_oracle || !A_array || !x_array || !y_oracle_array) { \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (oracle_has_batch) { \
+        oracle_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_oracle_array, 1, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            oracle_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_oracle_array[b], 1); \
+        } \
+    } \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **y_cand_array = (scalar_type **)make_batch_ptrs(y_cand, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand || !y_cand_array) { \
+        free(y_cand_array); free(y_cand); \
+        free((void *)A_array); free((void *)x_array); free(y_oracle_array); \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (cand_has_batch) { \
+        cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_cand_array, 1, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_cand_array[b], 1); \
+        } \
+    } \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand_array); \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **y_time_array = (scalar_type **)make_batch_ptrs(y_time, y_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time && y_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_time_array, 1, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_time_array[b], 1); \
+                    } \
+                } \
+            } \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_array, lda, x_array, 1, beta, y_time_array, 1, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_array[b], lda, x_array[b], 1, beta, y_time_array[b], 1); \
+                    } \
+                } \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(y_time_array); \
+        free(y_time); \
+    } \
+    free((void *)A_array); \
+    free((void *)x_array); \
+    free(y_oracle_array); \
+    free(A_batch); \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_REAL(fn_name, field, single_field, scalar_type, single_fn_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*batch_fn_t)(char, int, int, scalar_type, const scalar_type *, int, long long, \
+                               const scalar_type *, int, long long, scalar_type, scalar_type *, int, long long, int); \
+    bool oracle_has_batch = (oracle->field != NULL); \
+    bool cand_has_batch = (cand->field != NULL); \
+    bool oracle_has_single = (oracle->single_field != NULL); \
+    bool cand_has_single = (cand->single_field != NULL); \
+    if ((!oracle_has_batch && !oracle_has_single) || (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL; \
+    batch_fn_t oracle_batch_fn = (batch_fn_t)oracle->field; \
+    batch_fn_t cand_batch_fn = (batch_fn_t)cand->field; \
+    single_fn_type oracle_single_fn = (single_fn_type)oracle->single_field; \
+    single_fn_type cand_single_fn = (single_fn_type)cand->single_field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, y_stride = tc->C_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !y_oracle) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (oracle_has_batch) { \
+        oracle_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            oracle_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_oracle + ((size_t)b * y_stride), 1); \
+        } \
+    } \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (cand_has_batch) { \
+        cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_cand + ((size_t)b * y_stride), 1); \
+        } \
+    } \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn(y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_time + ((size_t)b * y_stride), 1); \
+                    } \
+                } \
+            } \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_time + ((size_t)b * y_stride), 1); \
+                    } \
+                } \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(y_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_COMPLEX(fn_name, field, single_field, scalar_type, single_fn_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*batch_fn_t)(char, int, int, scalar_type, const scalar_type *, int, long long, \
+                               const scalar_type *, int, long long, scalar_type, scalar_type *, int, long long, int); \
+    bool oracle_has_batch = (oracle->field != NULL); \
+    bool cand_has_batch = (cand->field != NULL); \
+    bool oracle_has_single = (oracle->single_field != NULL); \
+    bool cand_has_single = (cand->single_field != NULL); \
+    if ((!oracle_has_batch && !oracle_has_single) || (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL; \
+    batch_fn_t oracle_batch_fn = (batch_fn_t)oracle->field; \
+    batch_fn_t cand_batch_fn = (batch_fn_t)cand->field; \
+    single_fn_type oracle_single_fn = (single_fn_type)oracle->single_field; \
+    single_fn_type cand_single_fn = (single_fn_type)cand->single_field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, y_stride = tc->C_elems; \
+    size_t total_y = y_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *y_oracle = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !y_oracle) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (oracle_has_batch) { \
+        oracle_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_oracle, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            oracle_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_oracle + ((size_t)b * y_stride), 1); \
+        } \
+    } \
+    if (fb_judge_has_nan_inf(y_oracle, total_y, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *y_cand = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!y_cand) { \
+        free(A_batch); free(x_batch); free(y_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    if (cand_has_batch) { \
+        cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_cand, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+    } else { \
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+            cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_cand + ((size_t)b * y_stride), 1); \
+        } \
+    } \
+    result_from_relerr(res, fb_judge_relerr(y_cand, y_oracle, total_y, dtype_enum, norm_fn((const real_type *)y_oracle, total_y))); \
+    if (fb_judge_has_nan_inf(y_cand, total_y, dtype_enum)) res->is_fatal = true; \
+    free(y_cand); \
+    if (ns_out) { \
+        scalar_type *y_time = (scalar_type *)repeat_buf(tc->C_init, y_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (y_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_time + ((size_t)b * y_stride), 1); \
+                    } \
+                } \
+            } \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                if (cand_has_batch) { \
+                    cand_batch_fn('N', m, n, alpha, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, beta, y_time, 1, (long long)y_stride, FB_JUDGE_BATCH_COUNT); \
+                } else { \
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) { \
+                        cand_single_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, m, n, alpha, A_batch + ((size_t)b * a_stride), lda, x_batch + ((size_t)b * x_stride), 1, beta, y_time + ((size_t)b * y_stride), 1); \
+                    } \
+                } \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(y_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(y_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMV_BATCH_RUNNER_REAL(run_sgemv_batch, sgemv_batch, sgemv, float, fb_sgemv_fn, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_GEMV_BATCH_RUNNER_REAL(run_dgemv_batch, dgemv_batch, dgemv, double, fb_dgemv_fn, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_GEMV_BATCH_RUNNER_COMPLEX(run_cgemv_batch, cgemv_batch, cgemv, fb_complex_float_t, fb_cgemv_fn, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMV_BATCH_RUNNER_COMPLEX(run_zgemv_batch, zgemv_batch, zgemv, fb_complex_double_t, fb_zgemv_fn, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_REAL(run_sgemv_batch_strided, sgemv_batch_strided, sgemv, float, fb_sgemv_fn, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_REAL(run_dgemv_batch_strided, dgemv_batch_strided, dgemv, double, fb_dgemv_fn, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_COMPLEX(run_cgemv_batch_strided, cgemv_batch_strided, cgemv, fb_complex_float_t, fb_cgemv_fn, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_COMPLEX(run_zgemv_batch_strided, zgemv_batch_strided, zgemv, fb_complex_double_t, fb_zgemv_fn, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+#undef FB_DEFINE_GEMV_BATCH_RUNNER_REAL
+#undef FB_DEFINE_GEMV_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_GEMV_BATCH_STRIDED_RUNNER_COMPLEX
+
+#define FB_DEFINE_DGMM_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, int, int, const scalar_type *, int, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    char side = 'R'; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldc; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, b_stride = tc->C_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *b_oracle = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !b_oracle) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(side, m, n, A_batch, lda, x_batch, 1, b_oracle, ldb, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(b_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *b_cand = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!b_cand) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_cand, ldb, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(b_cand, b_oracle, total_b, dtype_enum, norm_fn(b_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(b_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(b_cand); \
+    if (ns_out) { \
+        scalar_type *b_time = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (b_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_time, ldb, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_time, ldb, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(b_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(b_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_DGMM_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, int, int, const scalar_type *, int, const scalar_type *, int, scalar_type *, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    char side = 'R'; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldc; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, b_stride = tc->C_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *b_oracle = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !b_oracle) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(side, m, n, A_batch, lda, x_batch, 1, b_oracle, ldb, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(b_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *b_cand = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!b_cand) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_cand, ldb, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(b_cand, b_oracle, total_b, dtype_enum, norm_fn((const real_type *)b_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(b_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(b_cand); \
+    if (ns_out) { \
+        scalar_type *b_time = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (b_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_time, ldb, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(side, m, n, A_batch, lda, x_batch, 1, b_time, ldb, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(b_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(b_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, int, int, const scalar_type *, int, long long, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    char side = 'R'; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldc; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, b_stride = tc->C_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *b_oracle = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !b_oracle) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_oracle, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(b_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *b_cand = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!b_cand) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_cand, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(b_cand, b_oracle, total_b, dtype_enum, norm_fn(b_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(b_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(b_cand); \
+    if (ns_out) { \
+        scalar_type *b_time = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (b_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(b_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(b_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, int, int, const scalar_type *, int, long long, const scalar_type *, int, long long, scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    char side = 'R'; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldc; \
+    size_t a_stride = tc->A_elems, x_stride = tc->B_elems, b_stride = tc->C_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *x_batch = (scalar_type *)repeat_buf(tc->B, x_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *b_oracle = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !x_batch || !b_oracle) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_oracle, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(b_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *b_cand = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!b_cand) { \
+        free(A_batch); free(x_batch); free(b_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_cand, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(b_cand, b_oracle, total_b, dtype_enum, norm_fn((const real_type *)b_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(b_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(b_cand); \
+    if (ns_out) { \
+        scalar_type *b_time = (scalar_type *)repeat_buf(tc->C_init, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (b_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(side, m, n, A_batch, lda, (long long)a_stride, x_batch, 1, (long long)x_stride, b_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(b_time); \
+    } \
+    free(A_batch); \
+    free(x_batch); \
+    free(b_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_DGMM_BATCH_RUNNER_REAL(run_sdgmm_batch, sdgmm_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_DGMM_BATCH_RUNNER_REAL(run_ddgmm_batch, ddgmm_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_DGMM_BATCH_RUNNER_COMPLEX(run_cdgmm_batch, cdgmm_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_DGMM_BATCH_RUNNER_COMPLEX(run_zdgmm_batch, zdgmm_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_REAL(run_sdgmm_batch_strided, sdgmm_batch_strided, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_REAL(run_ddgmm_batch_strided, ddgmm_batch_strided, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_COMPLEX(run_cdgmm_batch_strided, cdgmm_batch_strided, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float)
+FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_COMPLEX(run_zdgmm_batch_strided, zdgmm_batch_strided, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double)
+
+#undef FB_DEFINE_DGMM_BATCH_RUNNER_REAL
+#undef FB_DEFINE_DGMM_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_DGMM_BATCH_STRIDED_RUNNER_COMPLEX
+
+#define FB_DEFINE_SYMM_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         const scalar_type **, int, scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **B_array = (const scalar_type **)make_const_batch_ptrs(B_batch, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle || !A_array || !B_array || !C_oracle_array) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_SYRK_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !C_oracle || !A_array || !C_oracle_array) { \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_SYR2K_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         const scalar_type **, int, scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **B_array = (const scalar_type **)make_const_batch_ptrs(B_batch, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle || !A_array || !B_array || !C_oracle_array) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_TRSM_BATCH_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, char, char, int, int, scalar_type, const scalar_type **, int, \
+                         scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_oracle = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **B_oracle_array = (scalar_type **)make_batch_ptrs(B_oracle, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_oracle || !A_array || !B_oracle_array) { \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_oracle_array, ldb, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(B_oracle, total_b, dtype_enum)) { \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *B_cand = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **B_cand_array = (scalar_type **)make_batch_ptrs(B_cand, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!B_cand || !B_cand_array) { \
+        free(B_cand_array); free(B_cand); \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_cand_array, ldb, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(B_cand, B_oracle, total_b, dtype_enum, norm_fn(B_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(B_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(B_cand_array); \
+    free(B_cand); \
+    if (ns_out) { \
+        scalar_type *B_time = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **B_time_array = (scalar_type **)make_batch_ptrs(B_time, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (B_time && B_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_time_array, ldb, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_time_array, ldb, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(B_time_array); \
+        free(B_time); \
+    } \
+    free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_REAL(fn_name, field, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, char, char, int, int, scalar_type, const scalar_type *, int, long long, \
+                         scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_oracle = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_oracle) { \
+        free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_oracle, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(B_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(B_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *B_cand = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!B_cand) { \
+        free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_cand, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(B_cand, B_oracle, total_b, dtype_enum, norm_fn(B_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(B_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(B_cand); \
+    if (ns_out) { \
+        scalar_type *B_time = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (B_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(B_time); \
+    } \
+    free(A_batch); free(B_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_SYMM_BATCH_RUNNER_REAL(run_ssymm_batch, ssymm_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_SYMM_BATCH_RUNNER_REAL(run_dsymm_batch, dsymm_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_SYRK_BATCH_RUNNER_REAL(run_ssyrk_batch, ssyrk_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_SYRK_BATCH_RUNNER_REAL(run_dsyrk_batch, dsyrk_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_SYR2K_BATCH_RUNNER_REAL(run_ssyr2k_batch, ssyr2k_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_SYR2K_BATCH_RUNNER_REAL(run_dsyr2k_batch, dsyr2k_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_TRSM_BATCH_RUNNER_REAL(run_strsm_batch, strsm_batch, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_TRSM_BATCH_RUNNER_REAL(run_dtrsm_batch, dtrsm_batch, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_REAL(run_strsm_batch_strided, strsm_batch_strided, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_REAL(run_dtrsm_batch_strided, dtrsm_batch_strided, double, FB_DTYPE_F64, fb_norm_frob_f64)
+
+#undef FB_DEFINE_SYMM_BATCH_RUNNER_REAL
+#undef FB_DEFINE_SYRK_BATCH_RUNNER_REAL
+#undef FB_DEFINE_SYR2K_BATCH_RUNNER_REAL
+#undef FB_DEFINE_TRSM_BATCH_RUNNER_REAL
+#undef FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_REAL
+
+#define FB_DEFINE_SYMM_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         const scalar_type **, int, scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **B_array = (const scalar_type **)make_const_batch_ptrs(B_batch, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle || !A_array || !B_array || !C_oracle_array) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', m, n, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_SYRK_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda, ldc = (int)tc->ldc; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    size_t a_stride = tc->A_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !C_oracle || !A_array || !C_oracle_array) { \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free(C_oracle_array); free(A_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_SYR2K_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, int, int, scalar_type, const scalar_type **, int, \
+                         const scalar_type **, int, scalar_type, scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k, lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; \
+    scalar_type beta; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    __real__(beta) = (real_type)tc->beta; __imag__(beta) = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **B_array = (const scalar_type **)make_const_batch_ptrs(B_batch, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_oracle_array = (scalar_type **)make_batch_ptrs(C_oracle, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle || !A_array || !B_array || !C_oracle_array) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_oracle_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **C_cand_array = (scalar_type **)make_batch_ptrs(C_cand, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand || !C_cand_array) { \
+        free(C_cand_array); free(C_cand); \
+        free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_cand_array, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand_array); \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **C_time_array = (scalar_type **)make_batch_ptrs(C_time, c_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time && C_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', n, k, alpha, A_array, lda, B_array, ldb, beta, C_time_array, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(C_time_array); \
+        free(C_time); \
+    } \
+    free((void *)A_array); free((void *)B_array); free(C_oracle_array); \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_TRSM_BATCH_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, char, char, int, int, scalar_type, const scalar_type **, int, \
+                         scalar_type **, int, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb; \
+    scalar_type alpha; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_oracle = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    const scalar_type **A_array = (const scalar_type **)make_const_batch_ptrs(A_batch, a_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **B_oracle_array = (scalar_type **)make_batch_ptrs(B_oracle, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_oracle || !A_array || !B_oracle_array) { \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_oracle_array, ldb, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(B_oracle, total_b, dtype_enum)) { \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *B_cand = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type **B_cand_array = (scalar_type **)make_batch_ptrs(B_cand, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!B_cand || !B_cand_array) { \
+        free(B_cand_array); free(B_cand); \
+        free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_cand_array, ldb, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(B_cand, B_oracle, total_b, dtype_enum, norm_fn((const real_type *)B_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(B_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(B_cand_array); \
+    free(B_cand); \
+    if (ns_out) { \
+        scalar_type *B_time = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        scalar_type **B_time_array = (scalar_type **)make_batch_ptrs(B_time, b_stride * sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (B_time && B_time_array) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_time_array, ldb, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_array, lda, B_time_array, ldb, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(B_time_array); \
+        free(B_time); \
+    } \
+    free((void *)A_array); free(B_oracle_array); free(A_batch); free(B_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_COMPLEX(fn_name, field, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    typedef void (*fn_t)(char, char, char, char, int, int, scalar_type, const scalar_type *, int, long long, \
+                         scalar_type *, int, long long, int); \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_t oracle_fn = (fn_t)oracle->field; \
+    fn_t cand_fn = (fn_t)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, lda = (int)tc->lda, ldb = (int)tc->ldb; \
+    scalar_type alpha; \
+    __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems; \
+    size_t total_b = b_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_oracle = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_oracle) { \
+        free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_oracle, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(B_oracle, total_b, dtype_enum)) { \
+        free(A_batch); free(B_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *B_cand = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!B_cand) { \
+        free(A_batch); free(B_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_cand, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(B_cand, B_oracle, total_b, dtype_enum, norm_fn((const real_type *)B_oracle, total_b))); \
+    if (fb_judge_has_nan_inf(B_cand, total_b, dtype_enum)) res->is_fatal = true; \
+    free(B_cand); \
+    if (ns_out) { \
+        scalar_type *B_time = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (B_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('L', 'U', 'N', 'N', m, n, alpha, A_batch, lda, (long long)a_stride, B_time, ldb, (long long)b_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+        free(B_time); \
+    } \
+    free(A_batch); free(B_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_SYMM_BATCH_RUNNER_COMPLEX(run_csymm_batch, csymm_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_SYMM_BATCH_RUNNER_COMPLEX(run_zsymm_batch, zsymm_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_SYRK_BATCH_RUNNER_COMPLEX(run_csyrk_batch, csyrk_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_SYRK_BATCH_RUNNER_COMPLEX(run_zsyrk_batch, zsyrk_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_SYR2K_BATCH_RUNNER_COMPLEX(run_csyr2k_batch, csyr2k_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_SYR2K_BATCH_RUNNER_COMPLEX(run_zsyr2k_batch, zsyr2k_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_TRSM_BATCH_RUNNER_COMPLEX(run_ctrsm_batch, ctrsm_batch, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_TRSM_BATCH_RUNNER_COMPLEX(run_ztrsm_batch, ztrsm_batch, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_COMPLEX(run_ctrsm_batch_strided, ctrsm_batch_strided, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_COMPLEX(run_ztrsm_batch_strided, ztrsm_batch_strided, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+#undef FB_DEFINE_SYMM_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_SYRK_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_SYR2K_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_TRSM_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_TRSM_BATCH_STRIDED_RUNNER_COMPLEX
+
 /* =========================================================================
  * Phase 2 — L2 SYMV/HEMV (symmetric/hermitian matrix-vector multiply)
  *
@@ -3245,6 +6188,1481 @@ static fb_judge_status_t run_zgemm(
     }
     free(Co); return FB_JUDGE_OK;
 }
+
+typedef void (*fb_sgemm_batch_fn_t)(char, char, int, int, int, float,
+                                    const float *, int, const float *, int,
+                                    float, float *, int, int);
+typedef void (*fb_dgemm_batch_fn_t)(char, char, int, int, int, double,
+                                    const double *, int, const double *, int,
+                                    double, double *, int, int);
+typedef void (*fb_cgemm_batch_fn_t)(char, char, int, int, int,
+                                    fb_complex_float_t,
+                                    const fb_complex_float_t *, int,
+                                    const fb_complex_float_t *, int,
+                                    fb_complex_float_t,
+                                    fb_complex_float_t *, int, int);
+typedef void (*fb_zgemm_batch_fn_t)(char, char, int, int, int,
+                                    fb_complex_double_t,
+                                    const fb_complex_double_t *, int,
+                                    const fb_complex_double_t *, int,
+                                    fb_complex_double_t,
+                                    fb_complex_double_t *, int, int);
+
+typedef void (*fb_plain_sgemm_strided_fn_t)(char, char, int, int, int, float,
+                                            const float *, int, long long,
+                                            const float *, int, long long,
+                                            float, float *, int, long long, int);
+typedef void (*fb_plain_dgemm_strided_fn_t)(char, char, int, int, int, double,
+                                            const double *, int, long long,
+                                            const double *, int, long long,
+                                            double, double *, int, long long, int);
+typedef void (*fb_plain_cgemm_strided_fn_t)(char, char, int, int, int,
+                                            fb_complex_float_t,
+                                            const fb_complex_float_t *, int, long long,
+                                            const fb_complex_float_t *, int, long long,
+                                            fb_complex_float_t,
+                                            fb_complex_float_t *, int, long long, int);
+typedef void (*fb_plain_zgemm_strided_fn_t)(char, char, int, int, int,
+                                            fb_complex_double_t,
+                                            const fb_complex_double_t *, int, long long,
+                                            const fb_complex_double_t *, int, long long,
+                                            fb_complex_double_t,
+                                            fb_complex_double_t *, int, long long, int);
+
+typedef void (*fb_cblas_sgemm_batch_fn_t)(int, char, char, int, int, int,
+                                          float,
+                                          const float *, int,
+                                          const float *, int,
+                                          float,
+                                          float *, int, int);
+typedef void (*fb_cblas_dgemm_batch_fn_t)(int, char, char, int, int, int,
+                                          double,
+                                          const double *, int,
+                                          const double *, int,
+                                          double,
+                                          double *, int, int);
+typedef void (*fb_cblas_cgemm_batch_fn_t)(int, char, char, int, int, int,
+                                          fb_complex_float_t,
+                                          const fb_complex_float_t *, int,
+                                          const fb_complex_float_t *, int,
+                                          fb_complex_float_t,
+                                          fb_complex_float_t *, int, int);
+typedef void (*fb_cblas_zgemm_batch_fn_t)(int, char, char, int, int, int,
+                                          fb_complex_double_t,
+                                          const fb_complex_double_t *, int,
+                                          const fb_complex_double_t *, int,
+                                          fb_complex_double_t,
+                                          fb_complex_double_t *, int, int);
+
+typedef void (*fb_sgemm_strided_fn_t)(int, int, int, int, int, int, float,
+                                      const float *, int, long long,
+                                      const float *, int, long long,
+                                      float, float *, int, long long, int);
+typedef void (*fb_dgemm_strided_fn_t)(int, int, int, int, int, int, double,
+                                      const double *, int, long long,
+                                      const double *, int, long long,
+                                      double, double *, int, long long, int);
+typedef void (*fb_cgemm_strided_fn_t)(int, int, int, int, int, int,
+                                      fb_complex_float_t,
+                                      const fb_complex_float_t *, int, long long,
+                                      const fb_complex_float_t *, int, long long,
+                                      fb_complex_float_t,
+                                      fb_complex_float_t *, int, long long, int);
+typedef void (*fb_zgemm_strided_fn_t)(int, int, int, int, int, int,
+                                      fb_complex_double_t,
+                                      const fb_complex_double_t *, int, long long,
+                                      const fb_complex_double_t *, int, long long,
+                                      fb_complex_double_t,
+                                      fb_complex_double_t *, int, long long, int);
+
+typedef void (*fb_cblas_sgemm_strided_fn_t)(int, char, char, int, int, int,
+                                            float,
+                                            const float *, int, long long,
+                                            const float *, int, long long,
+                                            float,
+                                            float *, int, long long, int);
+typedef void (*fb_cblas_dgemm_strided_fn_t)(int, char, char, int, int, int,
+                                            double,
+                                            const double *, int, long long,
+                                            const double *, int, long long,
+                                            double,
+                                            double *, int, long long, int);
+typedef void (*fb_cblas_cgemm_strided_fn_t)(int, char, char, int, int, int,
+                                            fb_complex_float_t,
+                                            const fb_complex_float_t *, int, long long,
+                                            const fb_complex_float_t *, int, long long,
+                                            fb_complex_float_t,
+                                            fb_complex_float_t *, int, long long, int);
+typedef void (*fb_cblas_zgemm_strided_fn_t)(int, char, char, int, int, int,
+                                            fb_complex_double_t,
+                                            const fb_complex_double_t *, int, long long,
+                                            const fb_complex_double_t *, int, long long,
+                                            fb_complex_double_t,
+                                            fb_complex_double_t *, int, long long, int);
+
+static fb_judge_status_t run_sgemm_batch(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    bool oracle_has_batch = (oracle->sgemm_batch != NULL);
+    bool cand_has_batch = (cand->sgemm_batch != NULL);
+    bool oracle_has_single = (oracle->sgemm != NULL);
+    bool cand_has_single = (cand->sgemm != NULL);
+    if ((!oracle_has_batch && !oracle_has_single) ||
+        (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_sgemm_batch_fn_t oracle_fn = (fb_sgemm_batch_fn_t)oracle->sgemm_batch;
+    fb_sgemm_batch_fn_t cand_fn = (fb_sgemm_batch_fn_t)cand->sgemm_batch;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    float alpha = (float)tc->alpha, beta = (float)tc->beta;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    float *A_batch = (float *)repeat_buf(tc->A, a_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    float *B_batch = (float *)repeat_buf(tc->B, b_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    float *C_oracle = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (oracle_has_batch) {
+        oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                  C_oracle, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            oracle->sgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                          m, n, k, alpha,
+                          A_batch + ((size_t)b * a_stride), lda,
+                          B_batch + ((size_t)b * b_stride), ldb,
+                          beta,
+                          C_oracle + ((size_t)b * c_stride), ldc);
+        }
+    }
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_F32)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    float *C_cand = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand_has_batch) {
+        cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                C_cand, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            cand->sgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                        m, n, k, alpha,
+                        A_batch + ((size_t)b * a_stride), lda,
+                        B_batch + ((size_t)b * b_stride), ldb,
+                        beta,
+                        C_cand + ((size_t)b * c_stride), ldc);
+        }
+    }
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_F32, fb_norm_frob_f32(C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_F32)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        float *C_time = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->sgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->sgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgemm_batch(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    bool oracle_has_batch = (oracle->dgemm_batch != NULL);
+    bool cand_has_batch = (cand->dgemm_batch != NULL);
+    bool oracle_has_single = (oracle->dgemm != NULL);
+    bool cand_has_single = (cand->dgemm != NULL);
+    if ((!oracle_has_batch && !oracle_has_single) ||
+        (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_dgemm_batch_fn_t oracle_fn = (fb_dgemm_batch_fn_t)oracle->dgemm_batch;
+    fb_dgemm_batch_fn_t cand_fn = (fb_dgemm_batch_fn_t)cand->dgemm_batch;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    double alpha = tc->alpha, beta = tc->beta;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    double *A_batch = (double *)repeat_buf(tc->A, a_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    double *B_batch = (double *)repeat_buf(tc->B, b_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    double *C_oracle = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (oracle_has_batch) {
+        oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                  C_oracle, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            oracle->dgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                          m, n, k, alpha,
+                          A_batch + ((size_t)b * a_stride), lda,
+                          B_batch + ((size_t)b * b_stride), ldb,
+                          beta,
+                          C_oracle + ((size_t)b * c_stride), ldc);
+        }
+    }
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_F64)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    double *C_cand = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand_has_batch) {
+        cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                C_cand, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            cand->dgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                        m, n, k, alpha,
+                        A_batch + ((size_t)b * a_stride), lda,
+                        B_batch + ((size_t)b * b_stride), ldb,
+                        beta,
+                        C_cand + ((size_t)b * c_stride), ldc);
+        }
+    }
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_F64, fb_norm_frob_f64(C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_F64)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        double *C_time = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->dgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->dgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgemm_batch(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    bool oracle_has_batch = (oracle->cgemm_batch != NULL);
+    bool cand_has_batch = (cand->cgemm_batch != NULL);
+    bool oracle_has_single = (oracle->cgemm != NULL);
+    bool cand_has_single = (cand->cgemm != NULL);
+    if ((!oracle_has_batch && !oracle_has_single) ||
+        (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_cgemm_batch_fn_t oracle_fn = (fb_cgemm_batch_fn_t)oracle->cgemm_batch;
+    fb_cgemm_batch_fn_t cand_fn = (fb_cgemm_batch_fn_t)cand->cgemm_batch;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    fb_complex_float_t *A_batch = (fb_complex_float_t *)repeat_buf(tc->A, a_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_float_t *B_batch = (fb_complex_float_t *)repeat_buf(tc->B, b_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_float_t *C_oracle = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (oracle_has_batch) {
+        oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                  C_oracle, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            oracle->cgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                          m, n, k, alpha,
+                          A_batch + ((size_t)b * a_stride), lda,
+                          B_batch + ((size_t)b * b_stride), ldb,
+                          beta,
+                          C_oracle + ((size_t)b * c_stride), ldc);
+        }
+    }
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_CF32)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *C_cand = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand_has_batch) {
+        cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                C_cand, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            cand->cgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                        m, n, k, alpha,
+                        A_batch + ((size_t)b * a_stride), lda,
+                        B_batch + ((size_t)b * b_stride), ldb,
+                        beta,
+                        C_cand + ((size_t)b * c_stride), ldc);
+        }
+    }
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_CF32, fb_norm_frob_cf32((const float *)C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_CF32)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        fb_complex_float_t *C_time = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->cgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->cgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgemm_batch(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    bool oracle_has_batch = (oracle->zgemm_batch != NULL);
+    bool cand_has_batch = (cand->zgemm_batch != NULL);
+    bool oracle_has_single = (oracle->zgemm != NULL);
+    bool cand_has_single = (cand->zgemm != NULL);
+    if ((!oracle_has_batch && !oracle_has_single) ||
+        (!cand_has_batch && !cand_has_single)) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_zgemm_batch_fn_t oracle_fn = (fb_zgemm_batch_fn_t)oracle->zgemm_batch;
+    fb_zgemm_batch_fn_t cand_fn = (fb_zgemm_batch_fn_t)cand->zgemm_batch;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    fb_complex_double_t *A_batch = (fb_complex_double_t *)repeat_buf(tc->A, a_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_double_t *B_batch = (fb_complex_double_t *)repeat_buf(tc->B, b_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_double_t *C_oracle = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    if (oracle_has_batch) {
+        oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                  C_oracle, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            oracle->zgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                          m, n, k, alpha,
+                          A_batch + ((size_t)b * a_stride), lda,
+                          B_batch + ((size_t)b * b_stride), ldb,
+                          beta,
+                          C_oracle + ((size_t)b * c_stride), ldc);
+        }
+    }
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_CF64)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *C_cand = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    if (cand_has_batch) {
+        cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta,
+                C_cand, ldc, FB_JUDGE_BATCH_COUNT);
+    } else {
+        for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+            cand->zgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                        m, n, k, alpha,
+                        A_batch + ((size_t)b * a_stride), lda,
+                        B_batch + ((size_t)b * b_stride), ldb,
+                        beta,
+                        C_cand + ((size_t)b * c_stride), ldc);
+        }
+    }
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_CF64, fb_norm_frob_cf64((const double *)C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_CF64)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        fb_complex_double_t *C_time = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->zgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                if (cand_has_batch) {
+                    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb,
+                            beta, C_time, ldc, FB_JUDGE_BATCH_COUNT);
+                } else {
+                    for (int b = 0; b < FB_JUDGE_BATCH_COUNT; b++) {
+                        cand->zgemm(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS,
+                                    m, n, k, alpha,
+                                    A_batch + ((size_t)b * a_stride), lda,
+                                    B_batch + ((size_t)b * b_stride), ldb,
+                                    beta,
+                                    C_time + ((size_t)b * c_stride), ldc);
+                    }
+                }
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_sgemm_strided(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->sgemm_strided || !cand->sgemm_strided) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_sgemm_strided_fn_t oracle_fn = (fb_sgemm_strided_fn_t)oracle->sgemm_strided;
+    fb_sgemm_strided_fn_t cand_fn = (fb_sgemm_strided_fn_t)cand->sgemm_strided;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    float alpha = (float)tc->alpha, beta = (float)tc->beta;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    float *A_batch = (float *)repeat_buf(tc->A, a_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    float *B_batch = (float *)repeat_buf(tc->B, b_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    float *C_oracle = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+              A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+              beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_F32)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    float *C_cand = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+            A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+            beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_F32, fb_norm_frob_f32(C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_F32)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        float *C_time = (float *)repeat_buf(tc->C_init, c_stride, sizeof(float), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgemm_strided(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->dgemm_strided || !cand->dgemm_strided) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_dgemm_strided_fn_t oracle_fn = (fb_dgemm_strided_fn_t)oracle->dgemm_strided;
+    fb_dgemm_strided_fn_t cand_fn = (fb_dgemm_strided_fn_t)cand->dgemm_strided;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    double alpha = tc->alpha, beta = tc->beta;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    double *A_batch = (double *)repeat_buf(tc->A, a_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    double *B_batch = (double *)repeat_buf(tc->B, b_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    double *C_oracle = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+              A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+              beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_F64)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    double *C_cand = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+            A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+            beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_F64, fb_norm_frob_f64(C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_F64)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        double *C_time = (double *)repeat_buf(tc->C_init, c_stride, sizeof(double), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgemm_strided(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->cgemm_strided || !cand->cgemm_strided) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_cgemm_strided_fn_t oracle_fn = (fb_cgemm_strided_fn_t)oracle->cgemm_strided;
+    fb_cgemm_strided_fn_t cand_fn = (fb_cgemm_strided_fn_t)cand->cgemm_strided;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_float_t alpha; __real__(alpha) = (float)tc->alpha; __imag__(alpha) = 0.0f;
+    fb_complex_float_t beta;  __real__(beta)  = (float)tc->beta;  __imag__(beta)  = 0.0f;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    fb_complex_float_t *A_batch = (fb_complex_float_t *)repeat_buf(tc->A, a_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_float_t *B_batch = (fb_complex_float_t *)repeat_buf(tc->B, b_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_float_t *C_oracle = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+              A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+              beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_CF32)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    fb_complex_float_t *C_cand = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+            A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+            beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_CF32, fb_norm_frob_cf32((const float *)C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_CF32)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        fb_complex_float_t *C_time = (fb_complex_float_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_float_t), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgemm_strided(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    if (!oracle->zgemm_strided || !cand->zgemm_strided) return FB_JUDGE_ERR_NOT_IMPL;
+
+    fb_zgemm_strided_fn_t oracle_fn = (fb_zgemm_strided_fn_t)oracle->zgemm_strided;
+    fb_zgemm_strided_fn_t cand_fn = (fb_zgemm_strided_fn_t)cand->zgemm_strided;
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k;
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc;
+    fb_complex_double_t alpha; __real__(alpha) = tc->alpha; __imag__(alpha) = 0.0;
+    fb_complex_double_t beta;  __real__(beta)  = tc->beta;  __imag__(beta)  = 0.0;
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems;
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT;
+
+    fb_complex_double_t *A_batch = (fb_complex_double_t *)repeat_buf(tc->A, a_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_double_t *B_batch = (fb_complex_double_t *)repeat_buf(tc->B, b_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    fb_complex_double_t *C_oracle = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    if (!A_batch || !B_batch || !C_oracle) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+              A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+              beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    if (fb_judge_has_nan_inf(C_oracle, total_c, FB_DTYPE_CF64)) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_oracle_fatal(res); return FB_JUDGE_OK;
+    }
+
+    fb_complex_double_t *C_cand = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+    if (!C_cand) {
+        free(A_batch); free(B_batch); free(C_oracle);
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC;
+    }
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha,
+            A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride,
+            beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT);
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c,
+        FB_DTYPE_CF64, fb_norm_frob_cf64((const double *)C_oracle, total_c)));
+    if (fb_judge_has_nan_inf(C_cand, total_c, FB_DTYPE_CF64)) res->is_fatal = true;
+    free(C_cand);
+
+    if (ns_out) {
+        fb_complex_double_t *C_time = (fb_complex_double_t *)repeat_buf(tc->C_init, c_stride, sizeof(fb_complex_double_t), FB_JUDGE_BATCH_COUNT);
+        if (C_time) {
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+            }
+            uint64_t best = UINT64_MAX;
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+                uint64_t t0 = fb_judge_time_ns();
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k,
+                        alpha, A_batch, lda, (long long)a_stride,
+                        B_batch, ldb, (long long)b_stride,
+                        beta, C_time, ldc, (long long)c_stride,
+                        FB_JUDGE_BATCH_COUNT);
+                uint64_t dt = fb_judge_time_ns() - t0;
+                if (dt < best) best = dt;
+            }
+            free(C_time);
+            *ns_out = best;
+        } else {
+            *ns_out = 0;
+        }
+    }
+
+    free(A_batch); free(B_batch); free(C_oracle);
+    return FB_JUDGE_OK;
+}
+
+#define FB_DEFINE_GEMM3M_BATCH_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_oracle, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_cand, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM3M_BATCH_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    scalar_type beta;  __real__(beta)  = (real_type)tc->beta;  __imag__(beta)  = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_oracle, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_cand, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_oracle, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_cand, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    scalar_type beta;  __real__(beta)  = (real_type)tc->beta;  __imag__(beta)  = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_oracle, ldc, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_cand, ldc, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, 'N', 'N', m, n, k, alpha, A_batch, lda, B_batch, ldb, beta, C_time, ldc, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM3M_STRIDED_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMM3M_STRIDED_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    scalar_type beta;  __real__(beta)  = (real_type)tc->beta;  __imag__(beta)  = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn(FB_LAYOUT_ROW_MAJOR, FB_NO_TRANS, FB_NO_TRANS, m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha, beta = (scalar_type)tc->beta; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn(C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int m = (int)tc->m, n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    scalar_type beta;  __real__(beta)  = (real_type)tc->beta;  __imag__(beta)  = imag_zero; \
+    size_t a_stride = tc->A_elems, b_stride = tc->B_elems, c_stride = tc->C_elems; \
+    size_t total_c = c_stride * (size_t)FB_JUDGE_BATCH_COUNT; \
+    scalar_type *A_batch = (scalar_type *)repeat_buf(tc->A, a_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *B_batch = (scalar_type *)repeat_buf(tc->B, b_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    scalar_type *C_oracle = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!A_batch || !B_batch || !C_oracle) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    oracle_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_oracle, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    if (fb_judge_has_nan_inf(C_oracle, total_c, dtype_enum)) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_oracle_fatal(res); return FB_JUDGE_OK; \
+    } \
+    scalar_type *C_cand = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+    if (!C_cand) { \
+        free(A_batch); free(B_batch); free(C_oracle); \
+        result_fatal(res); return FB_JUDGE_ERR_ALLOC; \
+    } \
+    cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_cand, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+    result_from_relerr(res, fb_judge_relerr(C_cand, C_oracle, total_c, dtype_enum, norm_fn((const real_type *)C_oracle, total_c))); \
+    if (fb_judge_has_nan_inf(C_cand, total_c, dtype_enum)) res->is_fatal = true; \
+    free(C_cand); \
+    if (ns_out) { \
+        scalar_type *C_time = (scalar_type *)repeat_buf(tc->C_init, c_stride, sizeof(scalar_type), FB_JUDGE_BATCH_COUNT); \
+        if (C_time) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+            uint64_t best = UINT64_MAX; \
+            for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('N', 'N', m, n, k, alpha, A_batch, lda, (long long)a_stride, B_batch, ldb, (long long)b_stride, beta, C_time, ldc, (long long)c_stride, FB_JUDGE_BATCH_COUNT); \
+                uint64_t dt = fb_judge_time_ns() - t0; \
+                if (dt < best) best = dt; \
+            } \
+            free(C_time); \
+            *ns_out = best; \
+        } else { \
+            *ns_out = 0; \
+        } \
+    } \
+    free(A_batch); free(B_batch); free(C_oracle); \
+    return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMM3M_BATCH_RUNNER_REAL(run_sgemm3m_batch, sgemm3m_batch, fb_sgemm_batch_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_GEMM3M_BATCH_RUNNER_REAL(run_dgemm3m_batch, dgemm3m_batch, fb_dgemm_batch_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_GEMM3M_BATCH_RUNNER_COMPLEX(run_cgemm3m_batch, cgemm3m_batch, fb_cgemm_batch_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMM3M_BATCH_RUNNER_COMPLEX(run_zgemm3m_batch, zgemm3m_batch, fb_zgemm_batch_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_REAL(run_cblas_sgemm3m_batch, cblas_sgemm3m_batch, fb_cblas_sgemm_batch_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_REAL(run_cblas_dgemm3m_batch, cblas_dgemm3m_batch, fb_cblas_dgemm_batch_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_COMPLEX(run_cblas_cgemm3m_batch, cblas_cgemm3m_batch, fb_cblas_cgemm_batch_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_COMPLEX(run_cblas_zgemm3m_batch, cblas_zgemm3m_batch, fb_cblas_zgemm_batch_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_REAL(run_sgemm3m_batch_strided, sgemm3m_batch_strided, fb_plain_sgemm_strided_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_REAL(run_dgemm3m_batch_strided, dgemm3m_batch_strided, fb_plain_dgemm_strided_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_COMPLEX(run_cgemm3m_batch_strided, cgemm3m_batch_strided, fb_plain_cgemm_strided_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_COMPLEX(run_zgemm3m_batch_strided, zgemm3m_batch_strided, fb_plain_zgemm_strided_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+FB_DEFINE_GEMM3M_STRIDED_RUNNER_REAL(run_cblas_sgemm3m_batch_strided, cblas_sgemm3m_batch_strided, fb_cblas_sgemm_strided_fn_t, float, FB_DTYPE_F32, fb_norm_frob_f32)
+FB_DEFINE_GEMM3M_STRIDED_RUNNER_REAL(run_cblas_dgemm3m_batch_strided, cblas_dgemm3m_batch_strided, fb_cblas_dgemm_strided_fn_t, double, FB_DTYPE_F64, fb_norm_frob_f64)
+FB_DEFINE_GEMM3M_STRIDED_RUNNER_COMPLEX(run_cblas_cgemm3m_batch_strided, cblas_cgemm3m_batch_strided, fb_cblas_cgemm_strided_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMM3M_STRIDED_RUNNER_COMPLEX(run_cblas_zgemm3m_batch_strided, cblas_zgemm3m_batch_strided, fb_cblas_zgemm_strided_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+#undef FB_DEFINE_GEMM3M_BATCH_RUNNER_REAL
+#undef FB_DEFINE_GEMM3M_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_REAL
+#undef FB_DEFINE_CBLAS_GEMM3M_BATCH_RUNNER_COMPLEX
+#undef FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_PLAIN_GEMM3M_STRIDED_RUNNER_COMPLEX
+#undef FB_DEFINE_GEMM3M_STRIDED_RUNNER_REAL
+#undef FB_DEFINE_GEMM3M_STRIDED_RUNNER_COMPLEX
+
+typedef void (*fb_sgemmt_fn_t)(char, char, char, int, int, float,
+                               const float *, int, const float *, int,
+                               float, float *, int);
+typedef void (*fb_dgemmt_fn_t)(char, char, char, int, int, double,
+                               const double *, int, const double *, int,
+                               double, double *, int);
+typedef void (*fb_cgemmt_fn_t)(char, char, char, int, int,
+                               fb_complex_float_t,
+                               const fb_complex_float_t *, int,
+                               const fb_complex_float_t *, int,
+                               fb_complex_float_t,
+                               fb_complex_float_t *, int);
+typedef void (*fb_zgemmt_fn_t)(char, char, char, int, int,
+                               fb_complex_double_t,
+                               const fb_complex_double_t *, int,
+                               const fb_complex_double_t *, int,
+                               fb_complex_double_t,
+                               fb_complex_double_t *, int);
+
+#define FB_DEFINE_GEMMT_RUNNER_REAL(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha = (scalar_type)tc->alpha; \
+    scalar_type beta = (scalar_type)tc->beta; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    size_t C_sz = (size_t)n * (size_t)ldc; \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Co, ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Cc, ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, n, n, ldc, ldc, dtype_enum, norm_fn(Co, n, n, ldc))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Ct, ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Ct, ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEMMT_RUNNER_COMPLEX(fn_name, field, fn_type, scalar_type, dtype_enum, norm_fn, real_type, imag_zero) \
+static fb_judge_status_t fn_name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out) \
+{ \
+    if (!oracle->field || !cand->field) return FB_JUDGE_ERR_NOT_IMPL; \
+    fn_type oracle_fn = (fn_type)oracle->field; \
+    fn_type cand_fn = (fn_type)cand->field; \
+    int n = (int)tc->n, k = (int)tc->k; \
+    int lda = (int)tc->lda, ldb = (int)tc->ldb, ldc = (int)tc->ldc; \
+    scalar_type alpha; __real__(alpha) = (real_type)tc->alpha; __imag__(alpha) = imag_zero; \
+    scalar_type beta;  __real__(beta)  = (real_type)tc->beta;  __imag__(beta)  = imag_zero; \
+    const scalar_type *A = (const scalar_type *)tc->A; \
+    const scalar_type *B = (const scalar_type *)tc->B; \
+    size_t C_sz = (size_t)n * (size_t)ldc; \
+    scalar_type *Co = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Co) { result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    oracle_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Co, ldc); \
+    if (fb_judge_has_nan_inf(Co, C_sz, dtype_enum)) { free(Co); result_oracle_fatal(res); return FB_JUDGE_OK; } \
+    scalar_type *Cc = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+    if (!Cc) { free(Co); result_fatal(res); return FB_JUDGE_ERR_ALLOC; } \
+    cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Cc, ldc); \
+    result_from_relerr(res, fb_judge_relerr_matrix(Cc, Co, n, n, ldc, ldc, dtype_enum, norm_fn((const real_type *)Co, C_sz))); \
+    if (fb_judge_has_nan_inf(Cc, C_sz, dtype_enum)) res->is_fatal = true; \
+    free(Cc); \
+    if (ns_out) { \
+        scalar_type *Ct = (scalar_type *)clone_buf(tc->C_init, C_sz, sizeof(scalar_type)); \
+        if (Ct) { \
+            for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) \
+                cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Ct, ldc); \
+            uint64_t best = UINT64_MAX; \
+            for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) { \
+                uint64_t t0 = fb_judge_time_ns(); \
+                cand_fn('U', 'N', 'N', n, k, alpha, A, lda, B, ldb, beta, Ct, ldc); \
+                uint64_t dt = fb_judge_time_ns() - t0; if (dt < best) best = dt; \
+            } \
+            free(Ct); *ns_out = best; \
+        } else { *ns_out = 0; } \
+    } \
+    free(Co); return FB_JUDGE_OK; \
+}
+
+FB_DEFINE_GEMMT_RUNNER_REAL(run_sgemmt, sgemmt, fb_sgemmt_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_GEMMT_RUNNER_REAL(run_dgemmt, dgemmt, fb_dgemmt_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_GEMMT_RUNNER_COMPLEX(run_cgemmt, cgemmt, fb_cgemmt_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMMT_RUNNER_COMPLEX(run_zgemmt, zgemmt, fb_zgemmt_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+FB_DEFINE_GEMMT_RUNNER_REAL(run_cblas_sgemmt, cblas_sgemmt, fb_sgemmt_fn_t, float, FB_DTYPE_F32, fb_matrix_norm_frob_f32)
+FB_DEFINE_GEMMT_RUNNER_REAL(run_cblas_dgemmt, cblas_dgemmt, fb_dgemmt_fn_t, double, FB_DTYPE_F64, fb_matrix_norm_frob_f64)
+FB_DEFINE_GEMMT_RUNNER_COMPLEX(run_cblas_cgemmt, cblas_cgemmt, fb_cgemmt_fn_t, fb_complex_float_t, FB_DTYPE_CF32, fb_norm_frob_cf32, float, 0.0f)
+FB_DEFINE_GEMMT_RUNNER_COMPLEX(run_cblas_zgemmt, cblas_zgemmt, fb_zgemmt_fn_t, fb_complex_double_t, FB_DTYPE_CF64, fb_norm_frob_cf64, double, 0.0)
+
+#undef FB_DEFINE_GEMMT_RUNNER_REAL
+#undef FB_DEFINE_GEMMT_RUNNER_COMPLEX
 
 /* =========================================================================
  * Phase 2 — L3 SYMM / SYRK / TRMM / TRSM
@@ -4333,6 +8751,171 @@ static fb_judge_status_t run_zhpmv(
 }
 
 /* --- SSBMV / DSBMV / CHBMV / ZHBMV (banded symmetric/Hermitian MV) --- */
+
+typedef void (*fb_sbmv_cblas_fn_t)(int layout, int uplo, int n, int k,
+                                   float alpha, const float *a, int lda,
+                                   const float *x, int incx, float beta,
+                                   float *y, int incy);
+typedef void (*fb_dbmv_cblas_fn_t)(int layout, int uplo, int n, int k,
+                                   double alpha, const double *a, int lda,
+                                   const double *x, int incx, double beta,
+                                   double *y, int incy);
+
+static fb_judge_status_t run_sbmv(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SBMV][FB_CONV_CBLAS];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SBMV][FB_CONV_CBLAS];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    const int col_major = 102;
+    const int upper = 121;
+    const int lower = 122;
+    const float case1_a[6] = {0.0f, 1.0f, 0.5f, 3.0f, 4.0f, 5.0f};
+    const float case1_x[3] = {1.0f, -2.0f, 0.75f};
+    float oracle_case1_y[3] = {1.0f, 0.5f, -1.5f};
+    float cand_case1_y[3] = {1.0f, 0.5f, -1.5f};
+    const float case2_a[6] = {2.0f, 1.0f, 3.0f, -1.5f, 6.0f, 0.0f};
+    const float case2_x[3] = {3.0f, -2.0f, 1.0f};
+    float oracle_case2_y[3] = {1.0f, -3.0f, 2.0f};
+    float cand_case2_y[3] = {1.0f, -3.0f, 2.0f};
+    float oracle_out[6];
+    float cand_out[6];
+
+    ((fb_sbmv_cblas_fn_t)oracle_fn)(col_major, upper, 3, 1, 1.5f, case1_a, 2,
+                                    case1_x, 1, -0.25f, oracle_case1_y, 1);
+    ((fb_sbmv_cblas_fn_t)oracle_fn)(col_major, lower, 3, 1, -0.5f, case2_a, 2,
+                                    case2_x, -1, 0.75f, oracle_case2_y, -1);
+    memcpy(oracle_out, oracle_case1_y, sizeof(oracle_case1_y));
+    memcpy(oracle_out + 3, oracle_case2_y, sizeof(oracle_case2_y));
+    if (fb_judge_has_nan_inf(oracle_out, 6u, FB_DTYPE_F32)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5f, case1_a, 2,
+                                  case1_x, 1, -0.25f, cand_case1_y, 1);
+    ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5f, case2_a, 2,
+                                  case2_x, -1, 0.75f, cand_case2_y, -1);
+    memcpy(cand_out, cand_case1_y, sizeof(cand_case1_y));
+    memcpy(cand_out + 3, cand_case2_y, sizeof(cand_case2_y));
+    result_from_relerr(res,
+                       fb_judge_relerr(cand_out, oracle_out, 6u, FB_DTYPE_F32,
+                                       fb_norm_frob_f32(oracle_out, 6u)));
+    if (fb_judge_has_nan_inf(cand_out, 6u, FB_DTYPE_F32)) {
+        res->is_fatal = true;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            float y1[3] = {1.0f, 0.5f, -1.5f};
+            float y2[3] = {1.0f, -3.0f, 2.0f};
+            ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5f,
+                                          case1_a, 2, case1_x, 1, -0.25f,
+                                          y1, 1);
+            ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5f,
+                                          case2_a, 2, case2_x, -1, 0.75f,
+                                          y2, -1);
+        }
+        for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) {
+            float y1[3] = {1.0f, 0.5f, -1.5f};
+            float y2[3] = {1.0f, -3.0f, 2.0f};
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5f,
+                                          case1_a, 2, case1_x, 1, -0.25f,
+                                          y1, 1);
+            ((fb_sbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5f,
+                                          case2_a, 2, case2_x, -1, 0.75f,
+                                          y2, -1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dbmv(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DBMV][FB_CONV_CBLAS];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DBMV][FB_CONV_CBLAS];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    const int col_major = 102;
+    const int upper = 121;
+    const int lower = 122;
+    const double case1_a[6] = {0.0, 1.0, 0.5, 3.0, 4.0, 5.0};
+    const double case1_x[3] = {1.0, -2.0, 0.75};
+    double oracle_case1_y[3] = {1.0, 0.5, -1.5};
+    double cand_case1_y[3] = {1.0, 0.5, -1.5};
+    const double case2_a[6] = {2.0, 1.0, 3.0, -1.5, 6.0, 0.0};
+    const double case2_x[3] = {3.0, -2.0, 1.0};
+    double oracle_case2_y[3] = {1.0, -3.0, 2.0};
+    double cand_case2_y[3] = {1.0, -3.0, 2.0};
+    double oracle_out[6];
+    double cand_out[6];
+
+    ((fb_dbmv_cblas_fn_t)oracle_fn)(col_major, upper, 3, 1, 1.5, case1_a, 2,
+                                    case1_x, 1, -0.25, oracle_case1_y, 1);
+    ((fb_dbmv_cblas_fn_t)oracle_fn)(col_major, lower, 3, 1, -0.5, case2_a, 2,
+                                    case2_x, -1, 0.75, oracle_case2_y, -1);
+    memcpy(oracle_out, oracle_case1_y, sizeof(oracle_case1_y));
+    memcpy(oracle_out + 3, oracle_case2_y, sizeof(oracle_case2_y));
+    if (fb_judge_has_nan_inf(oracle_out, 6u, FB_DTYPE_F64)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5, case1_a, 2,
+                                  case1_x, 1, -0.25, cand_case1_y, 1);
+    ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5, case2_a, 2,
+                                  case2_x, -1, 0.75, cand_case2_y, -1);
+    memcpy(cand_out, cand_case1_y, sizeof(cand_case1_y));
+    memcpy(cand_out + 3, cand_case2_y, sizeof(cand_case2_y));
+    result_from_relerr(res,
+                       fb_judge_relerr(cand_out, oracle_out, 6u, FB_DTYPE_F64,
+                                       fb_norm_frob_f64(oracle_out, 6u)));
+    if (fb_judge_has_nan_inf(cand_out, 6u, FB_DTYPE_F64)) {
+        res->is_fatal = true;
+    }
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            double y1[3] = {1.0, 0.5, -1.5};
+            double y2[3] = {1.0, -3.0, 2.0};
+            ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5,
+                                          case1_a, 2, case1_x, 1, -0.25,
+                                          y1, 1);
+            ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5,
+                                          case2_a, 2, case2_x, -1, 0.75,
+                                          y2, -1);
+        }
+        for (int t2 = 0; t2 < FB_JUDGE_TIMING_RUNS; t2++) {
+            double y1[3] = {1.0, 0.5, -1.5};
+            double y2[3] = {1.0, -3.0, 2.0};
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, upper, 3, 1, 1.5,
+                                          case1_a, 2, case1_x, 1, -0.25,
+                                          y1, 1);
+            ((fb_dbmv_cblas_fn_t)cand_fn)(col_major, lower, 3, 1, -0.5,
+                                          case2_a, 2, case2_x, -1, 0.75,
+                                          y2, -1);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
 
 static fb_judge_status_t run_ssbmv(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
@@ -5483,6 +10066,1831 @@ static fb_judge_status_t run_zher2(
 /* =========================================================================
  * SGBMV/DGBMV/CGBMV/ZGBMV — band matrix-vector multiply
  * ========================================================================= */
+
+typedef void (*fb_sgbmvx_fortran_fn_t)(char *trans, int *m, int *n, int *kl,
+                                       int *ku, float *alpha, float *ab,
+                                       int *ldab, float *x, int *incx,
+                                       float *beta, float *y, int *incy);
+typedef void (*fb_dgbmvx_fortran_fn_t)(char *trans, int *m, int *n, int *kl,
+                                       int *ku, double *alpha, double *ab,
+                                       int *ldab, double *x, int *incx,
+                                       double *beta, double *y, int *incy);
+typedef void (*fb_cgbmvx_fortran_fn_t)(char *trans, int *m, int *n, int *kl,
+                                       int *ku, fb_complex_float_t *alpha,
+                                       fb_complex_float_t *ab, int *ldab,
+                                       fb_complex_float_t *x, int *incx,
+                                       fb_complex_float_t *beta,
+                                       fb_complex_float_t *y, int *incy);
+typedef void (*fb_zgbmvx_fortran_fn_t)(char *trans, int *m, int *n, int *kl,
+                                       int *ku, fb_complex_double_t *alpha,
+                                       fb_complex_double_t *ab, int *ldab,
+                                       fb_complex_double_t *x, int *incx,
+                                       fb_complex_double_t *beta,
+                                       fb_complex_double_t *y, int *incy);
+typedef void (*fb_sgbcon_fortran_fn_t)(const char *norm, const int *n,
+                                       const int *kl, const int *ku,
+                                       const float *ab, const int *ldab,
+                                       const int *ipiv, const float *anorm,
+                                       float *rcond, float *work,
+                                       int *iwork, int *info);
+typedef void (*fb_dgbcon_fortran_fn_t)(const char *norm, const int *n,
+                                       const int *kl, const int *ku,
+                                       const double *ab, const int *ldab,
+                                       const int *ipiv, const double *anorm,
+                                       double *rcond, double *work,
+                                       int *iwork, int *info);
+typedef void (*fb_cgbcon_fortran_fn_t)(const char *norm, const int *n,
+                                       const int *kl, const int *ku,
+                                       const fb_complex_float_t *ab,
+                                       const int *ldab, const int *ipiv,
+                                       const float *anorm, float *rcond,
+                                       fb_complex_float_t *work,
+                                       int *iwork, int *info);
+typedef void (*fb_zgbcon_fortran_fn_t)(const char *norm, const int *n,
+                                       const int *kl, const int *ku,
+                                       const fb_complex_double_t *ab,
+                                       const int *ldab, const int *ipiv,
+                                       const double *anorm, double *rcond,
+                                       fb_complex_double_t *work,
+                                       int *iwork, int *info);
+typedef void (*fb_sgbequ_fortran_fn_t)(int *m, int *n, int *kl, int *ku,
+                                       float *ab, int *ldab, float *r,
+                                       float *c, float *rowcnd,
+                                       float *colcnd, float *amax,
+                                       int *info);
+typedef void (*fb_dgbequ_fortran_fn_t)(int *m, int *n, int *kl, int *ku,
+                                       double *ab, int *ldab, double *r,
+                                       double *c, double *rowcnd,
+                                       double *colcnd, double *amax,
+                                       int *info);
+typedef void (*fb_cgbequ_fortran_fn_t)(int *m, int *n, int *kl, int *ku,
+                                       fb_complex_float_t *ab, int *ldab,
+                                       float *r, float *c, float *rowcnd,
+                                       float *colcnd, float *amax,
+                                       int *info);
+typedef void (*fb_zgbequ_fortran_fn_t)(int *m, int *n, int *kl, int *ku,
+                                       fb_complex_double_t *ab, int *ldab,
+                                       double *r, double *c,
+                                       double *rowcnd, double *colcnd,
+                                       double *amax, int *info);
+typedef void (*fb_sgbrfs_fortran_fn_t)(const char *trans, int *n, int *kl,
+                                       int *ku, int *nrhs, float *ab,
+                                       int *ldab, float *afb, int *ldafb,
+                                       int *ipiv, float *b, int *ldb,
+                                       float *x, int *ldx, float *ferr,
+                                       float *berr, float *work,
+                                       int *iwork, int *info);
+typedef void (*fb_dgbrfs_fortran_fn_t)(const char *trans, int *n, int *kl,
+                                       int *ku, int *nrhs, double *ab,
+                                       int *ldab, double *afb, int *ldafb,
+                                       int *ipiv, double *b, int *ldb,
+                                       double *x, int *ldx, double *ferr,
+                                       double *berr, double *work,
+                                       int *iwork, int *info);
+typedef void (*fb_cgbrfs_fortran_fn_t)(char *trans, int *n, int *kl,
+                                       int *ku, int *nrhs,
+                                       fb_complex_float_t *ab, int *ldab,
+                                       fb_complex_float_t *afb, int *ldafb,
+                                       int *ipiv, fb_complex_float_t *b,
+                                       int *ldb, fb_complex_float_t *x,
+                                       int *ldx, float *ferr, float *berr,
+                                       fb_complex_float_t *work,
+                                       float *rwork, int *info);
+typedef void (*fb_zgbrfs_fortran_fn_t)(char *trans, int *n, int *kl,
+                                       int *ku, int *nrhs,
+                                       fb_complex_double_t *ab, int *ldab,
+                                       fb_complex_double_t *afb, int *ldafb,
+                                       int *ipiv, fb_complex_double_t *b,
+                                       int *ldb, fb_complex_double_t *x,
+                                       int *ldx, double *ferr,
+                                       double *berr,
+                                       fb_complex_double_t *work,
+                                       double *rwork, int *info);
+typedef void (*fb_sgebak_fortran_fn_t)(char *job, char *side, int *n,
+                                       int *ilo, int *ihi, float *scale,
+                                       int *m, float *v, int *ldv,
+                                       int *info);
+typedef void (*fb_dgebak_fortran_fn_t)(char *job, char *side, int *n,
+                                       int *ilo, int *ihi, double *scale,
+                                       int *m, double *v, int *ldv,
+                                       int *info);
+typedef void (*fb_cgebak_fortran_fn_t)(char *job, char *side, int *n,
+                                       int *ilo, int *ihi, float *scale,
+                                       int *m, fb_complex_float_t *v,
+                                       int *ldv, int *info);
+typedef void (*fb_zgebak_fortran_fn_t)(char *job, char *side, int *n,
+                                       int *ilo, int *ihi, double *scale,
+                                       int *m, fb_complex_double_t *v,
+                                       int *ldv, int *info);
+typedef void (*fb_sgebal_fortran_fn_t)(char *job, int *n, float *a,
+                                       int *lda, int *ilo, int *ihi,
+                                       float *scale, int *info);
+typedef void (*fb_dgebal_fortran_fn_t)(char *job, int *n, double *a,
+                                       int *lda, int *ilo, int *ihi,
+                                       double *scale, int *info);
+typedef void (*fb_cgebal_fortran_fn_t)(char *job, int *n,
+                                       fb_complex_float_t *a, int *lda,
+                                       int *ilo, int *ihi, float *scale,
+                                       int *info);
+typedef void (*fb_zgebal_fortran_fn_t)(char *job, int *n,
+                                       fb_complex_double_t *a, int *lda,
+                                       int *ilo, int *ihi, double *scale,
+                                       int *info);
+typedef void (*fb_sgebrd_fortran_fn_t)(int *m, int *n, float *a, int *lda,
+                                       float *d, float *e, float *tauq,
+                                       float *taup, float *work, int *lwork,
+                                       int *info);
+typedef void (*fb_dgebrd_fortran_fn_t)(int *m, int *n, double *a, int *lda,
+                                       double *d, double *e, double *tauq,
+                                       double *taup, double *work,
+                                       int *lwork, int *info);
+typedef void (*fb_cgebrd_fortran_fn_t)(int *m, int *n,
+                                       fb_complex_float_t *a, int *lda,
+                                       float *d, float *e,
+                                       fb_complex_float_t *tauq,
+                                       fb_complex_float_t *taup,
+                                       fb_complex_float_t *work,
+                                       int *lwork, int *info);
+typedef void (*fb_zgebrd_fortran_fn_t)(int *m, int *n,
+                                       fb_complex_double_t *a, int *lda,
+                                       double *d, double *e,
+                                       fb_complex_double_t *tauq,
+                                       fb_complex_double_t *taup,
+                                       fb_complex_double_t *work,
+                                       int *lwork, int *info);
+typedef void (*fb_sgecon_fortran_fn_t)(const char *norm, int *n,
+                                       const float *a, int *lda,
+                                       float *anorm, float *rcond,
+                                       float *work, int *iwork,
+                                       int *info);
+typedef void (*fb_dgecon_fortran_fn_t)(const char *norm, int *n,
+                                       const double *a, int *lda,
+                                       double *anorm, double *rcond,
+                                       double *work, int *iwork,
+                                       int *info);
+typedef void (*fb_cgecon_fortran_fn_t)(const char *norm, int *n,
+                                       const fb_complex_float_t *a,
+                                       int *lda, float *anorm,
+                                       float *rcond,
+                                       fb_complex_float_t *work,
+                                       float *rwork, int *info);
+typedef void (*fb_zgecon_fortran_fn_t)(const char *norm, int *n,
+                                       const fb_complex_double_t *a,
+                                       int *lda, double *anorm,
+                                       double *rcond,
+                                       fb_complex_double_t *work,
+                                       double *rwork, int *info);
+typedef void (*fb_sgeequ_fortran_fn_t)(int *m, int *n, const float *a,
+                                       int *lda, float *r, float *c,
+                                       float *rowcnd, float *colcnd,
+                                       float *amax, int *info);
+typedef void (*fb_dgeequ_fortran_fn_t)(int *m, int *n, const double *a,
+                                       int *lda, double *r, double *c,
+                                       double *rowcnd, double *colcnd,
+                                       double *amax, int *info);
+
+static fb_complex_float_t fb_direct_make_cf32(float real_part, float imag_part)
+{
+    fb_complex_float_t value = 0.0f;
+    __real__ value = real_part;
+    __imag__ value = imag_part;
+    return value;
+}
+
+static fb_complex_double_t fb_direct_make_cf64(double real_part,
+                                               double imag_part)
+{
+    fb_complex_double_t value = 0.0;
+    __real__ value = real_part;
+    __imag__ value = imag_part;
+    return value;
+}
+
+#define FB_DEFINE_GBCON_RUNNER(name, op_id, fn_type, scalar_type, real_type, \
+                               relerr_fn, output_dtype, ab_init, zero_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char norm = '1'; \
+    int n = 1, kl = 0, ku = 0, ldab = 1; \
+    int ipiv[1] = {1}; \
+    int info_oracle = -1, info_cand = -1; \
+    real_type anorm = (real_type)4.0; \
+    real_type rcond_oracle = (real_type)-1.0; \
+    real_type rcond_cand = (real_type)-1.0; \
+    scalar_type ab[1] = {ab_init}; \
+    scalar_type work_oracle[1] = {zero_init}; \
+    scalar_type work_cand[1] = {zero_init}; \
+    int iwork_oracle[1] = {0}; \
+    int iwork_cand[1] = {0}; \
+    ((fn_type)oracle_fn)(&norm, &n, &kl, &ku, ab, &ldab, ipiv, &anorm, \
+                         &rcond_oracle, work_oracle, iwork_oracle, \
+                         &info_oracle); \
+    if (info_oracle != 0 || !isfinite((double)rcond_oracle)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&norm, &n, &kl, &ku, ab, &ldab, ipiv, &anorm, \
+                       &rcond_cand, work_cand, iwork_cand, &info_cand); \
+    if (info_cand != 0 || !isfinite((double)rcond_cand)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, relerr_fn(rcond_cand, rcond_oracle, \
+                                      (double)rcond_oracle)); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[1] = {zero_init}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&norm, &n, &kl, &ku, ab, &ldab, ipiv, \
+                               &anorm, &rcond_time, work_time, iwork_time, \
+                               &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[1] = {zero_init}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&norm, &n, &kl, &ku, ab, &ldab, ipiv, \
+                               &anorm, &rcond_time, work_time, iwork_time, \
+                               &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    (void)output_dtype; \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GECON_RUNNER_REAL(name, op_id, fn_type, scalar_type, \
+                                    real_type, relerr_fn, a_init, zero_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char norm = '1'; \
+    int n = 1, lda = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    real_type anorm = (real_type)4.0; \
+    real_type rcond_oracle = (real_type)-1.0; \
+    real_type rcond_cand = (real_type)-1.0; \
+    scalar_type a[1] = {a_init}; \
+    scalar_type work_oracle[4] = {zero_init, zero_init, zero_init, zero_init}; \
+    scalar_type work_cand[4] = {zero_init, zero_init, zero_init, zero_init}; \
+    int iwork_oracle[1] = {0}; \
+    int iwork_cand[1] = {0}; \
+    ((fn_type)oracle_fn)(&norm, &n, a, &lda, &anorm, &rcond_oracle, \
+                         work_oracle, iwork_oracle, &info_oracle); \
+    if (info_oracle != 0 || !isfinite((double)rcond_oracle)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_cand, \
+                       work_cand, iwork_cand, &info_cand); \
+    if (info_cand != 0 || !isfinite((double)rcond_cand)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, relerr_fn(rcond_cand, rcond_oracle, \
+                                      (double)rcond_oracle)); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[4] = {zero_init, zero_init, zero_init, zero_init}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_time, \
+                               work_time, iwork_time, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[4] = {zero_init, zero_init, zero_init, zero_init}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_time, \
+                               work_time, iwork_time, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GECON_RUNNER_COMPLEX(name, op_id, fn_type, scalar_type, \
+                                       real_type, relerr_fn, a_init, zero_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char norm = '1'; \
+    int n = 1, lda = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    real_type anorm = (real_type)4.0; \
+    real_type rcond_oracle = (real_type)-1.0; \
+    real_type rcond_cand = (real_type)-1.0; \
+    scalar_type a[1] = {a_init}; \
+    scalar_type work_oracle[2] = {zero_init, zero_init}; \
+    scalar_type work_cand[2] = {zero_init, zero_init}; \
+    real_type rwork_oracle[2] = {(real_type)0, (real_type)0}; \
+    real_type rwork_cand[2] = {(real_type)0, (real_type)0}; \
+    ((fn_type)oracle_fn)(&norm, &n, a, &lda, &anorm, &rcond_oracle, \
+                         work_oracle, rwork_oracle, &info_oracle); \
+    if (info_oracle != 0 || !isfinite((double)rcond_oracle)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_cand, \
+                       work_cand, rwork_cand, &info_cand); \
+    if (info_cand != 0 || !isfinite((double)rcond_cand)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, relerr_fn(rcond_cand, rcond_oracle, \
+                                      (double)rcond_oracle)); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[2] = {zero_init, zero_init}; \
+            real_type rwork_time[2] = {(real_type)0, (real_type)0}; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_time, \
+                               work_time, rwork_time, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            real_type rcond_time = (real_type)-1.0; \
+            scalar_type work_time[2] = {zero_init, zero_init}; \
+            real_type rwork_time[2] = {(real_type)0, (real_type)0}; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&norm, &n, a, &lda, &anorm, &rcond_time, \
+                               work_time, rwork_time, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GBEQU_RUNNER(name, op_id, fn_type, scalar_type, real_type, \
+                               output_dtype, norm_fn, ab_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    int m = 1, n = 1, kl = 0, ku = 0, ldab = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    scalar_type ab[1] = {ab_init}; \
+    real_type r_oracle[1] = {(real_type)0}; \
+    real_type c_oracle[1] = {(real_type)0}; \
+    real_type rowcnd_oracle = (real_type)0; \
+    real_type colcnd_oracle = (real_type)0; \
+    real_type amax_oracle = (real_type)0; \
+    real_type r_cand[1] = {(real_type)0}; \
+    real_type c_cand[1] = {(real_type)0}; \
+    real_type rowcnd_cand = (real_type)0; \
+    real_type colcnd_cand = (real_type)0; \
+    real_type amax_cand = (real_type)0; \
+    real_type oracle_out[5]; \
+    real_type cand_out[5]; \
+    ((fn_type)oracle_fn)(&m, &n, &kl, &ku, ab, &ldab, r_oracle, c_oracle, \
+                         &rowcnd_oracle, &colcnd_oracle, &amax_oracle, \
+                         &info_oracle); \
+    oracle_out[0] = r_oracle[0]; \
+    oracle_out[1] = c_oracle[0]; \
+    oracle_out[2] = rowcnd_oracle; \
+    oracle_out[3] = colcnd_oracle; \
+    oracle_out[4] = amax_oracle; \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(oracle_out, 5u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&m, &n, &kl, &ku, ab, &ldab, r_cand, c_cand, \
+                       &rowcnd_cand, &colcnd_cand, &amax_cand, &info_cand); \
+    cand_out[0] = r_cand[0]; \
+    cand_out[1] = c_cand[0]; \
+    cand_out[2] = rowcnd_cand; \
+    cand_out[3] = colcnd_cand; \
+    cand_out[4] = amax_cand; \
+    if (info_cand != 0 || fb_judge_has_nan_inf(cand_out, 5u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 5u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 5u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            real_type r_time[1] = {(real_type)0}; \
+            real_type c_time[1] = {(real_type)0}; \
+            real_type rowcnd_time = (real_type)0; \
+            real_type colcnd_time = (real_type)0; \
+            real_type amax_time = (real_type)0; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&m, &n, &kl, &ku, ab, &ldab, r_time, c_time, \
+                               &rowcnd_time, &colcnd_time, &amax_time, \
+                               &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            real_type r_time[1] = {(real_type)0}; \
+            real_type c_time[1] = {(real_type)0}; \
+            real_type rowcnd_time = (real_type)0; \
+            real_type colcnd_time = (real_type)0; \
+            real_type amax_time = (real_type)0; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&m, &n, &kl, &ku, ab, &ldab, r_time, c_time, \
+                               &rowcnd_time, &colcnd_time, &amax_time, \
+                               &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEEQU_RUNNER(name, op_id, fn_type, scalar_type, real_type, \
+                               output_dtype, norm_fn, a_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    int m = 1, n = 1, lda = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    scalar_type a[1] = {a_init}; \
+    real_type r_oracle[1] = {(real_type)0}; \
+    real_type c_oracle[1] = {(real_type)0}; \
+    real_type rowcnd_oracle = (real_type)0; \
+    real_type colcnd_oracle = (real_type)0; \
+    real_type amax_oracle = (real_type)0; \
+    real_type r_cand[1] = {(real_type)0}; \
+    real_type c_cand[1] = {(real_type)0}; \
+    real_type rowcnd_cand = (real_type)0; \
+    real_type colcnd_cand = (real_type)0; \
+    real_type amax_cand = (real_type)0; \
+    real_type oracle_out[5]; \
+    real_type cand_out[5]; \
+    ((fn_type)oracle_fn)(&m, &n, a, &lda, r_oracle, c_oracle, \
+                         &rowcnd_oracle, &colcnd_oracle, &amax_oracle, \
+                         &info_oracle); \
+    oracle_out[0] = r_oracle[0]; \
+    oracle_out[1] = c_oracle[0]; \
+    oracle_out[2] = rowcnd_oracle; \
+    oracle_out[3] = colcnd_oracle; \
+    oracle_out[4] = amax_oracle; \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(oracle_out, 5u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&m, &n, a, &lda, r_cand, c_cand, \
+                       &rowcnd_cand, &colcnd_cand, &amax_cand, &info_cand); \
+    cand_out[0] = r_cand[0]; \
+    cand_out[1] = c_cand[0]; \
+    cand_out[2] = rowcnd_cand; \
+    cand_out[3] = colcnd_cand; \
+    cand_out[4] = amax_cand; \
+    if (info_cand != 0 || fb_judge_has_nan_inf(cand_out, 5u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 5u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 5u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            real_type r_time[1] = {(real_type)0}; \
+            real_type c_time[1] = {(real_type)0}; \
+            real_type rowcnd_time = (real_type)0; \
+            real_type colcnd_time = (real_type)0; \
+            real_type amax_time = (real_type)0; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&m, &n, a, &lda, r_time, c_time, \
+                               &rowcnd_time, &colcnd_time, &amax_time, \
+                               &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            real_type r_time[1] = {(real_type)0}; \
+            real_type c_time[1] = {(real_type)0}; \
+            real_type rowcnd_time = (real_type)0; \
+            real_type colcnd_time = (real_type)0; \
+            real_type amax_time = (real_type)0; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&m, &n, a, &lda, r_time, c_time, \
+                               &rowcnd_time, &colcnd_time, &amax_time, \
+                               &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GBRFS_RUNNER_REAL(name, op_id, fn_type, scalar_type, \
+                                    real_type, output_dtype, norm_fn, \
+                                    value_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char trans = 'N'; \
+    int n = 1, kl = 0, ku = 0, nrhs = 1; \
+    int ldab = 1, ldafb = 1, ldb = 1, ldx = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    int ipiv[1] = {1}; \
+    scalar_type ab[1] = {value_init((real_type)4.0, (real_type)0.0)}; \
+    scalar_type afb[1] = {value_init((real_type)4.0, (real_type)0.0)}; \
+    scalar_type b[1] = {value_init((real_type)8.0, (real_type)0.0)}; \
+    scalar_type x_oracle[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+    scalar_type x_cand[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+    real_type ferr_oracle[1] = {(real_type)-1.0}; \
+    real_type berr_oracle[1] = {(real_type)-1.0}; \
+    real_type ferr_cand[1] = {(real_type)-1.0}; \
+    real_type berr_cand[1] = {(real_type)-1.0}; \
+    scalar_type work_oracle[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type work_cand[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    int iwork_oracle[1] = {0}; \
+    int iwork_cand[1] = {0}; \
+    real_type oracle_out[3]; \
+    real_type cand_out[3]; \
+    ((fn_type)oracle_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                         &ldafb, ipiv, b, &ldb, x_oracle, &ldx, \
+                         ferr_oracle, berr_oracle, work_oracle, \
+                         iwork_oracle, &info_oracle); \
+    oracle_out[0] = (real_type)x_oracle[0]; \
+    oracle_out[1] = ferr_oracle[0]; \
+    oracle_out[2] = berr_oracle[0]; \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(oracle_out, 3u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, &ldafb, \
+                       ipiv, b, &ldb, x_cand, &ldx, ferr_cand, berr_cand, \
+                       work_cand, iwork_cand, &info_cand); \
+    cand_out[0] = (real_type)x_cand[0]; \
+    cand_out[1] = ferr_cand[0]; \
+    cand_out[2] = berr_cand[0]; \
+    if (info_cand != 0 || fb_judge_has_nan_inf(cand_out, 3u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 3u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 3u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type x_time[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+            real_type ferr_time[1] = {(real_type)-1.0}; \
+            real_type berr_time[1] = {(real_type)-1.0}; \
+            scalar_type work_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                               &ldafb, ipiv, b, &ldb, x_time, &ldx, \
+                               ferr_time, berr_time, work_time, iwork_time, \
+                               &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type x_time[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+            real_type ferr_time[1] = {(real_type)-1.0}; \
+            real_type berr_time[1] = {(real_type)-1.0}; \
+            scalar_type work_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            int iwork_time[1] = {0}; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                               &ldafb, ipiv, b, &ldb, x_time, &ldx, \
+                               ferr_time, berr_time, work_time, iwork_time, \
+                               &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GBRFS_RUNNER_COMPLEX(name, op_id, fn_type, scalar_type, \
+                                       real_type, output_dtype, norm_fn, \
+                                       value_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char trans = 'N'; \
+    int n = 1, kl = 0, ku = 0, nrhs = 1; \
+    int ldab = 1, ldafb = 1, ldb = 1, ldx = 1; \
+    int info_oracle = -1, info_cand = -1; \
+    int ipiv[1] = {1}; \
+    scalar_type ab[1] = {value_init((real_type)4.0, (real_type)0.0)}; \
+    scalar_type afb[1] = {value_init((real_type)4.0, (real_type)0.0)}; \
+    scalar_type b[1] = {value_init((real_type)8.0, (real_type)0.0)}; \
+    scalar_type x_oracle[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+    scalar_type x_cand[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+    real_type ferr_oracle[1] = {(real_type)-1.0}; \
+    real_type berr_oracle[1] = {(real_type)-1.0}; \
+    real_type ferr_cand[1] = {(real_type)-1.0}; \
+    real_type berr_cand[1] = {(real_type)-1.0}; \
+    scalar_type work_oracle[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type work_cand[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    real_type rwork_oracle[1] = {(real_type)0.0}; \
+    real_type rwork_cand[1] = {(real_type)0.0}; \
+    real_type oracle_out[4]; \
+    real_type cand_out[4]; \
+    ((fn_type)oracle_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                         &ldafb, ipiv, b, &ldb, x_oracle, &ldx, \
+                         ferr_oracle, berr_oracle, work_oracle, \
+                         rwork_oracle, &info_oracle); \
+    oracle_out[0] = (real_type)__real__(x_oracle[0]); \
+    oracle_out[1] = (real_type)__imag__(x_oracle[0]); \
+    oracle_out[2] = ferr_oracle[0]; \
+    oracle_out[3] = berr_oracle[0]; \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(oracle_out, 4u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, &ldafb, \
+                       ipiv, b, &ldb, x_cand, &ldx, ferr_cand, berr_cand, \
+                       work_cand, rwork_cand, &info_cand); \
+    cand_out[0] = (real_type)__real__(x_cand[0]); \
+    cand_out[1] = (real_type)__imag__(x_cand[0]); \
+    cand_out[2] = ferr_cand[0]; \
+    cand_out[3] = berr_cand[0]; \
+    if (info_cand != 0 || fb_judge_has_nan_inf(cand_out, 4u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 4u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 4u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type x_time[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+            real_type ferr_time[1] = {(real_type)-1.0}; \
+            real_type berr_time[1] = {(real_type)-1.0}; \
+            scalar_type work_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            real_type rwork_time[1] = {(real_type)0.0}; \
+            int info_time = -1; \
+            ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                               &ldafb, ipiv, b, &ldb, x_time, &ldx, \
+                               ferr_time, berr_time, work_time, rwork_time, \
+                               &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type x_time[1] = {value_init((real_type)2.0, (real_type)0.0)}; \
+            real_type ferr_time[1] = {(real_type)-1.0}; \
+            real_type berr_time[1] = {(real_type)-1.0}; \
+            scalar_type work_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            real_type rwork_time[1] = {(real_type)0.0}; \
+            int info_time = -1; \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, \
+                               &ldafb, ipiv, b, &ldb, x_time, &ldx, \
+                               ferr_time, berr_time, work_time, rwork_time, \
+                               &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBAK_RUNNER_REAL(name, op_id, fn_type, scalar_type, \
+                                    output_dtype, norm_fn) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char job = 'S'; \
+    int n = 2, ilo = 1, ihi = 2, m = 2, ldv = 2; \
+    scalar_type scale[2] = {(scalar_type)2.0, (scalar_type)0.5}; \
+    scalar_type right_template[4] = {(scalar_type)1.0, (scalar_type)2.0, \
+                                     (scalar_type)-3.0, (scalar_type)4.0}; \
+    scalar_type left_template[4] = {(scalar_type)4.0, (scalar_type)1.0, \
+                                    (scalar_type)-2.0, (scalar_type)0.5}; \
+    scalar_type right_oracle[4]; \
+    scalar_type right_cand[4]; \
+    scalar_type left_oracle[4]; \
+    scalar_type left_cand[4]; \
+    scalar_type oracle_out[8]; \
+    scalar_type cand_out[8]; \
+    int info_oracle = -1; \
+    int info_cand = -1; \
+    char side = 'R'; \
+    memcpy(right_oracle, right_template, sizeof(right_oracle)); \
+    ((fn_type)oracle_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, \
+                         right_oracle, &ldv, &info_oracle); \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(right_oracle, 4u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(right_cand, right_template, sizeof(right_cand)); \
+    ((fn_type)cand_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, right_cand, \
+                       &ldv, &info_cand); \
+    if (info_cand != 0 || fb_judge_has_nan_inf(right_cand, 4u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    side = 'L'; \
+    info_oracle = -1; \
+    info_cand = -1; \
+    memcpy(left_oracle, left_template, sizeof(left_oracle)); \
+    ((fn_type)oracle_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, left_oracle, \
+                         &ldv, &info_oracle); \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(left_oracle, 4u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(left_cand, left_template, sizeof(left_cand)); \
+    ((fn_type)cand_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, left_cand, \
+                       &ldv, &info_cand); \
+    if (info_cand != 0 || fb_judge_has_nan_inf(left_cand, 4u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(oracle_out, right_oracle, sizeof(right_oracle)); \
+    memcpy(oracle_out + 4, left_oracle, sizeof(left_oracle)); \
+    memcpy(cand_out, right_cand, sizeof(right_cand)); \
+    memcpy(cand_out + 4, left_cand, sizeof(left_cand)); \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 8u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 8u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type v_time[4]; \
+            char side_time = 'R'; \
+            int info_time = -1; \
+            memcpy(v_time, right_template, sizeof(v_time)); \
+            ((fn_type)cand_fn)(&job, &side_time, &n, &ilo, &ihi, scale, &m, \
+                               v_time, &ldv, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type v_time[4]; \
+            char side_time = 'R'; \
+            int info_time = -1; \
+            memcpy(v_time, right_template, sizeof(v_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&job, &side_time, &n, &ilo, &ihi, scale, &m, \
+                               v_time, &ldv, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBAK_RUNNER_COMPLEX(name, op_id, fn_type, scalar_type, \
+                                       real_type, output_dtype, norm_fn, \
+                                       norm_base_type, value_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char job = 'S'; \
+    int n = 2, ilo = 1, ihi = 2, m = 2, ldv = 2; \
+    real_type scale[2] = {(real_type)2.0, (real_type)0.5}; \
+    scalar_type right_template[4] = { \
+        value_init((real_type)1.0, (real_type)1.0), \
+        value_init((real_type)2.0, (real_type)-1.0), \
+        value_init((real_type)-3.0, (real_type)0.5), \
+        value_init((real_type)4.0, (real_type)2.0) \
+    }; \
+    scalar_type left_template[4] = { \
+        value_init((real_type)4.0, (real_type)2.0), \
+        value_init((real_type)1.0, (real_type)0.5), \
+        value_init((real_type)-2.0, (real_type)-1.0), \
+        value_init((real_type)0.5, (real_type)1.5) \
+    }; \
+    scalar_type right_oracle[4]; \
+    scalar_type right_cand[4]; \
+    scalar_type left_oracle[4]; \
+    scalar_type left_cand[4]; \
+    scalar_type oracle_out[8]; \
+    scalar_type cand_out[8]; \
+    int info_oracle = -1; \
+    int info_cand = -1; \
+    char side = 'R'; \
+    memcpy(right_oracle, right_template, sizeof(right_oracle)); \
+    ((fn_type)oracle_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, \
+                         right_oracle, &ldv, &info_oracle); \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(right_oracle, 4u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(right_cand, right_template, sizeof(right_cand)); \
+    ((fn_type)cand_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, right_cand, \
+                       &ldv, &info_cand); \
+    if (info_cand != 0 || fb_judge_has_nan_inf(right_cand, 4u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    side = 'L'; \
+    info_oracle = -1; \
+    info_cand = -1; \
+    memcpy(left_oracle, left_template, sizeof(left_oracle)); \
+    ((fn_type)oracle_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, left_oracle, \
+                         &ldv, &info_oracle); \
+    if (info_oracle != 0 || \
+        fb_judge_has_nan_inf(left_oracle, 4u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(left_cand, left_template, sizeof(left_cand)); \
+    ((fn_type)cand_fn)(&job, &side, &n, &ilo, &ihi, scale, &m, left_cand, \
+                       &ldv, &info_cand); \
+    if (info_cand != 0 || fb_judge_has_nan_inf(left_cand, 4u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(oracle_out, right_oracle, sizeof(right_oracle)); \
+    memcpy(oracle_out + 4, left_oracle, sizeof(left_oracle)); \
+    memcpy(cand_out, right_cand, sizeof(right_cand)); \
+    memcpy(cand_out + 4, left_cand, sizeof(left_cand)); \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 8u, \
+                                            output_dtype, \
+                                            norm_fn((const norm_base_type *)oracle_out, \
+                                                    8u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type v_time[4]; \
+            char side_time = 'R'; \
+            int info_time = -1; \
+            memcpy(v_time, right_template, sizeof(v_time)); \
+            ((fn_type)cand_fn)(&job, &side_time, &n, &ilo, &ihi, scale, &m, \
+                               v_time, &ldv, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type v_time[4]; \
+            char side_time = 'R'; \
+            int info_time = -1; \
+            memcpy(v_time, right_template, sizeof(v_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&job, &side_time, &n, &ilo, &ihi, scale, &m, \
+                               v_time, &ldv, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBAL_RUNNER_REAL(name, op_id, fn_type, scalar_type, \
+                                    output_dtype, norm_fn) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char job_n = 'N'; \
+    char job_s = 'S'; \
+    int n = 2, lda = 2; \
+    scalar_type a_n_template[4] = { \
+        (scalar_type)1.0, (scalar_type)3.0, \
+        (scalar_type)2.0, (scalar_type)4.0 \
+    }; \
+    scalar_type a_s_template[4] = { \
+        (scalar_type)1.0, (scalar_type)0.001, \
+        (scalar_type)1000.0, (scalar_type)1.0 \
+    }; \
+    scalar_type a_n_oracle[4]; \
+    scalar_type a_n_cand[4]; \
+    scalar_type a_s_oracle[4]; \
+    scalar_type a_s_cand[4]; \
+    scalar_type scale_n_oracle[2] = {(scalar_type)-1.0, (scalar_type)-1.0}; \
+    scalar_type scale_n_cand[2] = {(scalar_type)-1.0, (scalar_type)-1.0}; \
+    scalar_type scale_s_oracle[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type scale_s_cand[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type oracle_out[16]; \
+    scalar_type cand_out[16]; \
+    int ilo_n_oracle = -1, ihi_n_oracle = -1, info_n_oracle = -1; \
+    int ilo_n_cand = -1, ihi_n_cand = -1, info_n_cand = -1; \
+    int ilo_s_oracle = -1, ihi_s_oracle = -1, info_s_oracle = -1; \
+    int ilo_s_cand = -1, ihi_s_cand = -1, info_s_cand = -1; \
+    size_t idx = 0; \
+    memcpy(a_n_oracle, a_n_template, sizeof(a_n_oracle)); \
+    ((fn_type)oracle_fn)(&job_n, &n, a_n_oracle, &lda, &ilo_n_oracle, \
+                         &ihi_n_oracle, scale_n_oracle, &info_n_oracle); \
+    if (info_n_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_n_cand, a_n_template, sizeof(a_n_cand)); \
+    ((fn_type)cand_fn)(&job_n, &n, a_n_cand, &lda, &ilo_n_cand, &ihi_n_cand, \
+                       scale_n_cand, &info_n_cand); \
+    if (info_n_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_s_oracle, a_s_template, sizeof(a_s_oracle)); \
+    ((fn_type)oracle_fn)(&job_s, &n, a_s_oracle, &lda, &ilo_s_oracle, \
+                         &ihi_s_oracle, scale_s_oracle, &info_s_oracle); \
+    if (info_s_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_s_cand, a_s_template, sizeof(a_s_cand)); \
+    ((fn_type)cand_fn)(&job_s, &n, a_s_cand, &lda, &ilo_s_cand, &ihi_s_cand, \
+                       scale_s_cand, &info_s_cand); \
+    if (info_s_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    for (size_t i = 0; i < 4u; i++) oracle_out[idx++] = a_n_oracle[i]; \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = scale_n_oracle[i]; \
+    oracle_out[idx++] = (scalar_type)ilo_n_oracle; \
+    oracle_out[idx++] = (scalar_type)ihi_n_oracle; \
+    for (size_t i = 0; i < 4u; i++) oracle_out[idx++] = a_s_oracle[i]; \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = scale_s_oracle[i]; \
+    oracle_out[idx++] = (scalar_type)ilo_s_oracle; \
+    oracle_out[idx++] = (scalar_type)ihi_s_oracle; \
+    idx = 0; \
+    for (size_t i = 0; i < 4u; i++) cand_out[idx++] = a_n_cand[i]; \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = scale_n_cand[i]; \
+    cand_out[idx++] = (scalar_type)ilo_n_cand; \
+    cand_out[idx++] = (scalar_type)ihi_n_cand; \
+    for (size_t i = 0; i < 4u; i++) cand_out[idx++] = a_s_cand[i]; \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = scale_s_cand[i]; \
+    cand_out[idx++] = (scalar_type)ilo_s_cand; \
+    cand_out[idx++] = (scalar_type)ihi_s_cand; \
+    if (fb_judge_has_nan_inf(oracle_out, 16u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (fb_judge_has_nan_inf(cand_out, 16u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 16u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 16u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type a_time[4]; \
+            scalar_type scale_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            int ilo_time = -1, ihi_time = -1, info_time = -1; \
+            memcpy(a_time, a_s_template, sizeof(a_time)); \
+            ((fn_type)cand_fn)(&job_s, &n, a_time, &lda, &ilo_time, &ihi_time, \
+                               scale_time, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type a_time[4]; \
+            scalar_type scale_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            int ilo_time = -1, ihi_time = -1, info_time = -1; \
+            memcpy(a_time, a_s_template, sizeof(a_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&job_s, &n, a_time, &lda, &ilo_time, &ihi_time, \
+                               scale_time, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBAL_RUNNER_COMPLEX(name, op_id, fn_type, scalar_type, \
+                                       real_type, output_dtype, norm_fn, \
+                                       value_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    char job_n = 'N'; \
+    char job_s = 'S'; \
+    int n = 2, lda = 2; \
+    scalar_type a_n_template[4] = { \
+        value_init((real_type)1.0, (real_type)0.5), \
+        value_init((real_type)3.0, (real_type)-1.0), \
+        value_init((real_type)2.0, (real_type)1.5), \
+        value_init((real_type)4.0, (real_type)-0.25) \
+    }; \
+    scalar_type a_s_template[4] = { \
+        value_init((real_type)1.0, (real_type)0.0), \
+        value_init((real_type)0.0, (real_type)0.001), \
+        value_init((real_type)0.0, (real_type)1000.0), \
+        value_init((real_type)1.0, (real_type)0.0) \
+    }; \
+    scalar_type a_n_oracle[4]; \
+    scalar_type a_n_cand[4]; \
+    scalar_type a_s_oracle[4]; \
+    scalar_type a_s_cand[4]; \
+    real_type scale_n_oracle[2] = {(real_type)-1.0, (real_type)-1.0}; \
+    real_type scale_n_cand[2] = {(real_type)-1.0, (real_type)-1.0}; \
+    real_type scale_s_oracle[2] = {(real_type)0.0, (real_type)0.0}; \
+    real_type scale_s_cand[2] = {(real_type)0.0, (real_type)0.0}; \
+    real_type oracle_out[24]; \
+    real_type cand_out[24]; \
+    int ilo_n_oracle = -1, ihi_n_oracle = -1, info_n_oracle = -1; \
+    int ilo_n_cand = -1, ihi_n_cand = -1, info_n_cand = -1; \
+    int ilo_s_oracle = -1, ihi_s_oracle = -1, info_s_oracle = -1; \
+    int ilo_s_cand = -1, ihi_s_cand = -1, info_s_cand = -1; \
+    size_t idx = 0; \
+    memcpy(a_n_oracle, a_n_template, sizeof(a_n_oracle)); \
+    ((fn_type)oracle_fn)(&job_n, &n, a_n_oracle, &lda, &ilo_n_oracle, \
+                         &ihi_n_oracle, scale_n_oracle, &info_n_oracle); \
+    if (info_n_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_n_cand, a_n_template, sizeof(a_n_cand)); \
+    ((fn_type)cand_fn)(&job_n, &n, a_n_cand, &lda, &ilo_n_cand, &ihi_n_cand, \
+                       scale_n_cand, &info_n_cand); \
+    if (info_n_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_s_oracle, a_s_template, sizeof(a_s_oracle)); \
+    ((fn_type)oracle_fn)(&job_s, &n, a_s_oracle, &lda, &ilo_s_oracle, \
+                         &ihi_s_oracle, scale_s_oracle, &info_s_oracle); \
+    if (info_s_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_s_cand, a_s_template, sizeof(a_s_cand)); \
+    ((fn_type)cand_fn)(&job_s, &n, a_s_cand, &lda, &ilo_s_cand, &ihi_s_cand, \
+                       scale_s_cand, &info_s_cand); \
+    if (info_s_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    for (size_t i = 0; i < 4u; i++) { \
+        oracle_out[idx++] = (real_type)__real__(a_n_oracle[i]); \
+        oracle_out[idx++] = (real_type)__imag__(a_n_oracle[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = scale_n_oracle[i]; \
+    oracle_out[idx++] = (real_type)ilo_n_oracle; \
+    oracle_out[idx++] = (real_type)ihi_n_oracle; \
+    for (size_t i = 0; i < 4u; i++) { \
+        oracle_out[idx++] = (real_type)__real__(a_s_oracle[i]); \
+        oracle_out[idx++] = (real_type)__imag__(a_s_oracle[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = scale_s_oracle[i]; \
+    oracle_out[idx++] = (real_type)ilo_s_oracle; \
+    oracle_out[idx++] = (real_type)ihi_s_oracle; \
+    idx = 0; \
+    for (size_t i = 0; i < 4u; i++) { \
+        cand_out[idx++] = (real_type)__real__(a_n_cand[i]); \
+        cand_out[idx++] = (real_type)__imag__(a_n_cand[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = scale_n_cand[i]; \
+    cand_out[idx++] = (real_type)ilo_n_cand; \
+    cand_out[idx++] = (real_type)ihi_n_cand; \
+    for (size_t i = 0; i < 4u; i++) { \
+        cand_out[idx++] = (real_type)__real__(a_s_cand[i]); \
+        cand_out[idx++] = (real_type)__imag__(a_s_cand[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = scale_s_cand[i]; \
+    cand_out[idx++] = (real_type)ilo_s_cand; \
+    cand_out[idx++] = (real_type)ihi_s_cand; \
+    if (fb_judge_has_nan_inf(oracle_out, 24u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (fb_judge_has_nan_inf(cand_out, 24u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 24u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 24u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type a_time[4]; \
+            real_type scale_time[2] = {(real_type)0.0, (real_type)0.0}; \
+            int ilo_time = -1, ihi_time = -1, info_time = -1; \
+            memcpy(a_time, a_s_template, sizeof(a_time)); \
+            ((fn_type)cand_fn)(&job_s, &n, a_time, &lda, &ilo_time, &ihi_time, \
+                               scale_time, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type a_time[4]; \
+            real_type scale_time[2] = {(real_type)0.0, (real_type)0.0}; \
+            int ilo_time = -1, ihi_time = -1, info_time = -1; \
+            memcpy(a_time, a_s_template, sizeof(a_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&job_s, &n, a_time, &lda, &ilo_time, &ihi_time, \
+                               scale_time, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBRD_RUNNER_REAL(name, op_id, fn_type, scalar_type, \
+                                    output_dtype, norm_fn) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    int m = 2, n = 2, lda = 2, lwork = 4; \
+    scalar_type a_template[4] = { \
+        (scalar_type)1.0, (scalar_type)3.0, \
+        (scalar_type)2.0, (scalar_type)4.0 \
+    }; \
+    scalar_type a_oracle[4]; \
+    scalar_type a_cand[4]; \
+    scalar_type d_oracle[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type d_cand[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type e_oracle[1] = {(scalar_type)0.0}; \
+    scalar_type e_cand[1] = {(scalar_type)0.0}; \
+    scalar_type tauq_oracle[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type tauq_cand[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type taup_oracle[1] = {(scalar_type)0.0}; \
+    scalar_type taup_cand[1] = {(scalar_type)0.0}; \
+    scalar_type work_oracle[4] = {(scalar_type)0.0, (scalar_type)0.0, \
+                                  (scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type work_cand[4] = {(scalar_type)0.0, (scalar_type)0.0, \
+                                (scalar_type)0.0, (scalar_type)0.0}; \
+    scalar_type oracle_out[10]; \
+    scalar_type cand_out[10]; \
+    int info_oracle = -1; \
+    int info_cand = -1; \
+    size_t idx = 0; \
+    memcpy(a_oracle, a_template, sizeof(a_oracle)); \
+    ((fn_type)oracle_fn)(&m, &n, a_oracle, &lda, d_oracle, e_oracle, \
+                         tauq_oracle, taup_oracle, work_oracle, &lwork, \
+                         &info_oracle); \
+    if (info_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_cand, a_template, sizeof(a_cand)); \
+    ((fn_type)cand_fn)(&m, &n, a_cand, &lda, d_cand, e_cand, tauq_cand, \
+                       taup_cand, work_cand, &lwork, &info_cand); \
+    if (info_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    for (size_t i = 0; i < 4u; i++) oracle_out[idx++] = a_oracle[i]; \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = d_oracle[i]; \
+    oracle_out[idx++] = e_oracle[0]; \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = tauq_oracle[i]; \
+    oracle_out[idx++] = taup_oracle[0]; \
+    idx = 0; \
+    for (size_t i = 0; i < 4u; i++) cand_out[idx++] = a_cand[i]; \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = d_cand[i]; \
+    cand_out[idx++] = e_cand[0]; \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = tauq_cand[i]; \
+    cand_out[idx++] = taup_cand[0]; \
+    if (fb_judge_has_nan_inf(oracle_out, 10u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (fb_judge_has_nan_inf(cand_out, 10u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 10u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 10u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type a_time[4]; \
+            scalar_type d_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            scalar_type e_time[1] = {(scalar_type)0.0}; \
+            scalar_type tauq_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            scalar_type taup_time[1] = {(scalar_type)0.0}; \
+            scalar_type work_time[4] = {(scalar_type)0.0, (scalar_type)0.0, \
+                                        (scalar_type)0.0, (scalar_type)0.0}; \
+            int info_time = -1; \
+            memcpy(a_time, a_template, sizeof(a_time)); \
+            ((fn_type)cand_fn)(&m, &n, a_time, &lda, d_time, e_time, tauq_time, \
+                               taup_time, work_time, &lwork, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type a_time[4]; \
+            scalar_type d_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            scalar_type e_time[1] = {(scalar_type)0.0}; \
+            scalar_type tauq_time[2] = {(scalar_type)0.0, (scalar_type)0.0}; \
+            scalar_type taup_time[1] = {(scalar_type)0.0}; \
+            scalar_type work_time[4] = {(scalar_type)0.0, (scalar_type)0.0, \
+                                        (scalar_type)0.0, (scalar_type)0.0}; \
+            int info_time = -1; \
+            memcpy(a_time, a_template, sizeof(a_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&m, &n, a_time, &lda, d_time, e_time, tauq_time, \
+                               taup_time, work_time, &lwork, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+#define FB_DEFINE_GEBRD_RUNNER_COMPLEX(name, op_id, fn_type, scalar_type, \
+                                       real_type, output_dtype, norm_fn, \
+                                       value_init) \
+static fb_judge_status_t name( \
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand, \
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, \
+    uint64_t *ns_out) \
+{ \
+    (void)tc; \
+    fb_generic_fn oracle_fn = oracle->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    fb_generic_fn cand_fn = cand->ext_ops[op_id][FB_CONV_FORTRAN]; \
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL; \
+    int m = 2, n = 2, lda = 2, lwork = 4; \
+    scalar_type a_template[4] = { \
+        value_init((real_type)1.0, (real_type)0.5), \
+        value_init((real_type)3.0, (real_type)-1.0), \
+        value_init((real_type)2.0, (real_type)1.5), \
+        value_init((real_type)4.0, (real_type)-0.25) \
+    }; \
+    scalar_type a_oracle[4]; \
+    scalar_type a_cand[4]; \
+    real_type d_oracle[2] = {(real_type)0.0, (real_type)0.0}; \
+    real_type d_cand[2] = {(real_type)0.0, (real_type)0.0}; \
+    real_type e_oracle[1] = {(real_type)0.0}; \
+    real_type e_cand[1] = {(real_type)0.0}; \
+    scalar_type tauq_oracle[2] = {value_init((real_type)0.0, (real_type)0.0), \
+                                  value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type tauq_cand[2] = {value_init((real_type)0.0, (real_type)0.0), \
+                                value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type taup_oracle[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type taup_cand[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type work_oracle[4] = {value_init((real_type)0.0, (real_type)0.0), \
+                                  value_init((real_type)0.0, (real_type)0.0), \
+                                  value_init((real_type)0.0, (real_type)0.0), \
+                                  value_init((real_type)0.0, (real_type)0.0)}; \
+    scalar_type work_cand[4] = {value_init((real_type)0.0, (real_type)0.0), \
+                                value_init((real_type)0.0, (real_type)0.0), \
+                                value_init((real_type)0.0, (real_type)0.0), \
+                                value_init((real_type)0.0, (real_type)0.0)}; \
+    real_type oracle_out[17]; \
+    real_type cand_out[17]; \
+    int info_oracle = -1; \
+    int info_cand = -1; \
+    size_t idx = 0; \
+    memcpy(a_oracle, a_template, sizeof(a_oracle)); \
+    ((fn_type)oracle_fn)(&m, &n, a_oracle, &lda, d_oracle, e_oracle, \
+                         tauq_oracle, taup_oracle, work_oracle, &lwork, \
+                         &info_oracle); \
+    if (info_oracle != 0) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    memcpy(a_cand, a_template, sizeof(a_cand)); \
+    ((fn_type)cand_fn)(&m, &n, a_cand, &lda, d_cand, e_cand, tauq_cand, \
+                       taup_cand, work_cand, &lwork, &info_cand); \
+    if (info_cand != 0) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    for (size_t i = 0; i < 4u; i++) { \
+        oracle_out[idx++] = (real_type)__real__(a_oracle[i]); \
+        oracle_out[idx++] = (real_type)__imag__(a_oracle[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) oracle_out[idx++] = d_oracle[i]; \
+    oracle_out[idx++] = e_oracle[0]; \
+    for (size_t i = 0; i < 2u; i++) { \
+        oracle_out[idx++] = (real_type)__real__(tauq_oracle[i]); \
+        oracle_out[idx++] = (real_type)__imag__(tauq_oracle[i]); \
+    } \
+    oracle_out[idx++] = (real_type)__real__(taup_oracle[0]); \
+    oracle_out[idx++] = (real_type)__imag__(taup_oracle[0]); \
+    idx = 0; \
+    for (size_t i = 0; i < 4u; i++) { \
+        cand_out[idx++] = (real_type)__real__(a_cand[i]); \
+        cand_out[idx++] = (real_type)__imag__(a_cand[i]); \
+    } \
+    for (size_t i = 0; i < 2u; i++) cand_out[idx++] = d_cand[i]; \
+    cand_out[idx++] = e_cand[0]; \
+    for (size_t i = 0; i < 2u; i++) { \
+        cand_out[idx++] = (real_type)__real__(tauq_cand[i]); \
+        cand_out[idx++] = (real_type)__imag__(tauq_cand[i]); \
+    } \
+    cand_out[idx++] = (real_type)__real__(taup_cand[0]); \
+    cand_out[idx++] = (real_type)__imag__(taup_cand[0]); \
+    if (fb_judge_has_nan_inf(oracle_out, 17u, output_dtype)) { \
+        result_oracle_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    if (fb_judge_has_nan_inf(cand_out, 17u, output_dtype)) { \
+        result_fatal(res); \
+        return FB_JUDGE_OK; \
+    } \
+    result_from_relerr(res, fb_judge_relerr(cand_out, oracle_out, 17u, \
+                                            output_dtype, \
+                                            norm_fn(oracle_out, 17u))); \
+    if (ns_out) { \
+        uint64_t best = UINT64_MAX; \
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) { \
+            scalar_type a_time[4]; \
+            real_type d_time[2] = {(real_type)0.0, (real_type)0.0}; \
+            real_type e_time[1] = {(real_type)0.0}; \
+            scalar_type tauq_time[2] = {value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0)}; \
+            scalar_type taup_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            scalar_type work_time[4] = {value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0)}; \
+            int info_time = -1; \
+            memcpy(a_time, a_template, sizeof(a_time)); \
+            ((fn_type)cand_fn)(&m, &n, a_time, &lda, d_time, e_time, tauq_time, \
+                               taup_time, work_time, &lwork, &info_time); \
+        } \
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) { \
+            scalar_type a_time[4]; \
+            real_type d_time[2] = {(real_type)0.0, (real_type)0.0}; \
+            real_type e_time[1] = {(real_type)0.0}; \
+            scalar_type tauq_time[2] = {value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0)}; \
+            scalar_type taup_time[1] = {value_init((real_type)0.0, (real_type)0.0)}; \
+            scalar_type work_time[4] = {value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0), \
+                                        value_init((real_type)0.0, (real_type)0.0)}; \
+            int info_time = -1; \
+            memcpy(a_time, a_template, sizeof(a_time)); \
+            uint64_t t0 = fb_judge_time_ns(); \
+            ((fn_type)cand_fn)(&m, &n, a_time, &lda, d_time, e_time, tauq_time, \
+                               taup_time, work_time, &lwork, &info_time); \
+            uint64_t dt = fb_judge_time_ns() - t0; \
+            if (dt < best) best = dt; \
+        } \
+        *ns_out = best; \
+    } \
+    return FB_JUDGE_OK; \
+}
+
+static fb_judge_status_t run_sgbmvx(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_SGBMVX][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_SGBMVX][FB_CONV_FORTRAN];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    char trans = 'N';
+    int m = 3, n = 3, kl = 1, ku = 1, ldab = 3, incx = 1, incy = 1;
+    float alpha = 2.0f, beta = 0.5f;
+    float ab[9] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 0.0f};
+    float x[3] = {1.0f, 2.0f, 3.0f};
+    float y_template[3] = {10.0f, 20.0f, 30.0f};
+    float y_oracle[3];
+    float y_cand[3];
+
+    memcpy(y_oracle, y_template, sizeof(y_oracle));
+    ((fb_sgbmvx_fortran_fn_t)oracle_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                        &ldab, x, &incx, &beta, y_oracle,
+                                        &incy);
+    if (fb_judge_has_nan_inf(y_oracle, 3u, FB_DTYPE_F32)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(y_cand, y_template, sizeof(y_cand));
+    ((fb_sgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                      &ldab, x, &incx, &beta, y_cand,
+                                      &incy);
+    result_from_relerr(
+        res,
+        fb_judge_relerr(y_cand, y_oracle, 3u, FB_DTYPE_F32,
+                        fb_norm_frob_f32(y_oracle, 3u)));
+    if (fb_judge_has_nan_inf(y_cand, 3u, FB_DTYPE_F32)) res->is_fatal = true;
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            float y_time[3];
+            memcpy(y_time, y_template, sizeof(y_time));
+            ((fb_sgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+        }
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            float y_time[3];
+            memcpy(y_time, y_template, sizeof(y_time));
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_sgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_dgbmvx(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_DGBMVX][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_DGBMVX][FB_CONV_FORTRAN];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    char trans = 'C';
+    int m = 3, n = 2, kl = 1, ku = 0, ldab = 2, incx = -1, incy = -1;
+    double alpha = 1.0, beta = 0.5;
+    double ab[4] = {1.0, 2.0, 3.0, 4.0};
+    double x[3] = {5.0, -1.0, 2.0};
+    double y_template[2] = {10.0, 20.0};
+    double y_oracle[2];
+    double y_cand[2];
+
+    memcpy(y_oracle, y_template, sizeof(y_oracle));
+    ((fb_dgbmvx_fortran_fn_t)oracle_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                        &ldab, x, &incx, &beta, y_oracle,
+                                        &incy);
+    if (fb_judge_has_nan_inf(y_oracle, 2u, FB_DTYPE_F64)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(y_cand, y_template, sizeof(y_cand));
+    ((fb_dgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                      &ldab, x, &incx, &beta, y_cand,
+                                      &incy);
+    result_from_relerr(
+        res,
+        fb_judge_relerr(y_cand, y_oracle, 2u, FB_DTYPE_F64,
+                        fb_norm_frob_f64(y_oracle, 2u)));
+    if (fb_judge_has_nan_inf(y_cand, 2u, FB_DTYPE_F64)) res->is_fatal = true;
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            double y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            ((fb_dgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+        }
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            double y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_dgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_cgbmvx(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_CGBMVX][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_CGBMVX][FB_CONV_FORTRAN];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    char trans = 'T';
+    int m = 2, n = 2, kl = 1, ku = 1, ldab = 3, incx = 1, incy = 1;
+    fb_complex_float_t alpha = fb_direct_make_cf32(1.0f, 0.0f);
+    fb_complex_float_t beta = fb_direct_make_cf32(0.0f, 0.0f);
+    fb_complex_float_t ab[6] = {
+        fb_direct_make_cf32(0.0f, 0.0f),
+        fb_direct_make_cf32(1.0f, 1.0f),
+        fb_direct_make_cf32(3.0f, 0.0f),
+        fb_direct_make_cf32(2.0f, -1.0f),
+        fb_direct_make_cf32(4.0f, 2.0f),
+        fb_direct_make_cf32(0.0f, 0.0f)
+    };
+    fb_complex_float_t x[2] = {
+        fb_direct_make_cf32(1.0f, 1.0f),
+        fb_direct_make_cf32(2.0f, -1.0f)
+    };
+    fb_complex_float_t y_template[2] = {
+        fb_direct_make_cf32(0.0f, 0.0f),
+        fb_direct_make_cf32(0.0f, 0.0f)
+    };
+    fb_complex_float_t y_oracle[2];
+    fb_complex_float_t y_cand[2];
+
+    memcpy(y_oracle, y_template, sizeof(y_oracle));
+    ((fb_cgbmvx_fortran_fn_t)oracle_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                        &ldab, x, &incx, &beta, y_oracle,
+                                        &incy);
+    if (fb_judge_has_nan_inf(y_oracle, 2u, FB_DTYPE_CF32)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(y_cand, y_template, sizeof(y_cand));
+    ((fb_cgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                      &ldab, x, &incx, &beta, y_cand,
+                                      &incy);
+    result_from_relerr(
+        res,
+        fb_judge_relerr(y_cand, y_oracle, 2u, FB_DTYPE_CF32,
+                        fb_norm_frob_cf32((const float *)y_oracle, 2u)));
+    if (fb_judge_has_nan_inf(y_cand, 2u, FB_DTYPE_CF32)) res->is_fatal = true;
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            fb_complex_float_t y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            ((fb_cgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+        }
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            fb_complex_float_t y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_cgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
+
+static fb_judge_status_t run_zgbmvx(
+    const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
+    const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
+{
+    (void)tc;
+    fb_generic_fn oracle_fn = oracle->ext_ops[FB_OP_ZGBMVX][FB_CONV_FORTRAN];
+    fb_generic_fn cand_fn = cand->ext_ops[FB_OP_ZGBMVX][FB_CONV_FORTRAN];
+    if (!oracle_fn || !cand_fn) return FB_JUDGE_ERR_NOT_IMPL;
+
+    char trans = 'C';
+    int m = 2, n = 2, kl = 1, ku = 1, ldab = 3, incx = 1, incy = 1;
+    fb_complex_double_t alpha = fb_direct_make_cf64(1.0, 0.0);
+    fb_complex_double_t beta = fb_direct_make_cf64(0.0, 0.0);
+    fb_complex_double_t ab[6] = {
+        fb_direct_make_cf64(0.0, 0.0),
+        fb_direct_make_cf64(1.0, 1.0),
+        fb_direct_make_cf64(3.0, 0.0),
+        fb_direct_make_cf64(2.0, -1.0),
+        fb_direct_make_cf64(4.0, 2.0),
+        fb_direct_make_cf64(0.0, 0.0)
+    };
+    fb_complex_double_t x[2] = {
+        fb_direct_make_cf64(1.0, 1.0),
+        fb_direct_make_cf64(2.0, -1.0)
+    };
+    fb_complex_double_t y_template[2] = {
+        fb_direct_make_cf64(0.0, 0.0),
+        fb_direct_make_cf64(0.0, 0.0)
+    };
+    fb_complex_double_t y_oracle[2];
+    fb_complex_double_t y_cand[2];
+
+    memcpy(y_oracle, y_template, sizeof(y_oracle));
+    ((fb_zgbmvx_fortran_fn_t)oracle_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                        &ldab, x, &incx, &beta, y_oracle,
+                                        &incy);
+    if (fb_judge_has_nan_inf(y_oracle, 2u, FB_DTYPE_CF64)) {
+        result_oracle_fatal(res);
+        return FB_JUDGE_OK;
+    }
+
+    memcpy(y_cand, y_template, sizeof(y_cand));
+    ((fb_zgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku, &alpha, ab,
+                                      &ldab, x, &incx, &beta, y_cand,
+                                      &incy);
+    result_from_relerr(
+        res,
+        fb_judge_relerr(y_cand, y_oracle, 2u, FB_DTYPE_CF64,
+                        fb_norm_frob_cf64((const double *)y_oracle, 2u)));
+    if (fb_judge_has_nan_inf(y_cand, 2u, FB_DTYPE_CF64)) res->is_fatal = true;
+
+    if (ns_out) {
+        uint64_t best = UINT64_MAX;
+        for (int w = 0; w < FB_JUDGE_WARMUP_RUNS; w++) {
+            fb_complex_double_t y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            ((fb_zgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+        }
+        for (int t = 0; t < FB_JUDGE_TIMING_RUNS; t++) {
+            fb_complex_double_t y_time[2];
+            memcpy(y_time, y_template, sizeof(y_time));
+            uint64_t t0 = fb_judge_time_ns();
+            ((fb_zgbmvx_fortran_fn_t)cand_fn)(&trans, &m, &n, &kl, &ku,
+                                              &alpha, ab, &ldab, x, &incx,
+                                              &beta, y_time, &incy);
+            uint64_t dt = fb_judge_time_ns() - t0;
+            if (dt < best) best = dt;
+        }
+        *ns_out = best;
+    }
+
+    return FB_JUDGE_OK;
+}
+
+FB_DEFINE_GBCON_RUNNER(run_sgbcon, FB_OP_SGBCON, fb_sgbcon_fortran_fn_t,
+                       float, float, scalar_relerr_f32, FB_DTYPE_F32,
+                       4.0f, 0.0f)
+FB_DEFINE_GBCON_RUNNER(run_dgbcon, FB_OP_DGBCON, fb_dgbcon_fortran_fn_t,
+                       double, double, scalar_relerr_f64, FB_DTYPE_F64,
+                       4.0, 0.0)
+FB_DEFINE_GBCON_RUNNER(run_cgbcon, FB_OP_CGBCON, fb_cgbcon_fortran_fn_t,
+                       fb_complex_float_t, float, scalar_relerr_f32,
+                       FB_DTYPE_F32, fb_direct_make_cf32(4.0f, 0.0f),
+                       fb_direct_make_cf32(0.0f, 0.0f))
+FB_DEFINE_GBCON_RUNNER(run_zgbcon, FB_OP_ZGBCON, fb_zgbcon_fortran_fn_t,
+                       fb_complex_double_t, double, scalar_relerr_f64,
+                       FB_DTYPE_F64, fb_direct_make_cf64(4.0, 0.0),
+                       fb_direct_make_cf64(0.0, 0.0))
+
+FB_DEFINE_GBEQU_RUNNER(run_sgbequ, FB_OP_SGBEQU, fb_sgbequ_fortran_fn_t,
+                       float, float, FB_DTYPE_F32, fb_norm_frob_f32, 4.0f)
+FB_DEFINE_GBEQU_RUNNER(run_dgbequ, FB_OP_DGBEQU, fb_dgbequ_fortran_fn_t,
+                       double, double, FB_DTYPE_F64, fb_norm_frob_f64, 4.0)
+FB_DEFINE_GBEQU_RUNNER(run_cgbequ, FB_OP_CGBEQU, fb_cgbequ_fortran_fn_t,
+                       fb_complex_float_t, float, FB_DTYPE_F32,
+                       fb_norm_frob_f32, fb_direct_make_cf32(4.0f, 0.0f))
+FB_DEFINE_GBEQU_RUNNER(run_zgbequ, FB_OP_ZGBEQU, fb_zgbequ_fortran_fn_t,
+                       fb_complex_double_t, double, FB_DTYPE_F64,
+                       fb_norm_frob_f64, fb_direct_make_cf64(4.0, 0.0))
+
+FB_DEFINE_GBRFS_RUNNER_REAL(run_sgbrfs, FB_OP_SGBRFS,
+                            fb_sgbrfs_fortran_fn_t, float, float,
+                            FB_DTYPE_F32, fb_norm_frob_f32,
+                            fb_direct_make_cf32)
+FB_DEFINE_GBRFS_RUNNER_REAL(run_dgbrfs, FB_OP_DGBRFS,
+                            fb_dgbrfs_fortran_fn_t, double, double,
+                            FB_DTYPE_F64, fb_norm_frob_f64,
+                            fb_direct_make_cf64)
+FB_DEFINE_GBRFS_RUNNER_COMPLEX(run_cgbrfs, FB_OP_CGBRFS,
+                               fb_cgbrfs_fortran_fn_t, fb_complex_float_t,
+                               float, FB_DTYPE_F32, fb_norm_frob_f32,
+                               fb_direct_make_cf32)
+FB_DEFINE_GBRFS_RUNNER_COMPLEX(run_zgbrfs, FB_OP_ZGBRFS,
+                               fb_zgbrfs_fortran_fn_t, fb_complex_double_t,
+                               double, FB_DTYPE_F64, fb_norm_frob_f64,
+                               fb_direct_make_cf64)
+
+FB_DEFINE_GEBAK_RUNNER_REAL(run_sgebak, FB_OP_SGEBAK,
+                            fb_sgebak_fortran_fn_t, float, FB_DTYPE_F32,
+                            fb_norm_frob_f32)
+FB_DEFINE_GEBAK_RUNNER_REAL(run_dgebak, FB_OP_DGEBAK,
+                            fb_dgebak_fortran_fn_t, double, FB_DTYPE_F64,
+                            fb_norm_frob_f64)
+FB_DEFINE_GEBAK_RUNNER_COMPLEX(run_cgebak, FB_OP_CGEBAK,
+                               fb_cgebak_fortran_fn_t, fb_complex_float_t,
+                               float, FB_DTYPE_CF32, fb_norm_frob_cf32,
+                               float, fb_direct_make_cf32)
+FB_DEFINE_GEBAK_RUNNER_COMPLEX(run_zgebak, FB_OP_ZGEBAK,
+                               fb_zgebak_fortran_fn_t, fb_complex_double_t,
+                               double, FB_DTYPE_CF64, fb_norm_frob_cf64,
+                               double, fb_direct_make_cf64)
+FB_DEFINE_GEBAL_RUNNER_REAL(run_sgebal, FB_OP_SGEBAL,
+                            fb_sgebal_fortran_fn_t, float, FB_DTYPE_F32,
+                            fb_norm_frob_f32)
+FB_DEFINE_GEBAL_RUNNER_REAL(run_dgebal, FB_OP_DGEBAL,
+                            fb_dgebal_fortran_fn_t, double, FB_DTYPE_F64,
+                            fb_norm_frob_f64)
+FB_DEFINE_GEBAL_RUNNER_COMPLEX(run_cgebal, FB_OP_CGEBAL,
+                               fb_cgebal_fortran_fn_t, fb_complex_float_t,
+                               float, FB_DTYPE_F32, fb_norm_frob_f32,
+                               fb_direct_make_cf32)
+FB_DEFINE_GEBAL_RUNNER_COMPLEX(run_zgebal, FB_OP_ZGEBAL,
+                               fb_zgebal_fortran_fn_t, fb_complex_double_t,
+                               double, FB_DTYPE_F64, fb_norm_frob_f64,
+                               fb_direct_make_cf64)
+FB_DEFINE_GEBRD_RUNNER_REAL(run_sgebrd, FB_OP_SGEBRD,
+                            fb_sgebrd_fortran_fn_t, float, FB_DTYPE_F32,
+                            fb_norm_frob_f32)
+FB_DEFINE_GEBRD_RUNNER_REAL(run_dgebrd, FB_OP_DGEBRD,
+                            fb_dgebrd_fortran_fn_t, double, FB_DTYPE_F64,
+                            fb_norm_frob_f64)
+FB_DEFINE_GEBRD_RUNNER_COMPLEX(run_cgebrd, FB_OP_CGEBRD,
+                               fb_cgebrd_fortran_fn_t, fb_complex_float_t,
+                               float, FB_DTYPE_F32, fb_norm_frob_f32,
+                               fb_direct_make_cf32)
+FB_DEFINE_GEBRD_RUNNER_COMPLEX(run_zgebrd, FB_OP_ZGEBRD,
+                               fb_zgebrd_fortran_fn_t, fb_complex_double_t,
+                               double, FB_DTYPE_F64, fb_norm_frob_f64,
+                               fb_direct_make_cf64)
+FB_DEFINE_GECON_RUNNER_REAL(run_sgecon, FB_OP_SGECON,
+                            fb_sgecon_fortran_fn_t, float, float,
+                            scalar_relerr_f32, 4.0f, 0.0f)
+FB_DEFINE_GECON_RUNNER_REAL(run_dgecon, FB_OP_DGECON,
+                            fb_dgecon_fortran_fn_t, double, double,
+                            scalar_relerr_f64, 4.0, 0.0)
+FB_DEFINE_GECON_RUNNER_COMPLEX(run_cgecon, FB_OP_CGECON,
+                               fb_cgecon_fortran_fn_t,
+                               fb_complex_float_t, float,
+                               scalar_relerr_f32,
+                               fb_direct_make_cf32(4.0f, 0.0f),
+                               fb_direct_make_cf32(0.0f, 0.0f))
+FB_DEFINE_GECON_RUNNER_COMPLEX(run_zgecon, FB_OP_ZGECON,
+                               fb_zgecon_fortran_fn_t,
+                               fb_complex_double_t, double,
+                               scalar_relerr_f64,
+                               fb_direct_make_cf64(4.0, 0.0),
+                               fb_direct_make_cf64(0.0, 0.0))
+FB_DEFINE_GEEQU_RUNNER(run_sgeequ, FB_OP_SGEEQU, fb_sgeequ_fortran_fn_t,
+                       float, float, FB_DTYPE_F32, fb_norm_frob_f32, 4.0f)
+FB_DEFINE_GEEQU_RUNNER(run_dgeequ, FB_OP_DGEEQU, fb_dgeequ_fortran_fn_t,
+                       double, double, FB_DTYPE_F64, fb_norm_frob_f64, 4.0)
+
 static fb_judge_status_t run_sgbmv(
     const fb_backend_vtable_t *oracle, const fb_backend_vtable_t *cand,
     const fb_corpus_case_t *tc, fb_judge_case_result_t *res, uint64_t *ns_out)
@@ -5913,6 +12321,46 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DAXPY] = run_daxpy,
     [FB_OP_CAXPY] = run_caxpy,
     [FB_OP_ZAXPY] = run_zaxpy,
+    [FB_OP_SAXPBY] = run_saxpby,
+    [FB_OP_DAXPBY] = run_daxpby,
+    [FB_OP_CAXPBY] = run_caxpby,
+    [FB_OP_ZAXPBY] = run_zaxpby,
+    [FB_OP_CBLAS_SAXPBY] = run_saxpby,
+    [FB_OP_CBLAS_DAXPBY] = run_daxpby,
+    [FB_OP_CBLAS_CAXPBY] = run_caxpby,
+    [FB_OP_CBLAS_ZAXPBY] = run_zaxpby,
+    [FB_OP_SAXPY_BATCH] = run_saxpy_batch,
+    [FB_OP_DAXPY_BATCH] = run_daxpy_batch,
+    [FB_OP_CAXPY_BATCH] = run_caxpy_batch,
+    [FB_OP_ZAXPY_BATCH] = run_zaxpy_batch,
+    [FB_OP_CBLAS_SAXPY_BATCH] = run_saxpy_batch,
+    [FB_OP_CBLAS_DAXPY_BATCH] = run_daxpy_batch,
+    [FB_OP_CBLAS_CAXPY_BATCH] = run_caxpy_batch,
+    [FB_OP_CBLAS_ZAXPY_BATCH] = run_zaxpy_batch,
+    [FB_OP_SAXPY_BATCH_STRIDED] = run_saxpy_batch_strided,
+    [FB_OP_DAXPY_BATCH_STRIDED] = run_daxpy_batch_strided,
+    [FB_OP_CAXPY_BATCH_STRIDED] = run_caxpy_batch_strided,
+    [FB_OP_ZAXPY_BATCH_STRIDED] = run_zaxpy_batch_strided,
+    [FB_OP_CBLAS_SAXPY_BATCH_STRIDED] = run_saxpy_batch_strided,
+    [FB_OP_CBLAS_DAXPY_BATCH_STRIDED] = run_daxpy_batch_strided,
+    [FB_OP_CBLAS_CAXPY_BATCH_STRIDED] = run_caxpy_batch_strided,
+    [FB_OP_CBLAS_ZAXPY_BATCH_STRIDED] = run_zaxpy_batch_strided,
+    [FB_OP_SCOPY_BATCH] = run_scopy_batch,
+    [FB_OP_DCOPY_BATCH] = run_dcopy_batch,
+    [FB_OP_CCOPY_BATCH] = run_ccopy_batch,
+    [FB_OP_ZCOPY_BATCH] = run_zcopy_batch,
+    [FB_OP_CBLAS_SCOPY_BATCH] = run_scopy_batch,
+    [FB_OP_CBLAS_DCOPY_BATCH] = run_dcopy_batch,
+    [FB_OP_CBLAS_CCOPY_BATCH] = run_ccopy_batch,
+    [FB_OP_CBLAS_ZCOPY_BATCH] = run_zcopy_batch,
+    [FB_OP_SCOPY_BATCH_STRIDED] = run_scopy_batch_strided,
+    [FB_OP_DCOPY_BATCH_STRIDED] = run_dcopy_batch_strided,
+    [FB_OP_CCOPY_BATCH_STRIDED] = run_ccopy_batch_strided,
+    [FB_OP_ZCOPY_BATCH_STRIDED] = run_zcopy_batch_strided,
+    [FB_OP_CBLAS_SCOPY_BATCH_STRIDED] = run_scopy_batch_strided,
+    [FB_OP_CBLAS_DCOPY_BATCH_STRIDED] = run_dcopy_batch_strided,
+    [FB_OP_CBLAS_CCOPY_BATCH_STRIDED] = run_ccopy_batch_strided,
+    [FB_OP_CBLAS_ZCOPY_BATCH_STRIDED] = run_zcopy_batch_strided,
     [FB_OP_SSCAL] = run_sscal,
     [FB_OP_DSCAL] = run_dscal,
     [FB_OP_CSCAL] = run_cscal,
@@ -5962,6 +12410,78 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DGEMV] = run_dgemv,
     [FB_OP_CGEMV] = run_cgemv,
     [FB_OP_ZGEMV] = run_zgemv,
+    [FB_OP_SGEMV_BATCH] = run_sgemv_batch,
+    [FB_OP_DGEMV_BATCH] = run_dgemv_batch,
+    [FB_OP_CGEMV_BATCH] = run_cgemv_batch,
+    [FB_OP_ZGEMV_BATCH] = run_zgemv_batch,
+    [FB_OP_CBLAS_SGEMV_BATCH] = run_sgemv_batch,
+    [FB_OP_CBLAS_DGEMV_BATCH] = run_dgemv_batch,
+    [FB_OP_CBLAS_CGEMV_BATCH] = run_cgemv_batch,
+    [FB_OP_CBLAS_ZGEMV_BATCH] = run_zgemv_batch,
+    [FB_OP_SGEMV_BATCH_STRIDED] = run_sgemv_batch_strided,
+    [FB_OP_DGEMV_BATCH_STRIDED] = run_dgemv_batch_strided,
+    [FB_OP_CGEMV_BATCH_STRIDED] = run_cgemv_batch_strided,
+    [FB_OP_ZGEMV_BATCH_STRIDED] = run_zgemv_batch_strided,
+    [FB_OP_CBLAS_SGEMV_BATCH_STRIDED] = run_sgemv_batch_strided,
+    [FB_OP_CBLAS_DGEMV_BATCH_STRIDED] = run_dgemv_batch_strided,
+    [FB_OP_CBLAS_CGEMV_BATCH_STRIDED] = run_cgemv_batch_strided,
+    [FB_OP_CBLAS_ZGEMV_BATCH_STRIDED] = run_zgemv_batch_strided,
+    [FB_OP_SDGMM_BATCH] = run_sdgmm_batch,
+    [FB_OP_DDGMM_BATCH] = run_ddgmm_batch,
+    [FB_OP_CDGMM_BATCH] = run_cdgmm_batch,
+    [FB_OP_ZDGMM_BATCH] = run_zdgmm_batch,
+    [FB_OP_CBLAS_SDGMM_BATCH] = run_sdgmm_batch,
+    [FB_OP_CBLAS_DDGMM_BATCH] = run_ddgmm_batch,
+    [FB_OP_CBLAS_CDGMM_BATCH] = run_cdgmm_batch,
+    [FB_OP_CBLAS_ZDGMM_BATCH] = run_zdgmm_batch,
+    [FB_OP_SDGMM_BATCH_STRIDED] = run_sdgmm_batch_strided,
+    [FB_OP_DDGMM_BATCH_STRIDED] = run_ddgmm_batch_strided,
+    [FB_OP_CDGMM_BATCH_STRIDED] = run_cdgmm_batch_strided,
+    [FB_OP_ZDGMM_BATCH_STRIDED] = run_zdgmm_batch_strided,
+    [FB_OP_CBLAS_SDGMM_BATCH_STRIDED] = run_sdgmm_batch_strided,
+    [FB_OP_CBLAS_DDGMM_BATCH_STRIDED] = run_ddgmm_batch_strided,
+    [FB_OP_CBLAS_CDGMM_BATCH_STRIDED] = run_cdgmm_batch_strided,
+    [FB_OP_CBLAS_ZDGMM_BATCH_STRIDED] = run_zdgmm_batch_strided,
+    [FB_OP_SSYMM_BATCH] = run_ssymm_batch,
+    [FB_OP_DSYMM_BATCH] = run_dsymm_batch,
+    [FB_OP_CSYMM_BATCH] = run_csymm_batch,
+    [FB_OP_ZSYMM_BATCH] = run_zsymm_batch,
+    [FB_OP_CBLAS_SSYMM_BATCH] = run_ssymm_batch,
+    [FB_OP_CBLAS_DSYMM_BATCH] = run_dsymm_batch,
+    [FB_OP_CBLAS_CSYMM_BATCH] = run_csymm_batch,
+    [FB_OP_CBLAS_ZSYMM_BATCH] = run_zsymm_batch,
+    [FB_OP_SSYR2K_BATCH] = run_ssyr2k_batch,
+    [FB_OP_DSYR2K_BATCH] = run_dsyr2k_batch,
+    [FB_OP_CSYR2K_BATCH] = run_csyr2k_batch,
+    [FB_OP_ZSYR2K_BATCH] = run_zsyr2k_batch,
+    [FB_OP_CBLAS_SSYR2K_BATCH] = run_ssyr2k_batch,
+    [FB_OP_CBLAS_DSYR2K_BATCH] = run_dsyr2k_batch,
+    [FB_OP_CBLAS_CSYR2K_BATCH] = run_csyr2k_batch,
+    [FB_OP_CBLAS_ZSYR2K_BATCH] = run_zsyr2k_batch,
+    [FB_OP_SSYRK_BATCH] = run_ssyrk_batch,
+    [FB_OP_DSYRK_BATCH] = run_dsyrk_batch,
+    [FB_OP_CSYRK_BATCH] = run_csyrk_batch,
+    [FB_OP_ZSYRK_BATCH] = run_zsyrk_batch,
+    [FB_OP_CBLAS_SSYRK_BATCH] = run_ssyrk_batch,
+    [FB_OP_CBLAS_DSYRK_BATCH] = run_dsyrk_batch,
+    [FB_OP_CBLAS_CSYRK_BATCH] = run_csyrk_batch,
+    [FB_OP_CBLAS_ZSYRK_BATCH] = run_zsyrk_batch,
+    [FB_OP_STRSM_BATCH] = run_strsm_batch,
+    [FB_OP_DTRSM_BATCH] = run_dtrsm_batch,
+    [FB_OP_CTRSM_BATCH] = run_ctrsm_batch,
+    [FB_OP_ZTRSM_BATCH] = run_ztrsm_batch,
+    [FB_OP_CBLAS_STRSM_BATCH] = run_strsm_batch,
+    [FB_OP_CBLAS_DTRSM_BATCH] = run_dtrsm_batch,
+    [FB_OP_CBLAS_CTRSM_BATCH] = run_ctrsm_batch,
+    [FB_OP_CBLAS_ZTRSM_BATCH] = run_ztrsm_batch,
+    [FB_OP_STRSM_BATCH_STRIDED] = run_strsm_batch_strided,
+    [FB_OP_DTRSM_BATCH_STRIDED] = run_dtrsm_batch_strided,
+    [FB_OP_CTRSM_BATCH_STRIDED] = run_ctrsm_batch_strided,
+    [FB_OP_ZTRSM_BATCH_STRIDED] = run_ztrsm_batch_strided,
+    [FB_OP_CBLAS_STRSM_BATCH_STRIDED] = run_strsm_batch_strided,
+    [FB_OP_CBLAS_DTRSM_BATCH_STRIDED] = run_dtrsm_batch_strided,
+    [FB_OP_CBLAS_CTRSM_BATCH_STRIDED] = run_ctrsm_batch_strided,
+    [FB_OP_CBLAS_ZTRSM_BATCH_STRIDED] = run_ztrsm_batch_strided,
     [FB_OP_SSYMV] = run_ssymv,
     [FB_OP_DSYMV] = run_dsymv,
     [FB_OP_CHEMV] = run_chemv,
@@ -5992,6 +12512,8 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DSPMV] = run_dspmv,
     [FB_OP_CHPMV] = run_chpmv,
     [FB_OP_ZHPMV] = run_zhpmv,
+    [FB_OP_SBMV] = run_sbmv,
+    [FB_OP_DBMV] = run_dbmv,
     [FB_OP_SSBMV] = run_ssbmv,
     [FB_OP_DSBMV] = run_dsbmv,
     [FB_OP_CHBMV] = run_chbmv,
@@ -6021,10 +12543,87 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_CHPR2] = run_chpr2,
     [FB_OP_ZHPR2] = run_zhpr2,
     /* BLAS Level 3 */
+    [FB_OP_SGEMM_COMPUTE] = run_sgemm_compute,
+    [FB_OP_DGEMM_COMPUTE] = run_dgemm_compute,
+    [FB_OP_CGEMM_COMPUTE] = run_cgemm_compute,
+    [FB_OP_ZGEMM_COMPUTE] = run_zgemm_compute,
+    [FB_OP_CBLAS_SGEMM_COMPUTE] = run_cblas_sgemm_compute,
+    [FB_OP_CBLAS_DGEMM_COMPUTE] = run_cblas_dgemm_compute,
+    [FB_OP_CBLAS_CGEMM_COMPUTE] = run_cblas_cgemm_compute,
+    [FB_OP_CBLAS_ZGEMM_COMPUTE] = run_cblas_zgemm_compute,
+    [FB_OP_SGEMM_PACK] = run_sgemm_pack,
+    [FB_OP_DGEMM_PACK] = run_dgemm_pack,
+    [FB_OP_CGEMM_PACK] = run_cgemm_pack,
+    [FB_OP_ZGEMM_PACK] = run_zgemm_pack,
+    [FB_OP_CBLAS_SGEMM_PACK] = run_cblas_sgemm_pack,
+    [FB_OP_CBLAS_DGEMM_PACK] = run_cblas_dgemm_pack,
+    [FB_OP_CBLAS_CGEMM_PACK] = run_cblas_cgemm_pack,
+    [FB_OP_CBLAS_ZGEMM_PACK] = run_cblas_zgemm_pack,
+    [FB_OP_SGEMM_PACK_GET_SIZE] = run_sgemm_pack_get_size,
+    [FB_OP_DGEMM_PACK_GET_SIZE] = run_dgemm_pack_get_size,
+    [FB_OP_CGEMM_PACK_GET_SIZE] = run_cgemm_pack_get_size,
+    [FB_OP_ZGEMM_PACK_GET_SIZE] = run_zgemm_pack_get_size,
+    [FB_OP_CBLAS_SGEMM_PACK_GET_SIZE] = run_cblas_sgemm_pack_get_size,
+    [FB_OP_CBLAS_DGEMM_PACK_GET_SIZE] = run_cblas_dgemm_pack_get_size,
+    [FB_OP_CBLAS_CGEMM_PACK_GET_SIZE] = run_cblas_cgemm_pack_get_size,
+    [FB_OP_CBLAS_ZGEMM_PACK_GET_SIZE] = run_cblas_zgemm_pack_get_size,
+    [FB_OP_SGEMM_PTR] = run_sgemm_ptr,
+    [FB_OP_DGEMM_PTR] = run_dgemm_ptr,
+    [FB_OP_CGEMM_PTR] = run_cgemm_ptr,
+    [FB_OP_ZGEMM_PTR] = run_zgemm_ptr,
+    [FB_OP_MKL_JIT_CREATE_CGEMM] = run_mkl_jit_create_cgemm,
+    [FB_OP_MKL_JIT_CREATE_DGEMM] = run_mkl_jit_create_dgemm,
+    [FB_OP_MKL_JIT_CREATE_SGEMM] = run_mkl_jit_create_sgemm,
+    [FB_OP_MKL_JIT_CREATE_ZGEMM] = run_mkl_jit_create_zgemm,
+    [FB_OP_MKL_JIT_DESTROY] = run_mkl_jit_destroy,
+    [FB_OP_MKL_JIT_GET_CGEMM_PTR] = run_mkl_jit_get_cgemm_ptr,
+    [FB_OP_MKL_JIT_GET_DGEMM_PTR] = run_mkl_jit_get_dgemm_ptr,
+    [FB_OP_MKL_JIT_GET_SGEMM_PTR] = run_mkl_jit_get_sgemm_ptr,
+    [FB_OP_MKL_JIT_GET_ZGEMM_PTR] = run_mkl_jit_get_zgemm_ptr,
     [FB_OP_SGEMM] = run_sgemm,
     [FB_OP_DGEMM] = run_dgemm,
     [FB_OP_CGEMM] = run_cgemm,
     [FB_OP_ZGEMM] = run_zgemm,
+    [FB_OP_SGEMM_BATCH] = run_sgemm_batch,
+    [FB_OP_DGEMM_BATCH] = run_dgemm_batch,
+    [FB_OP_CGEMM_BATCH] = run_cgemm_batch,
+    [FB_OP_ZGEMM_BATCH] = run_zgemm_batch,
+    [FB_OP_CBLAS_SGEMM_BATCH] = run_sgemm_batch,
+    [FB_OP_CBLAS_DGEMM_BATCH] = run_dgemm_batch,
+    [FB_OP_CBLAS_CGEMM_BATCH] = run_cgemm_batch,
+    [FB_OP_CBLAS_ZGEMM_BATCH] = run_zgemm_batch,
+    [FB_OP_SGEMM_STRIDED] = run_sgemm_strided,
+    [FB_OP_DGEMM_STRIDED] = run_dgemm_strided,
+    [FB_OP_CGEMM_STRIDED] = run_cgemm_strided,
+    [FB_OP_ZGEMM_STRIDED] = run_zgemm_strided,
+    [FB_OP_CBLAS_SGEMM_BATCH_STRIDED] = run_sgemm_strided,
+    [FB_OP_CBLAS_DGEMM_BATCH_STRIDED] = run_dgemm_strided,
+    [FB_OP_CBLAS_CGEMM_BATCH_STRIDED] = run_cgemm_strided,
+    [FB_OP_CBLAS_ZGEMM_BATCH_STRIDED] = run_zgemm_strided,
+    [FB_OP_SGEMM3M_BATCH] = run_sgemm3m_batch,
+    [FB_OP_DGEMM3M_BATCH] = run_dgemm3m_batch,
+    [FB_OP_CGEMM3M_BATCH] = run_cgemm3m_batch,
+    [FB_OP_ZGEMM3M_BATCH] = run_zgemm3m_batch,
+    [FB_OP_CBLAS_SGEMM3M_BATCH] = run_cblas_sgemm3m_batch,
+    [FB_OP_CBLAS_DGEMM3M_BATCH] = run_cblas_dgemm3m_batch,
+    [FB_OP_CBLAS_CGEMM3M_BATCH] = run_cblas_cgemm3m_batch,
+    [FB_OP_CBLAS_ZGEMM3M_BATCH] = run_cblas_zgemm3m_batch,
+    [FB_OP_SGEMM3M_BATCH_STRIDED] = run_sgemm3m_batch_strided,
+    [FB_OP_DGEMM3M_BATCH_STRIDED] = run_dgemm3m_batch_strided,
+    [FB_OP_CGEMM3M_BATCH_STRIDED] = run_cgemm3m_batch_strided,
+    [FB_OP_ZGEMM3M_BATCH_STRIDED] = run_zgemm3m_batch_strided,
+    [FB_OP_CBLAS_SGEMM3M_BATCH_STRIDED] = run_cblas_sgemm3m_batch_strided,
+    [FB_OP_CBLAS_DGEMM3M_BATCH_STRIDED] = run_cblas_dgemm3m_batch_strided,
+    [FB_OP_CBLAS_CGEMM3M_BATCH_STRIDED] = run_cblas_cgemm3m_batch_strided,
+    [FB_OP_CBLAS_ZGEMM3M_BATCH_STRIDED] = run_cblas_zgemm3m_batch_strided,
+    [FB_OP_SGEMMT] = run_sgemmt,
+    [FB_OP_DGEMMT] = run_dgemmt,
+    [FB_OP_CGEMMT] = run_cgemmt,
+    [FB_OP_ZGEMMT] = run_zgemmt,
+    [FB_OP_CBLAS_SGEMMT] = run_cblas_sgemmt,
+    [FB_OP_CBLAS_DGEMMT] = run_cblas_dgemmt,
+    [FB_OP_CBLAS_CGEMMT] = run_cblas_cgemmt,
+    [FB_OP_CBLAS_ZGEMMT] = run_cblas_zgemmt,
     [FB_OP_SSYMM] = run_ssymm,
     [FB_OP_DSYMM] = run_dsymm,
     [FB_OP_CSYMM] = run_csymm,
@@ -6055,6 +12654,40 @@ static const fb_direct_runner_fn fb_direct_dispatch[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DGBMV] = run_dgbmv,
     [FB_OP_CGBMV] = run_cgbmv,
     [FB_OP_ZGBMV] = run_zgbmv,
+    [FB_OP_SGBMVX] = run_sgbmvx,
+    [FB_OP_DGBMVX] = run_dgbmvx,
+    [FB_OP_CGBMVX] = run_cgbmvx,
+    [FB_OP_ZGBMVX] = run_zgbmvx,
+    [FB_OP_SGBCON] = run_sgbcon,
+    [FB_OP_DGBCON] = run_dgbcon,
+    [FB_OP_CGBCON] = run_cgbcon,
+    [FB_OP_ZGBCON] = run_zgbcon,
+    [FB_OP_SGEBAL] = run_sgebal,
+    [FB_OP_DGEBAL] = run_dgebal,
+    [FB_OP_CGEBAL] = run_cgebal,
+    [FB_OP_ZGEBAL] = run_zgebal,
+    [FB_OP_SGEBRD] = run_sgebrd,
+    [FB_OP_DGEBRD] = run_dgebrd,
+    [FB_OP_CGEBRD] = run_cgebrd,
+    [FB_OP_ZGEBRD] = run_zgebrd,
+    [FB_OP_SGECON] = run_sgecon,
+    [FB_OP_DGECON] = run_dgecon,
+    [FB_OP_CGECON] = run_cgecon,
+    [FB_OP_ZGECON] = run_zgecon,
+    [FB_OP_SGEEQU] = run_sgeequ,
+    [FB_OP_DGEEQU] = run_dgeequ,
+    [FB_OP_SGBEQU] = run_sgbequ,
+    [FB_OP_DGBEQU] = run_dgbequ,
+    [FB_OP_CGBEQU] = run_cgbequ,
+    [FB_OP_ZGBEQU] = run_zgbequ,
+    [FB_OP_SGBRFS] = run_sgbrfs,
+    [FB_OP_DGBRFS] = run_dgbrfs,
+    [FB_OP_CGBRFS] = run_cgbrfs,
+    [FB_OP_ZGBRFS] = run_zgbrfs,
+    [FB_OP_SGEBAK] = run_sgebak,
+    [FB_OP_DGEBAK] = run_dgebak,
+    [FB_OP_CGEBAK] = run_cgebak,
+    [FB_OP_ZGEBAK] = run_zgebak,
     [FB_OP_CSYMV] = run_csymv,
     [FB_OP_ZSYMV] = run_zsymv,
     [FB_OP_CSYR]  = run_csyr,

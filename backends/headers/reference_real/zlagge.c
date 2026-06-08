@@ -1,2 +1,0 @@
-/* zlagge */
-void zlagge_() { }

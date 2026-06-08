@@ -1,2 +1,0 @@
-/* chseqr */
-void chseqr_() { }

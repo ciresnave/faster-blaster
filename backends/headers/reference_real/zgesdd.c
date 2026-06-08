@@ -1,2 +1,0 @@
-/* zgesdd */
-void zgesdd_() { }

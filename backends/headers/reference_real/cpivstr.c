@@ -1,2 +1,0 @@
-/* cpivstr */
-void cpivstr_() { }

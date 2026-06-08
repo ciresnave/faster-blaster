@@ -1,0 +1,5 @@
+** On entry to CGELSD, parameter number  1 had an illegal value
+** On entry to CGELSD, parameter number  2 had an illegal value
+** On entry to CGELSD, parameter number  5 had an illegal value
+** On entry to CGELSD, parameter number  7 had an illegal value
+** On entry to CGELSD, parameter number 12 had an illegal value

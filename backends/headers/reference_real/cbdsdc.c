@@ -1,2 +1,0 @@
-/* cbdsdc */
-void cbdsdc_() { }

@@ -1,2 +1,0 @@
-/* zwilk */
-void zwilk_() { }

@@ -1,2 +1,0 @@
-/* zgehrd */
-void zgehrd_() { }

@@ -1,2 +1,0 @@
-/* clarnv */
-void clarnv_() { }

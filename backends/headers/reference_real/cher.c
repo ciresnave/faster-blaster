@@ -1,2 +1,0 @@
-/* cher */
-void cher_() { }

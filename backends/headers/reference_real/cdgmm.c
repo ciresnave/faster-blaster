@@ -1,2 +1,0 @@
-/* cdgmm */
-void cdgmm_() { }

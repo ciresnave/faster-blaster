@@ -1,2 +1,0 @@
-/* cpotri */
-void cpotri_() { }

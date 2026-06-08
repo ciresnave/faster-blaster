@@ -1,2 +1,0 @@
-/* crotg */
-void crotg_() { }

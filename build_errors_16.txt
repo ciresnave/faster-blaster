@@ -1,0 +1,48 @@
+[1/32] Performing update step for 'openblas-backend'
+-- Already at requested tag: v0.3.30
+[2/32] Linking C executable tests\test_judge.exe; Copying faster-blaster.dll to test directory
+FAILED: [code=4294967295] tests/test_judge.exe 
+C:\WINDOWS\system32\cmd.exe /C "cd . && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=tests\CMakeFiles\test_judge.dir --rc=C:\PROGRA~1\LLVM\bin\llvm-rc.exe --mt=C:\PROGRA~1\LLVM\bin\llvm-mt.exe --manifests  -- C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_judge.dir\test_judge.c.obj  /out:tests\test_judge.exe /implib:tests\test_judge.lib /pdb:tests\test_judge.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console  faster-blaster.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests && "C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file C:/libraries/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/tests/test_judge.exe -installedDir C:/libraries/vcpkg/installed/x64-windows/debug/bin -OutVariable out && cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests && "C:\Program Files\CMake\bin\cmake.exe" -E copy_if_different C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/faster-blaster.dll C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/tests""
+LINK Pass 1: command "C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_judge.dir\test_judge.c.obj /out:tests\test_judge.exe /implib:tests\test_judge.lib /pdb:tests\test_judge.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console faster-blaster.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTFILE:tests\CMakeFiles\test_judge.dir/intermediate.manifest tests\CMakeFiles\test_judge.dir/manifest.res" failed (exit code 1) with the following output:
+lld-link: error: undefined symbol: FB_SELECT_MAX_PRECISION
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\tests\test_judge.c:304
+
+>>>               tests\CMakeFiles\test_judge.dir\test_judge.c.obj:(test_select_best_backend)
+
+
+
+lld-link: error: undefined symbol: FB_SELECT_MAX_SPEED
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\tests\test_judge.c:322
+
+>>>               tests\CMakeFiles\test_judge.dir\test_judge.c.obj:(test_select_best_backend)
+
+[3/32] No patch step for 'openblas-backend'
+[4/32] Linking CXX executable tests\test_hipblas_backend.exe
+FAILED: [code=4294967295] tests/test_hipblas_backend.exe 
+C:\WINDOWS\system32\cmd.exe /C "cd . && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=tests\CMakeFiles\test_hipblas_backend.dir --rc=C:\PROGRA~1\LLVM\bin\llvm-rc.exe --mt=C:\PROGRA~1\LLVM\bin\llvm-mt.exe --manifests  -- C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj  /out:tests\test_hipblas_backend.exe /implib:tests\test_hipblas_backend.lib /pdb:tests\test_hipblas_backend.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console  faster-blaster.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests && "C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file C:/libraries/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/tests/test_hipblas_backend.exe -installedDir C:/libraries/vcpkg/installed/x64-windows/debug/bin -OutVariable out""
+LINK Pass 1: command "C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj /out:tests\test_hipblas_backend.exe /implib:tests\test_hipblas_backend.lib /pdb:tests\test_hipblas_backend.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console faster-blaster.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTFILE:tests\CMakeFiles\test_hipblas_backend.dir/intermediate.manifest tests\CMakeFiles\test_hipblas_backend.dir/manifest.res" failed (exit code 1) with the following output:
+lld-link: error: undefined symbol: fb_hipblas_get_trait
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\tests\test_hipblas_backend.cpp:50
+
+>>>               tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj:(void __cdecl test_init(void))
+
+[5/32] Linking C executable tests\test_benchmark_system.exe
+[6/32] Linking C executable tests\test_device_api.exe
+[7/32] Linking C executable tests\test_plugin_architecture.exe
+[8/32] Linking C executable tests\test_device_memory_simple.exe; Copying faster-blaster.dll to test directory
+[9/32] Linking C executable tests\test_smart_wrappers.exe; Copying faster-blaster.dll to test directory
+[10/32] Linking C executable examples\simple_gemm.exe
+[11/32] Linking C executable examples\vector_ops.exe
+[12/32] Linking C executable tests\test_level1_ops.exe; Copying faster-blaster.dll
+[13/32] Linking C executable tests\test_comprehensive_correctness.exe; Copying faster-blaster.dll to test directory
+[14/32] Linking C executable tests\test_phase1_gpu_operations.exe; Copying faster-blaster.dll
+[15/32] Linking C executable tests\test_backend_loader.exe; Copying faster-blaster.dll to test directory
+[16/32] Performing update step for 'clblast-backend'
+-- Fetching latest from the remote origin
+[17/32] Performing update step for 'blis-backend'
+-- Fetching latest from the remote origin
+[18/32] Linking C executable tests\test_clblast_execution.exe; Copying faster-blaster.dll to test directory
+ninja: build stopped: subcommand failed.

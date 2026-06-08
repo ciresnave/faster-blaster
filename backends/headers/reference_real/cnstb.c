@@ -1,2 +1,0 @@
-/* cnstb */
-void cnstb_() { }

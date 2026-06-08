@@ -29,7 +29,8 @@
 
 #ifdef _WIN32
 #  include <windows.h>
-#  define FB_REF_LIB_NAME  "faster_blaster_reference.dll"
+#  define FB_REF_LIB_NAME  "libfaster_blaster_reference.dll"
+#  define FB_REF_LIB_NAME_ALT  "faster_blaster_reference.dll"
 #elif defined(__APPLE__)
 #  define FB_REF_LIB_NAME  "libfaster_blaster_reference.dylib"
 #else
@@ -84,7 +85,13 @@ static const char *k_default_search_paths[] = {
     NULL
 };
 
-static const char *k_lib_names[] = { FB_REF_LIB_NAME, NULL };
+static const char *k_lib_names[] = {
+    FB_REF_LIB_NAME,
+#ifdef _WIN32
+    FB_REF_LIB_NAME_ALT,
+#endif
+    NULL
+};
 
 /* =========================================================================
  * Probe

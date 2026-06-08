@@ -1,2 +1,0 @@
-/* cpivot */
-void cpivot_() { }

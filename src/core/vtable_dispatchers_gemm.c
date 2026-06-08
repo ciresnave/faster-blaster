@@ -61,6 +61,8 @@ fb_status_t fb_gemm_unified_from_specific(
     const void *bias, fb_activation_t activation, const size_t batch_count,
     void *stream) {
 
+  (void)stream;
+
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable) {
     return FB_STATUS_ERROR;
@@ -100,7 +102,7 @@ fb_status_t fb_gemm_unified_from_specific(
   }
 
   /* Convert fb_layout_t for CBLAS operations (assume column-major) */
-  const fb_layout_t layout = FB_COL_MAJOR;
+  const fb_layout_t layout = FB_LAYOUT_COL_MAJOR;
 
   /* Dispatch based on precision */
   switch (precision) {
@@ -108,44 +110,44 @@ fb_status_t fb_gemm_unified_from_specific(
     if (!vtable->sgemm) {
       return FB_STATUS_NOT_SUPPORTED;
     }
-    vtable->sgemm(layout, trans_a, trans_b, (int64_t)m, (int64_t)n, (int64_t)k,
-                  *(const float *)alpha, (const float *)A, (int64_t)lda,
-                  (const float *)B, (int64_t)ldb, *(const float *)beta,
-                  (float *)C, (int64_t)ldc);
+    vtable->sgemm(layout, trans_a, trans_b, (int)m, (int)n, (int)k,
+                  *(const float *)alpha, (const float *)A, (int)lda,
+                  (const float *)B, (int)ldb, *(const float *)beta,
+                  (float *)C, (int)ldc);
     return FB_STATUS_SUCCESS;
 
   case FB_PREC_FP64:
     if (!vtable->dgemm) {
       return FB_STATUS_NOT_SUPPORTED;
     }
-    vtable->dgemm(layout, trans_a, trans_b, (int64_t)m, (int64_t)n, (int64_t)k,
-                  *(const double *)alpha, (const double *)A, (int64_t)lda,
-                  (const double *)B, (int64_t)ldb, *(const double *)beta,
-                  (double *)C, (int64_t)ldc);
+    vtable->dgemm(layout, trans_a, trans_b, (int)m, (int)n, (int)k,
+                  *(const double *)alpha, (const double *)A, (int)lda,
+                  (const double *)B, (int)ldb, *(const double *)beta,
+                  (double *)C, (int)ldc);
     return FB_STATUS_SUCCESS;
 
   case FB_PREC_C64:
     if (!vtable->cgemm) {
       return FB_STATUS_NOT_SUPPORTED;
     }
-    vtable->cgemm(layout, trans_a, trans_b, (int64_t)m, (int64_t)n, (int64_t)k,
-                  (const fb_complex_float_t *)alpha,
-                  (const fb_complex_float_t *)A, (int64_t)lda,
-                  (const fb_complex_float_t *)B, (int64_t)ldb,
-                  (const fb_complex_float_t *)beta, (fb_complex_float_t *)C,
-                  (int64_t)ldc);
+    vtable->cgemm(layout, trans_a, trans_b, (int)m, (int)n, (int)k,
+                  *(const fb_complex_float_t *)alpha,
+                  (const fb_complex_float_t *)A, (int)lda,
+                  (const fb_complex_float_t *)B, (int)ldb,
+                  *(const fb_complex_float_t *)beta, (fb_complex_float_t *)C,
+                  (int)ldc);
     return FB_STATUS_SUCCESS;
 
   case FB_PREC_C128:
     if (!vtable->zgemm) {
       return FB_STATUS_NOT_SUPPORTED;
     }
-    vtable->zgemm(layout, trans_a, trans_b, (int64_t)m, (int64_t)n, (int64_t)k,
-                  (const fb_complex_double_t *)alpha,
-                  (const fb_complex_double_t *)A, (int64_t)lda,
-                  (const fb_complex_double_t *)B, (int64_t)ldb,
-                  (const fb_complex_double_t *)beta, (fb_complex_double_t *)C,
-                  (int64_t)ldc);
+    vtable->zgemm(layout, trans_a, trans_b, (int)m, (int)n, (int)k,
+                  *(const fb_complex_double_t *)alpha,
+                  (const fb_complex_double_t *)A, (int)lda,
+                  (const fb_complex_double_t *)B, (int)ldb,
+                  *(const fb_complex_double_t *)beta, (fb_complex_double_t *)C,
+                  (int)ldc);
     return FB_STATUS_SUCCESS;
 
   case FB_PREC_FP16:

@@ -1,2 +1,0 @@
-/* cormqr */
-void cormqr_() { }

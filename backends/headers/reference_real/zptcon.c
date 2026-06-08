@@ -1,2 +1,0 @@
-/* zptcon */
-void zptcon_() { }

@@ -1,2 +1,0 @@
-/* chqr */
-void chqr_() { }

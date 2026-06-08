@@ -58,6 +58,32 @@ try {
     # Add LLVM lib path to LIB environment variable for libomp.lib
     $env:LIB = "$llvmLibPath;$env:LIB"
 
+    # ---- Ensure Windows SDK + MSVC libs/includes are set ----
+    # When running outside a VS Developer Command Prompt, LIB and INCLUDE may
+    # not contain Windows SDK or MSVC paths.  Source vcvars64.bat to fix this.
+    if (-not ($env:LIB -match 'WindowsKits|MSVC\\[\d]')) {
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $vswhere) {
+            $vsPath = & $vswhere -latest -property installationPath 2>$null
+            $vcvars = "$vsPath\VC\Auxiliary\Build\vcvars64.bat"
+            if (Test-Path $vcvars) {
+                Write-Host "Initializing VS environment from: $vcvars" -ForegroundColor Yellow
+                # Capture env vars set by vcvars64.bat and apply them to current session
+                $tempFile = [System.IO.Path]::GetTempFileName() + ".txt"
+                cmd /c "`"$vcvars`" && set" 2>$null | Out-File $tempFile -Encoding ascii
+                Get-Content $tempFile | ForEach-Object {
+                    if ($_ -match '^([^=]+)=(.*)$') {
+                        [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+                    }
+                }
+                Remove-Item $tempFile -ErrorAction SilentlyContinue
+                # Re-prepend LLVM lib (vcvars may have reset LIB)
+                $env:LIB = "$llvmLibPath;$env:LIB"
+                Write-Host "VS environment initialized." -ForegroundColor Green
+            }
+        }
+    }
+
     # Let CMake's FindOpenMP locate the runtime by hinting the OpenMP library path
     $openmpLib = Join-Path $llvmLibPath "libomp.lib"
 

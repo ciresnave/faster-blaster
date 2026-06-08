@@ -263,7 +263,9 @@ fb_judge_status_t fb_judge_run(
         /* If every single case triggered oracle overflow, the reference
          * backend cannot provide a correctness signal for this operation. */
         if (cases_scored == 0) {
-            return FB_JUDGE_ERR_ORACLE_FAILURE;
+            return (oracle_fatal_count > 0)
+                ? FB_JUDGE_ERR_ORACLE_FAILURE
+                : FB_JUDGE_ERR_NOT_IMPL;
         }
 
         fb_profile_finish_direct(&direct_accum, &timing_accum, meta, profile_out);
@@ -311,11 +313,18 @@ fb_judge_status_t fb_judge_run(
 
             fb_metric_accum_add(&index_accum,  &idx_res.index);
             fb_metric_accum_add(&values_accum, &idx_res.value);
+            cases_scored_idx++;
 
             if (!cases[ci].meta.is_edge_case && ns > 0)
                 fb_timing_accum_add(&timing_accum, ns);
 
             fb_corpus_case_free(&cases[ci]);
+        }
+
+        if (cases_scored_idx == 0) {
+            return (oracle_fatal_idx > 0)
+                ? FB_JUDGE_ERR_ORACLE_FAILURE
+                : FB_JUDGE_ERR_NOT_IMPL;
         }
 
         /* Finish primary metrics into their respective profile slots. */
@@ -381,7 +390,9 @@ fb_judge_status_t fb_judge_run(
         /* If every single case triggered oracle overflow, no correctness
          * signal is available for this operation. */
         if (cases_scored_fact == 0) {
-            return FB_JUDGE_ERR_ORACLE_FAILURE;
+            return (oracle_fatal_fact > 0)
+                ? FB_JUDGE_ERR_ORACLE_FAILURE
+                : FB_JUDGE_ERR_NOT_IMPL;
         }
 
         /* Finish primary metrics into their respective profile slots. */
@@ -440,7 +451,9 @@ fb_judge_status_t fb_judge_run(
         }
 
         if (cases_scored_solve == 0) {
-            return FB_JUDGE_ERR_ORACLE_FAILURE;
+            return (oracle_fatal_solve > 0)
+                ? FB_JUDGE_ERR_ORACLE_FAILURE
+                : FB_JUDGE_ERR_NOT_IMPL;
         }
 
         fb_metric_accum_finish(&residual_accum, &profile_out->residual);
@@ -466,6 +479,8 @@ fb_judge_status_t fb_judge_run(
         fb_metric_accum_init(&subspace_accum);
         fb_metric_accum_init(&pairs_accum);
         fb_timing_accum_init(&timing_accum);
+
+        int cases_scored_spectral = 0;
 
         for (int ci = 0; ci < FB_CORPUS_TOTAL_CASES; ci++) {
             fb_judge_spectral_result_t spectral_res;
@@ -500,11 +515,16 @@ fb_judge_status_t fb_judge_run(
             fb_metric_accum_add(&orthogonality_accum, &spectral_res.orthogonality);
             fb_metric_accum_add(&subspace_accum, &spectral_res.subspace);
             fb_metric_accum_add(&pairs_accum, &spectral_res.pairs);
+            cases_scored_spectral++;
 
             if (!cases[ci].meta.is_edge_case && ns > 0)
                 fb_timing_accum_add(&timing_accum, ns);
 
             fb_corpus_case_free(&cases[ci]);
+        }
+
+        if (cases_scored_spectral == 0) {
+            return FB_JUDGE_ERR_NOT_IMPL;
         }
 
         /* Finish all metrics into profile slots. */

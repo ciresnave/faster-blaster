@@ -1,2 +1,0 @@
-/* zher */
-void zher_() { }

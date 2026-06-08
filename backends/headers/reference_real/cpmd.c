@@ -1,2 +1,0 @@
-/* cpmd */
-void cpmd_() { }

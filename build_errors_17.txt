@@ -1,0 +1,277 @@
+[0/1] Re-running CMake...
+-- Building backends with 32 parallel jobs
+-- 
+-- =================================================================
+--   Building Backends From Source for Maximum Performance
+-- =================================================================
+-- Detected AMD Zen 4 CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- NVIDIA CUDA detected - targeting architectures: 
+-- OpenCL detected: 3.0
+-- 
+-- Hardware Configuration:
+--   CPU Vendor: AMD
+--   CPU Architecture: zen4
+--   CPU Config: znver4
+--   NVIDIA GPU: Yes (CUDA )
+--   OpenCL: Yes
+-- 
+-- Optimized C Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- Optimized CXX Flags: /O2 /Ob2 /Oi /Ot /GL /GS- /fp:fast /arch:AVX2
+-- 
+-- Building backends:
+-- Configuring BLIS build from source (zen4 optimized)
+-- BLIS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/blis
+-- Configuring OpenBLAS build from source (znver4 optimized)
+-- OpenBLAS will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas
+-- Configuring CLBlast build from source
+-- CLBlast will be built and installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/clblast
+-- 
+-- All backends will be installed to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install
+-- =================================================================
+-- 
+CMake Warning (dev) at cmake/BuildBackendsFromSource.cmake:479 (set):
+  Cannot set "CMAKE_PREFIX_PATH": current scope has no parent.
+Call Stack (most recent call first):
+  CMakeLists.txt:21 (include)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:
+--   Γ£ô cuBLAS: 13.0.88 (found)
+  Γ£ù AMD rocBLAS: Not found
+  Γ£ô CLBlast: (found)
+
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- ≡ƒÆí AMD CPU detected without AOCL-BLIS
+--    AOCL provides 2-4x better performance on AMD CPUs
+
+   Install AMD AOCL? [Y/n]
+  [Y/n] (default: yes): 
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  AMD AOCL Installation
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- AMD AOCL provides optimized BLIS/FLAME for AMD CPUs
+--   ΓåÆ 2-4x faster than OpenBLAS on AMD Ryzen/EPYC
+-- 
+-- Windows Installation:
+--   1. Download installer from:
+--      https://www.amd.com/en/developer/aocl/blis.html
+--   2. Run AOCL-Windows installer
+--   3. Default install: C:/Program Files/AMD/AOCL-Windows
+--   4. Reconfigure: cmake ..
+-- 
+-- After installation, AOCL will be auto-detected
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- 
+-- Γ£à NVIDIA GPU with CUDA Toolkit 13.0.88
+-- 
+-- Γ£à OpenCL available with CLBlast
+--    ΓåÆ All GPUs can be accelerated (NVIDIA, AMD, Intel, etc.)
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Γä╣∩╕Å  Some recommended backends are missing
+--    You can install them later and reconfigure
+--    Or disable prompts with: -DINTERACTIVE_BACKEND_SETUP=OFF
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- cpuinfo not found, will fetch from source
+-- Found OpenCL: C:/libraries/vcpkg/installed/x64-windows/include
+-- Γ£ô Found CLBlast
+-- Γ£ô CUDA compiler (nvcc) found: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/nvcc.exe
+--   Note: CUDA language not enabled with clang-cl (nvcc unsupported host on Windows)
+--   cuBLAS plugin links against CUDAToolkit::cublas directly
+-- Γ£ô CUDA compiler (nvcc) found and enabled with clang-cl host: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/nvcc.exe
+-- Γ£ô CUDA Toolkit 13.0.88 detected
+--   cuBLAS plugin will be enabled
+-- Found rocBLAS:
+--   ROCm Root: C:/Program Files/AMD/ROCm/6.4
+--   HIP Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocBLAS Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocSOLVER Include: C:/Program Files/AMD/ROCm/6.4/include
+--   Libraries: C:/Program Files/AMD/ROCm/6.4/lib/rocblas.lib;C:/Program Files/AMD/ROCm/6.4/lib/rocsolver.lib;C:/Program Files/AMD/ROCm/6.4/lib/hipblas.lib
+-- Γ£ô ROCm  detected at C:/Program Files/AMD/ROCm/6.4
+--   rocBLAS plugin will be enabled
+--   Found hipcc: C:/Program Files/AMD/ROCm/6.4/bin/hipcc.exe
+--   HIP source files will be compiled using custom commands
+-- 
+-- GPU Backend Configuration:
+--   NVIDIA cuBLAS:  ON
+--   AMD rocBLAS:    ON
+--   Intel oneMKL:   OFF
+--   Apple Metal:    OFF
+-- 
+-- Found Intel MKL:
+--   Include: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include
+--   Libraries: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_lp64.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_thread.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_core.lib
+--   Interface: mkl_intel_lp64 (8-byte pointers)
+--   Threading: mkl_intel_thread
+--   Note: You may also need to link: iomp5md (OpenMP runtime)
+-- Γ£ô Intel MKL  detected
+--   MKL CPU plugin will be enabled
+-- Γ£ù OpenBLAS not found - OpenBLAS plugin disabled
+-- Found BLIS:
+--   Include: C:/BLIS/include
+--   Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-dll.lib
+--   Note: BLIS provides BLAS only, LAPACK may be needed separately
+-- Γ£ô BLIS  detected
+--   BLIS plugin will be enabled
+-- Found AOCL:
+--   BLIS Include: C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64
+--   libFLAME Include: C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64
+--   BLIS Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-MT-dll.lib
+--   libFLAME: Not found (LAPACK operations unavailable)
+-- Γ£ô AMD AOCL  detected
+--   AOCL plugin will be enabled
+-- 
+-- CPU Backend Configuration:
+--   Intel MKL:      ON
+--   OpenBLAS:       OFF
+--   BLIS:           ON
+--   AMD AOCL:       ON
+--   Accelerate:     OFF
+-- 
+--   HIP detection will compile using clang directly: C:/Program Files/AMD/ROCm/6.4/bin/clang.exe
+-- Adding Intel MKL CPU backend source
+-- Adding BLIS CPU backend source
+-- Adding AMD AOCL CPU backend source
+-- rocBLAS backend enabled (BLAS Level 1-3 + LAPACK via rocSOLVER)
+--    Note: rocSOLVER provides LU, Cholesky, QR, SVD, and eigenvalue solvers
+-- Adding CLBlast backend trait implementation
+-- Linking CUDA libraries for cuBLAS plugin with GPU detection
+-- CUDA include dirs: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include
+--   Linked HIP runtime: C:/Program Files/AMD/ROCm/6.4/lib/amdhip64.lib
+-- ROCm HIP support enabled with HIP compiler
+-- Linking Intel MKL CPU libraries
+-- Linking BLIS libraries
+-- Linking AMD AOCL libraries
+-- Linking OpenCL: C:/libraries/vcpkg/installed/x64-windows/debug/lib/OpenCL.lib
+-- Linking CLBlast
+-- Device Memory Manager simple test enabled
+-- Smart Wrappers GPU test enabled
+-- Phase 1 GPU Operations test enabled
+-- Comprehensive correctness test enabled
+-- Reference BLAS Level 1 expanded test enabled
+-- Judge module tests enabled
+-- Backend loader integration test enabled
+-- CLBlast execution test enabled
+-- AOCL tests enabled
+-- BLIS tests enabled
+-- hipBLAS tests enabled
+-- 
+-- Backend Tests Configuration:
+--   cuBLAS: ON
+--   rocBLAS: ON
+--   hipBLAS: ON
+--   oneMKL: OFF
+--   MKL (CPU): ON
+--   OpenBLAS: OFF
+--   AOCL (BLIS+libFLAME): ON
+--   BLIS: ON
+-- 
+-- 
+-- === Faster-BLASTER Configuration Summary ===
+-- Version: 0.1.0
+-- Build type: Debug
+-- Shared libraries: ON
+-- 
+-- Optional Features:
+--   Tests: ON
+--   Benchmarks: ON
+--   Examples: ON
+--   Statistics: ON
+-- 
+-- Backend Support:
+--   OpenBLAS: OFF
+--   BLIS: ON
+--   Intel MKL: ON
+--   NVIDIA cuBLAS: ON
+--   AMD rocBLAS: ON
+--   Apple Accelerate: ON
+-- ===========================================
+-- 
+-- Configuring done (107.4s)
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang
+[1/37] Building C object CMakeFiles\faster-blaster.dir\src\core\dispatch_unified.c.obj
+[2/37] Performing update step for 'openblas-backend'
+-- Already at requested tag: v0.3.30
+[3/37] No patch step for 'openblas-backend'
+[4/37] No configure step for 'openblas-backend'
+[5/37] Building C object CMakeFiles\faster-blaster.dir\src\judge\judge_select.c.obj
+[6/37] Building C object tests\CMakeFiles\test_judge.dir\test_judge.c.obj
+[7/37] Linking C shared library faster-blaster.dll
+[8/37] Performing update step for 'blis-backend'
+-- Fetching latest from the remote origin
+[9/37] Performing update step for 'clblast-backend'
+-- Fetching latest from the remote origin
+[10/37] No patch step for 'blis-backend'
+[11/37] No patch step for 'clblast-backend'
+[12/37] Linking CXX executable tests\test_hipblas_backend.exe
+FAILED: [code=4294967295] tests/test_hipblas_backend.exe 
+C:\WINDOWS\system32\cmd.exe /C "cd . && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_exe --msvc-ver=1944 --intdir=tests\CMakeFiles\test_hipblas_backend.dir --rc=C:\PROGRA~1\LLVM\bin\llvm-rc.exe --mt=C:\PROGRA~1\LLVM\bin\llvm-mt.exe --manifests  -- C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj  /out:tests\test_hipblas_backend.exe /implib:tests\test_hipblas_backend.lib /pdb:tests\test_hipblas_backend.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console  faster-blaster.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib && C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests && "C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file C:/libraries/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/tests/test_hipblas_backend.exe -installedDir C:/libraries/vcpkg/installed/x64-windows/debug/bin -OutVariable out""
+LINK Pass 1: command "C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj /out:tests\test_hipblas_backend.exe /implib:tests\test_hipblas_backend.lib /pdb:tests\test_hipblas_backend.pdb /version:0.0 /machine:x64 /debug /INCREMENTAL /subsystem:console faster-blaster.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTFILE:tests\CMakeFiles\test_hipblas_backend.dir/intermediate.manifest tests\CMakeFiles\test_hipblas_backend.dir/manifest.res" failed (exit code 1) with the following output:
+lld-link: error: undefined symbol: fb_hipblas_get_trait
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\tests\test_hipblas_backend.cpp:50
+
+>>>               tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj:(void __cdecl test_init(void))
+
+[13/37] Performing build step for 'openblas-backend'
+FAILED: [code=1] openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\openblas-backend-prefix\src\openblas-backend-build && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake:49 (message):
+  Command failed: 1
+
+   'powershell' '-ExecutionPolicy' 'Bypass' '-File' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/cmake/build_openblas_msvc_conly.ps1' '-SourceDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-src' '-InstallDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas' '-Target' 'ZEN' '-NumCores' '32'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-*.log
+
+
+[14/37] Performing configure step for 'clblast-backend'
+[15/37] Performing configure step for 'blis-backend'
+FAILED: [code=1] blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\blis-src && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-Debug.cmake:49 (message):
+  Command failed: 127
+
+   'wsl' 'bash' '-c' 'cd '/mnt/c/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-src' && ./configure --prefix='/mnt/c/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/blis' --enable-cblas --enable-threading=openmp --enable-shared --enable-static zen4'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-*.log
+
+
+[16/37] Linking C executable tests\test_plugin_architecture.exe
+[17/37] Linking C executable examples\vector_ops.exe
+[18/37] Linking C executable tests\test_benchmark_system.exe
+[19/37] Linking C executable tests\test_device_api.exe
+[20/37] Linking C executable tests\test_level1_ops.exe; Copying faster-blaster.dll
+[21/37] Linking C executable examples\simple_gemm.exe
+[22/37] Linking C executable tests\test_device_memory_simple.exe; Copying faster-blaster.dll to test directory
+[23/37] Linking C executable tests\test_judge.exe; Copying faster-blaster.dll to test directory
+C:\Program Files\LLVM\bin\llvm-objdump.exe: error: 'C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests\faster-blaster.dll': The end of the file was unexpectedly encountered
+[24/37] Linking C executable tests\test_phase1_gpu_operations.exe; Copying faster-blaster.dll
+[25/37] Linking C executable tests\test_smart_wrappers.exe; Copying faster-blaster.dll to test directory
+[26/37] Linking C executable tests\test_comprehensive_correctness.exe; Copying faster-blaster.dll to test directory
+[27/37] Linking C executable tests\test_clblast_execution.exe; Copying faster-blaster.dll to test directory
+[28/37] Linking C executable tests\test_backend_loader.exe; Copying faster-blaster.dll to test directory
+ninja: build stopped: subcommand failed.

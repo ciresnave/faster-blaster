@@ -34,24 +34,26 @@ int fb_detect_rocm_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_gp
         if (hipGetDeviceProperties(&prop, i) != hipSuccess) {
             continue;
         }
+
+        const char *gcn_arch_name = prop.gcnArchName;
         
         fb_gpu_info_t* gpu = &gpus[*num_gpus];
         memset(gpu, 0, sizeof(*gpu));
         
         gpu->vendor = GPU_VENDOR_AMD;
         gpu->device_id = i;
-        strncpy(gpu->name, prop.name, sizeof(gpu->name) - 1);
+        snprintf(gpu->name, sizeof(gpu->name), "%s", prop.name);
         
         // Parse GCN architecture number from gcnArchName (e.g., "gfx906", "gfx1030")
         int gcn_arch = 0;
-        if (prop.gcnArchName && strlen(prop.gcnArchName) > 3) {
+        if (gcn_arch_name[0] != '\0' && strlen(gcn_arch_name) > 3) {
             // Skip "gfx" prefix and parse the number
-            gcn_arch = atoi(prop.gcnArchName + 3);
+            gcn_arch = atoi(gcn_arch_name + 3);
         }
         
         // HIP architecture string
         snprintf(gpu->compute.hip_arch, sizeof(gpu->compute.hip_arch),
-                 "%s", prop.gcnArchName ? prop.gcnArchName : "unknown");
+                 "%s", gcn_arch_name[0] != '\0' ? gcn_arch_name : "unknown");
         
         // Architecture from GCN version
         if (gcn_arch >= 1000 && gcn_arch < 1100) {

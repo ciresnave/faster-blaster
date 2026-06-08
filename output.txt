@@ -1,0 +1,34 @@
+======================================================
+  faster-blaster Judge Runner ΓÇö end-to-end CI test
+  Oracle:      reference (built-in)
+  Profile dir: C:\Users\cires\AppData\Local\Temp/fb_judge_runner_profiles
+  Ops tested:  3054  |  Backends: 1
+======================================================
+
+Backend: reference  (id=11)
+  op        dtype  digits    metric      result
+  --------  -----  --------  ----------  ------
+  sasum     f32    16        direct      PASS  (need>=6, p50=100ns)
+  dasum     f64    16        direct      PASS  (need>=13, p50=100ns)
+  scasum    f32    16        direct      PASS  (need>=5, p50=0ns)
+  dzasum    f64    16        direct      PASS  (need>=12, p50=0ns)
+  saxpy     f32    16        direct      PASS  (need>=6, p50=0ns)
+  daxpy     f64    16        direct      PASS  (need>=13, p50=0ns)
+  caxpy     cf32   16        direct      PASS  (need>=5, p50=100ns)
+  zaxpy     cf64   16        direct      PASS  (need>=12, p50=100ns)
+  scopy     f32    16        direct      PASS  (need>=6, p50=0ns)
+  dcopy     f64    16        direct      PASS  (need>=13, p50=0ns)
+  ccopy     cf32   16        direct      PASS  (need>=5, p50=0ns)
+  zcopy     cf64   16        direct      PASS  (need>=12, p50=0ns)
+  sdot      f32    16        direct      PASS  (need>=6, p50=300ns)
+  ddot      f64    16        direct      PASS  (need>=13, p50=300ns)
+  cdotc     cf32   16        direct      PASS  (need>=5, p50=0ns)
+  zdotc     cf64   16        direct      PASS  (need>=12, p50=0ns)
+  cdotu     cf32   16        direct      PASS  (need>=5, p50=0ns)
+  zdotu     cf64   16        direct      PASS  (need>=12, p50=0ns)
+  zdrot     cf64   16        direct      PASS  (need>=12, p50=100ns)
+  sdsdot    f32    16        direct      PASS  (need>=6, p50=0ns)
+  dsdot     f64    16        direct      PASS  (need>=6, p50=0ns)
+  isamax    f32    16        direct      PASS  (need>=6, p50=100ns)
+  idamax    f32    16        direct      PASS  (need>=13, p50=100ns)
+  icamax    f32    16        direct      PASS  (need>=5, p50=300ns)

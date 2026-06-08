@@ -1,2 +1,0 @@
-/* ztrtri */
-void ztrtri_() { }

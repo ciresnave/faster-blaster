@@ -1,2 +1,0 @@
-/* cgemvm */
-void cgemvm_() { }

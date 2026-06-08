@@ -366,6 +366,18 @@ void fb_autofill_all_precision_promotion(fb_backend_vtable_t *vtable);
 void fb_vtable_sync_ext_ops(fb_backend_vtable_t *vtable);
 
 /**
+ * @brief Reverse sync: propagate ext_ops[][FB_CONV_CBLAS] → named vtable
+ * fields.
+ *
+ * Call this after fb_enumerate_and_populate() has filled ext_ops from a DLL
+ * scan to make the named typed fields (vtable->saxpy, vtable->sgemm, …)
+ * reachable by the judge and dispatch code.  Only fills fields that are NULL.
+ *
+ * @param vtable Vtable to update
+ */
+void fb_vtable_fill_named_from_ext_ops(fb_backend_vtable_t *vtable);
+
+/**
  * @brief Return the function pointer for op_id, or NULL if unsupported.
  *
  * Requires a prior call to fb_vtable_sync_ext_ops().

@@ -1,2 +1,0 @@
-/* carno */
-void carno_() { }

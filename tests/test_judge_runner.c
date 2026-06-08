@@ -25,6 +25,14 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <ctype.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <time.h>
+#include <unistd.h>
+#endif
 
 /* ---- Public judge API ---- */
 #include "../include/faster-blaster/judge.h"
@@ -34,11 +42,22 @@
 /* ---- Internal judge tables (non-public but required for op ID constants
  *      and dtype enum; consistent with test_judge.c pattern).           ---- */
 #include "../src/judge/judge_op_ids.h"   /* FB_OP_SAXPY, FB_OP_SGEMM, … */
+#include "../src/judge/judge_metadata.h"
 #include "../src/judge/judge_types.h"    /* FB_DTYPE_F32, FB_DTYPE_F64, … */
 
 /* ---- Reference backend vtable ---- */
 #include "../src/backends/reference.h"   /* fb_reference_backend(), fb_reference_init() */
 #include "../include/faster-blaster/backend_plugin.h" /* fb_lib_handle_t, fb_plugin_load_library */
+
+#ifndef FB_REFERENCE_DLL_DIR
+#define FB_REFERENCE_DLL_DIR "../faster-blaster-reference/build-extended"
+#endif
+
+#ifndef FB_REFERENCE_OP_LIST_PATH
+#define FB_REFERENCE_OP_LIST_PATH "../faster-blaster-reference/all_operations_in_reference.txt"
+#endif
+
+#define JR_MAX_REFERENCE_SKIP_PRINT 64u
 
 /* fb_judge_register_oracle() and fb_judge_register_backend() are internal
  * hooks defined in judge.c.  They're intentionally absent from the public
@@ -73,6 +92,18 @@ typedef struct {
     uint8_t     min_digits;  /* minimum guaranteed_digits to pass */
     const char *name;
 } jr_op_entry_t;
+
+typedef struct {
+    uint32_t   op_id;
+    uint8_t    dtype;
+    char       name[64];
+} jr_catalog_entry_t;
+
+typedef struct {
+    char (*names)[64];
+    size_t count;
+    const char *path_used;
+} jr_reference_op_list_t;
 
 /*
  * Conservative digit floors for the reference vs reference case.
@@ -331,45 +362,69 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_ZPOSV, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
      "zposv"},
     /* LAPACK — SVD-based least-squares driver (GELSD; residual metric)   */
-    {FB_OP_SGELSD, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgelsd"},
-    {FB_OP_DGELSD, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgelsd"},
-    {FB_OP_CGELSD, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgelsd"},
-    {FB_OP_ZGELSD, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgelsd"},
+    {FB_OP_SGELSD, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "sgelsd"},
+    {FB_OP_DGELSD, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "dgelsd"},
+    {FB_OP_CGELSD, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "cgelsd"},
+    {FB_OP_ZGELSD, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zgelsd"},
     /* LAPACK — Pivoted QR least-squares driver (GELSY; residual metric)  */
-    {FB_OP_SGELSY, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "sgelsy"},
-    {FB_OP_DGELSY, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dgelsy"},
-    {FB_OP_CGELSY, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "cgelsy"},
-    {FB_OP_ZGELSY, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zgelsy"},
+    {FB_OP_SGELSY, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "sgelsy"},
+    {FB_OP_DGELSY, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "dgelsy"},
+    {FB_OP_CGELSY, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "cgelsy"},
+    {FB_OP_ZGELSY, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zgelsy"},
     /* LAPACK — Apply Q from QR (RECON metric)                           */
-    {FB_OP_SORMQR, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
-    {FB_OP_DORMQR, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
+    {FB_OP_SORMQR, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sormqr"},
+    {FB_OP_DORMQR, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dormqr"},
     {FB_OP_CUNMQR, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cunmqr"},
     {FB_OP_ZUNMQR, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zunmqr"},
     /* LAPACK — Triangular inversion (TRTRI; RECON metric)               */
-    {FB_OP_STRTRI, FB_DTYPE_F32,  JR_METRIC_RECON,    JR_MIN_LAPACK_F32,  "strtri"},
-    {FB_OP_DTRTRI, FB_DTYPE_F64,  JR_METRIC_RECON,    JR_MIN_LAPACK_F64,  "dtrtri"},
-    {FB_OP_CTRTRI, FB_DTYPE_CF32, JR_METRIC_RECON,    JR_MIN_LAPACK_F32,  "ctrtri"},
-    {FB_OP_ZTRTRI, FB_DTYPE_CF64, JR_METRIC_RECON,    JR_MIN_LAPACK_F64,  "ztrtri"},
+    {FB_OP_STRTRI, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "strtri"},
+    {FB_OP_DTRTRI, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dtrtri"},
+    {FB_OP_CTRTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "ctrtri"},
+    {FB_OP_ZTRTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "ztrtri"},
     /* LAPACK — Triangular system solve (TRTRS; RESIDUAL metric)          */
-    {FB_OP_STRTRS, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "strtrs"},
-    {FB_OP_DTRTRS, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dtrtrs"},
-    {FB_OP_CTRTRS, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "ctrtrs"},
-    {FB_OP_ZTRTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "ztrtrs"},
+    {FB_OP_STRTRS, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "strtrs"},
+    {FB_OP_DTRTRS, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "dtrtrs"},
+    {FB_OP_CTRTRS, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "ctrtrs"},
+    {FB_OP_ZTRTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "ztrtrs"},
     /* LAPACK — Symmetric system solve (SSYTRS; RESIDUAL metric)          */
-    {FB_OP_SSYTRS, FB_DTYPE_F32,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "ssytrs"},
-    {FB_OP_DSYTRS, FB_DTYPE_F64,  JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "dsytrs"},
-    {FB_OP_CSYTRS, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,  "csytrs"},
-    {FB_OP_ZSYTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,  "zsytrs"},
+    {FB_OP_SSYTRS, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "ssytrs"},
+    {FB_OP_DSYTRS, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "dsytrs"},
+    {FB_OP_CSYTRS, FB_DTYPE_CF32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32,
+     "csytrs"},
+    {FB_OP_ZSYTRS, FB_DTYPE_CF64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64,
+     "zsytrs"},
+    /* LAPACK — Symmetric/Hermitian indefinite factorisation (SSYTRF; RECON
+       metric) */
+    {FB_OP_SSYTRF, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "ssytrf"},
+    {FB_OP_DSYTRF, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dsytrf"},
+    /* LAPACK — Symmetric/Hermitian driver: factor+solve (SSYSV/DSYSV; RESIDUAL)
+     */
+    {FB_OP_SSYSV, FB_DTYPE_F32, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F32, "ssysv"},
+    {FB_OP_DSYSV, FB_DTYPE_F64, JR_METRIC_RESIDUAL, JR_MIN_LAPACK_F64, "dsysv"},
     /* LAPACK — LU-based full matrix inversion (GETRI; RECON metric)     */
-    {FB_OP_SGETRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "sgetri"},
-    {FB_OP_DGETRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dgetri"},
-    {FB_OP_CGETRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "cgetri"},
-    {FB_OP_ZGETRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "zgetri"},
+    {FB_OP_SGETRI, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "sgetri"},
+    {FB_OP_DGETRI, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dgetri"},
+    {FB_OP_CGETRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cgetri"},
+    {FB_OP_ZGETRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zgetri"},
     /* LAPACK — Cholesky-based SPD matrix inversion (POTRI; RECON metric) */
-    {FB_OP_SPOTRI, FB_DTYPE_F32,  JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "spotri"},
-    {FB_OP_DPOTRI, FB_DTYPE_F64,  JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "dpotri"},
-    {FB_OP_CPOTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32,  "cpotri"},
-    {FB_OP_ZPOTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64,  "zpotri"},
+    {FB_OP_SPOTRI, FB_DTYPE_F32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "spotri"},
+    {FB_OP_DPOTRI, FB_DTYPE_F64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "dpotri"},
+    {FB_OP_CPOTRI, FB_DTYPE_CF32, JR_METRIC_RECON, JR_MIN_LAPACK_F32, "cpotri"},
+    {FB_OP_ZPOTRI, FB_DTYPE_CF64, JR_METRIC_RECON, JR_MIN_LAPACK_F64, "zpotri"},
     /* SPECTRAL — eigenvalue and singular-value decompositions.
      * Auxiliary *_ref routines (sgehrd_ref, shseqr_ref, strevc_ref, sbdsqr_ref,
      * chetrd_ref, steqr_ref, ...) are now present in faster-blaster-reference.
@@ -384,6 +439,16 @@ static const jr_op_entry_t k_ops[] = {
      "cheev"},
     {FB_OP_ZHEEV, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
      "zheev"},
+    /* SYEVD — symmetric divide-and-conquer eigenvalues */
+    {FB_OP_SSYEVD, FB_DTYPE_F32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32,
+     "ssyevd"},
+    {FB_OP_DSYEVD, FB_DTYPE_F64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
+     "dsyevd"},
+    /* HEEVD — Hermitian divide-and-conquer eigenvalues */
+    {FB_OP_CHEEVD, FB_DTYPE_CF32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32,
+     "cheevd"},
+    {FB_OP_ZHEEVD, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
+     "zheevd"},
     /* GESVD — singular value decomposition */
     {FB_OP_SGESVD, FB_DTYPE_F32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32,
      "sgesvd"},
@@ -415,11 +480,446 @@ static const jr_op_entry_t k_ops[] = {
     {FB_OP_SSYGV, FB_DTYPE_F32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32, "ssygv"},
     {FB_OP_DSYGV, FB_DTYPE_F64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64, "dsygv"},
     /* HEGV — generalized Hermitian eigenproblem */
-    {FB_OP_CHEGV, FB_DTYPE_CF32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32, "chegv"},
-    {FB_OP_ZHEGV, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64, "zhegv"},
+    {FB_OP_CHEGV, FB_DTYPE_CF32, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F32,
+     "chegv"},
+    {FB_OP_ZHEGV, FB_DTYPE_CF64, JR_METRIC_VALUES, JR_MIN_SPECTRAL_F64,
+     "zhegv"},
 };
 
 static const int k_op_count = (int)(sizeof(k_ops) / sizeof(k_ops[0]));
+
+static const jr_op_entry_t *find_op_override(uint32_t op_id)
+{
+    for (int i = 0; i < k_op_count; i++) {
+        if (k_ops[i].op_id == op_id) {
+            return &k_ops[i];
+        }
+    }
+    return NULL;
+}
+
+static fb_dtype_t infer_dtype_from_macro_name(const char *macro_name)
+{
+    const char *name = macro_name;
+
+    if (!name) {
+        return FB_DTYPE_F32;
+    }
+    if (strncmp(name, "FB_OP_", 6) == 0) {
+        name += 6;
+    }
+
+    if (strstr(name, "BF16") != NULL) {
+        return FB_DTYPE_BF16;
+    }
+    if (strstr(name, "F16") != NULL) {
+        return FB_DTYPE_F16;
+    }
+    if (strstr(name, "I32") != NULL || strstr(name, "S32") != NULL) {
+        return FB_DTYPE_I32;
+    }
+    if (strstr(name, "I8") != NULL || strstr(name, "INT8") != NULL ||
+        strstr(name, "S8") != NULL || strstr(name, "U8") != NULL) {
+        return FB_DTYPE_I8;
+    }
+
+    if (strncmp(name, "CBLAS_S", 7) == 0 || strncmp(name, "MKL_S", 6) == 0 ||
+        strncmp(name, "PS", 2) == 0) {
+        return FB_DTYPE_F32;
+    }
+    if (strncmp(name, "CBLAS_D", 7) == 0 || strncmp(name, "MKL_D", 6) == 0 ||
+        strncmp(name, "PD", 2) == 0) {
+        return FB_DTYPE_F64;
+    }
+    if (strncmp(name, "CBLAS_C", 7) == 0 || strncmp(name, "MKL_C", 6) == 0 ||
+        strncmp(name, "PC", 2) == 0) {
+        return FB_DTYPE_CF32;
+    }
+    if (strncmp(name, "CBLAS_Z", 7) == 0 || strncmp(name, "MKL_Z", 6) == 0 ||
+        strncmp(name, "PZ", 2) == 0) {
+        return FB_DTYPE_CF64;
+    }
+
+    if (strncmp(name, "MKL_JIT_", 8) == 0) {
+        if (strstr(name, "_CGEMM") != NULL) {
+            return FB_DTYPE_CF32;
+        }
+        if (strstr(name, "_ZGEMM") != NULL) {
+            return FB_DTYPE_CF64;
+        }
+        if (strstr(name, "_DGEMM") != NULL) {
+            return FB_DTYPE_F64;
+        }
+        if (strstr(name, "_SGEMM") != NULL) {
+            return FB_DTYPE_F32;
+        }
+    }
+
+    if (strncmp(name, "S", 1) == 0) {
+        return FB_DTYPE_F32;
+    }
+    if (strncmp(name, "D", 1) == 0) {
+        return FB_DTYPE_F64;
+    }
+    if (strncmp(name, "C", 1) == 0) {
+        return FB_DTYPE_CF32;
+    }
+    if (strncmp(name, "Z", 1) == 0) {
+        return FB_DTYPE_CF64;
+    }
+
+    return FB_DTYPE_F32;
+}
+
+static void macro_name_to_canonical_name(const char *macro_name,
+                                         char *buf,
+                                         size_t buf_size)
+{
+    const char *src = macro_name;
+    size_t idx = 0;
+
+    if (!buf || buf_size == 0) {
+        return;
+    }
+
+    buf[0] = '\0';
+    if (!src) {
+        return;
+    }
+
+    if (strncmp(src, "FB_OP_", 6) == 0) {
+        src += 6;
+    }
+
+    while (*src != '\0' && idx < (buf_size - 1)) {
+        buf[idx++] = (char)tolower((unsigned char)*src++);
+    }
+    buf[idx] = '\0';
+}
+
+static jr_metric_t default_metric_from_meta(const fb_op_judge_meta_t *meta)
+{
+    if (!meta) {
+        return JR_METRIC_DIRECT;
+    }
+
+    switch (meta->archetype) {
+        case FB_JUDGE_SOLVE:
+            return JR_METRIC_RESIDUAL;
+        case FB_JUDGE_FACTORIZATION:
+            return JR_METRIC_RECON;
+        case FB_JUDGE_SPECTRAL:
+            return JR_METRIC_VALUES;
+        case FB_JUDGE_INDEX:
+        case FB_JUDGE_DIRECT:
+        default:
+            return JR_METRIC_DIRECT;
+    }
+}
+
+static uint8_t default_min_digits_from_meta(const fb_op_judge_meta_t *meta,
+                                            uint8_t dtype)
+{
+    bool is_f64_like = (dtype == FB_DTYPE_F64 || dtype == FB_DTYPE_CF64 ||
+                        dtype == FB_DTYPE_I32);
+    bool is_complex = (dtype == FB_DTYPE_CF32 || dtype == FB_DTYPE_CF64);
+
+    if (!meta) {
+        return is_f64_like ? JR_MIN_F64 : JR_MIN_F32;
+    }
+
+    switch (meta->archetype) {
+        case FB_JUDGE_SOLVE:
+            return is_f64_like ? JR_MIN_LAPACK_F64 : JR_MIN_LAPACK_F32;
+        case FB_JUDGE_FACTORIZATION:
+            return is_f64_like ? JR_MIN_LAPACK_F64 : JR_MIN_LAPACK_F32;
+        case FB_JUDGE_SPECTRAL:
+            return is_f64_like ? JR_MIN_SPECTRAL_F64 : JR_MIN_SPECTRAL_F32;
+        case FB_JUDGE_INDEX:
+        case FB_JUDGE_DIRECT:
+        default:
+            if (is_complex) {
+                return is_f64_like ? JR_MIN_CF64 : JR_MIN_CF32;
+            }
+            return is_f64_like ? JR_MIN_F64 : JR_MIN_F32;
+    }
+}
+
+static bool try_open_catalog(FILE **file_out)
+{
+    static const char *const k_candidate_paths[] = {
+        "src/judge/judge_op_ids.h",
+        "../src/judge/judge_op_ids.h",
+        "../../src/judge/judge_op_ids.h",
+        NULL,
+    };
+
+    if (!file_out) {
+        return false;
+    }
+
+    for (int i = 0; k_candidate_paths[i] != NULL; i++) {
+        FILE *file = fopen(k_candidate_paths[i], "r");
+        if (file != NULL) {
+            *file_out = file;
+            return true;
+        }
+    }
+
+    *file_out = NULL;
+    return false;
+}
+
+static bool load_op_catalog(jr_catalog_entry_t **entries_out, size_t *count_out)
+{
+    FILE *file = NULL;
+    jr_catalog_entry_t *entries = NULL;
+    size_t capacity = 0;
+    size_t count = 0;
+    char line[256];
+
+    if (!entries_out || !count_out) {
+        return false;
+    }
+
+    *entries_out = NULL;
+    *count_out = 0;
+
+    if (!try_open_catalog(&file)) {
+        return false;
+    }
+
+    capacity = 512;
+    entries = (jr_catalog_entry_t *)calloc(capacity, sizeof(*entries));
+    if (!entries) {
+        fclose(file);
+        return false;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char macro_name[128];
+        unsigned op_id = 0;
+
+        if (strncmp(line, "#define FB_OP_", 14) != 0) {
+            continue;
+        }
+        if (strncmp(line, "#define FB_OP__", 15) == 0) {
+            continue;
+        }
+        if (sscanf(line, "#define %127s %u", macro_name, &op_id) != 2) {
+            continue;
+        }
+
+        if (count == capacity) {
+            size_t new_capacity = capacity * 2;
+            jr_catalog_entry_t *new_entries =
+                (jr_catalog_entry_t *)realloc(entries, new_capacity * sizeof(*entries));
+            if (!new_entries) {
+                free(entries);
+                fclose(file);
+                return false;
+            }
+            entries = new_entries;
+            capacity = new_capacity;
+        }
+
+        entries[count].op_id = op_id;
+        entries[count].dtype = (uint8_t)infer_dtype_from_macro_name(macro_name);
+        macro_name_to_canonical_name(macro_name, entries[count].name,
+                                     sizeof(entries[count].name));
+        count++;
+    }
+
+    fclose(file);
+
+    *entries_out = entries;
+    *count_out = count;
+    return true;
+}
+
+static void normalize_reference_name(const char *src,
+                                     char *buf,
+                                     size_t buf_size)
+{
+    size_t start = 0;
+    size_t end = 0;
+    size_t idx = 0;
+
+    if (!buf || buf_size == 0) {
+        return;
+    }
+
+    buf[0] = '\0';
+    if (!src) {
+        return;
+    }
+
+    while (src[start] != '\0' && isspace((unsigned char)src[start])) {
+        start++;
+    }
+
+    end = strlen(src);
+    while (end > start && isspace((unsigned char)src[end - 1])) {
+        end--;
+    }
+
+    while ((start + idx) < end && idx < (buf_size - 1)) {
+        buf[idx] = (char)tolower((unsigned char)src[start + idx]);
+        idx++;
+    }
+    buf[idx] = '\0';
+}
+
+static bool try_open_reference_op_list(FILE **file_out, const char **path_out)
+{
+    const char *override = getenv("FB_JUDGE_REFERENCE_OP_LIST");
+    static const char *const k_candidate_paths[] = {
+        FB_REFERENCE_OP_LIST_PATH,
+        "../faster-blaster-reference/all_operations_in_reference.txt",
+        "../../faster-blaster-reference/all_operations_in_reference.txt",
+        NULL,
+    };
+
+    if (!file_out) {
+        return false;
+    }
+
+    if (override && override[0] != '\0') {
+        FILE *override_file = fopen(override, "r");
+        if (override_file != NULL) {
+            *file_out = override_file;
+            if (path_out) {
+                *path_out = override;
+            }
+            return true;
+        }
+    }
+
+    for (int i = 0; k_candidate_paths[i] != NULL; i++) {
+        FILE *candidate = fopen(k_candidate_paths[i], "r");
+        if (candidate != NULL) {
+            *file_out = candidate;
+            if (path_out) {
+                *path_out = k_candidate_paths[i];
+            }
+            return true;
+        }
+    }
+
+    *file_out = NULL;
+    if (path_out) {
+        *path_out = NULL;
+    }
+    return false;
+}
+
+static bool reference_name_exists(const jr_reference_op_list_t *list,
+                                  const char *name)
+{
+    if (!list || !list->names || !name || name[0] == '\0') {
+        return false;
+    }
+
+    for (size_t i = 0; i < list->count; i++) {
+        if (strcmp(list->names[i], name) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool load_reference_op_list(jr_reference_op_list_t *list)
+{
+    FILE *file = NULL;
+    const char *path_used = NULL;
+    char (*names)[64] = NULL;
+    size_t capacity = 0;
+    size_t count = 0;
+    char line[256];
+
+    if (!list) {
+        return false;
+    }
+
+    list->names = NULL;
+    list->count = 0;
+    list->path_used = NULL;
+
+    if (!try_open_reference_op_list(&file, &path_used)) {
+        return false;
+    }
+
+    capacity = 512;
+    names = (char (*)[64])calloc(capacity, sizeof(*names));
+    if (!names) {
+        fclose(file);
+        return false;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        char normalized[64];
+
+        normalize_reference_name(line, normalized, sizeof(normalized));
+        if (normalized[0] == '\0') {
+            continue;
+        }
+        if (reference_name_exists(&(jr_reference_op_list_t){ .names = names, .count = count }, normalized)) {
+            continue;
+        }
+
+        if (count == capacity) {
+            size_t new_capacity = capacity * 2;
+            char (*new_names)[64] =
+                (char (*)[64])realloc(names, new_capacity * sizeof(*names));
+            if (!new_names) {
+                free(names);
+                fclose(file);
+                return false;
+            }
+            names = new_names;
+            capacity = new_capacity;
+        }
+
+        snprintf(names[count], sizeof(names[count]), "%s", normalized);
+        count++;
+    }
+
+    fclose(file);
+
+    list->names = names;
+    list->count = count;
+    list->path_used = path_used;
+    return true;
+}
+
+static void free_reference_op_list(jr_reference_op_list_t *list)
+{
+    if (!list) {
+        return;
+    }
+
+    free(list->names);
+    list->names = NULL;
+    list->count = 0;
+    list->path_used = NULL;
+}
+
+static bool reference_op_list_contains(const jr_reference_op_list_t *list,
+                                      const char *judge_name)
+{
+    const char *normalized_name = judge_name;
+
+    if (!list || !judge_name) {
+        return false;
+    }
+
+    if (strncmp(normalized_name, "cblas_", 6) == 0) {
+        normalized_name += 6;
+    }
+
+    return reference_name_exists(list, normalized_name);
+}
 
 /* ============================================================================
  * Backend table
@@ -481,6 +981,103 @@ static const char *judge_status_str(fb_judge_status_t s)
     }
 }
 
+static bool parse_env_u32(const char *name, uint32_t *out)
+{
+    const char *value = getenv(name);
+    char *end = NULL;
+    unsigned long parsed;
+
+    if (!name || !out || !value || value[0] == '\0') {
+        return false;
+    }
+
+    parsed = strtoul(value, &end, 10);
+    if (end == value || (end && *end != '\0') || parsed > UINT32_MAX) {
+        return false;
+    }
+
+    *out = (uint32_t)parsed;
+    return true;
+}
+
+static bool parse_env_flag(const char *name)
+{
+    const char *value = getenv(name);
+
+    if (!name || !value || value[0] == '\0') {
+        return false;
+    }
+
+    return strcmp(value, "0") != 0;
+}
+
+static unsigned long long judge_runner_profile_nonce(void)
+{
+#if defined(_WIN32)
+    return (((unsigned long long)GetCurrentProcessId()) << 32) ^
+           (unsigned long long)GetTickCount64();
+#else
+    return (((unsigned long long)getpid()) << 32) ^
+           (unsigned long long)time(NULL);
+#endif
+}
+
+static void build_profile_dir(char *buf, size_t buf_size)
+{
+    const char *override = getenv("FB_JUDGE_PROFILE_DIR");
+    const char *tmp = getenv("TEMP");
+
+    if (!buf || buf_size == 0) {
+        return;
+    }
+
+    if (override && override[0] != '\0') {
+        snprintf(buf, buf_size, "%s", override);
+        return;
+    }
+
+    if (!tmp) {
+        tmp = getenv("TMPDIR");
+    }
+    if (!tmp) {
+        tmp = "/tmp";
+    }
+
+    snprintf(buf, buf_size, "%s/fb_judge_runner_profiles_%llu",
+             tmp, judge_runner_profile_nonce());
+}
+
+static bool validate_process_heap(const char *phase, uint32_t op_id,
+                                  const char *op_name)
+{
+#if defined(_WIN32)
+    HANDLE heap = GetProcessHeap();
+
+    if (!heap) {
+        fprintf(stderr,
+                "[HEAP] unable to get process heap %s op %u %s\n",
+                phase, (unsigned)op_id, op_name ? op_name : "?");
+        return false;
+    }
+
+    if (!HeapValidate(heap, 0, NULL)) {
+        DWORD err = GetLastError();
+
+        fprintf(stderr,
+                "[HEAP] invalid %s op %u %s (GetLastError=%lu)\n",
+                phase, (unsigned)op_id, op_name ? op_name : "?",
+                (unsigned long)err);
+        return false;
+    }
+#else
+    (void)phase;
+    (void)op_id;
+    (void)op_name;
+#endif
+
+    return true;
+}
+
 static const char *metric_name(jr_metric_t m)
 {
     switch (m) {
@@ -522,23 +1119,76 @@ static bool profile_has_fatal(const fb_precision_profile_t *p, jr_metric_t m)
 
 int main(void)
 {
+    jr_catalog_entry_t *all_ops = NULL;
+    jr_reference_op_list_t reference_ops = { 0 };
+    size_t all_op_count = 0;
+    uint32_t start_op_id = 0;
+    uint32_t end_op_id = UINT32_MAX;
+    bool has_start_filter = false;
+    bool has_end_filter = false;
+    bool trace_op_start = false;
+    bool trace_op_return = false;
+    bool suppress_op_results = false;
+    bool validate_heap = false;
+    bool fail_on_reference_skip = false;
+    bool audit_reference_skips = false;
+    size_t selected_op_count = 0;
+
     /* Disable stdout buffering so crash location is always visible */
     setvbuf(stdout, NULL, _IONBF, 0);
 
-    /* ---- Locate a writable temp directory ---- */
-    const char *tmp = getenv("TEMP");
-    if (!tmp) tmp   = getenv("TMPDIR");
-    if (!tmp) tmp   = "/tmp";
+    if (!load_op_catalog(&all_ops, &all_op_count)) {
+        fprintf(stderr, "[FATAL] failed to load op catalog from src/judge/judge_op_ids.h\n");
+        return 1;
+    }
+
+    has_start_filter = parse_env_u32("FB_JUDGE_START_OP_ID", &start_op_id);
+    has_end_filter = parse_env_u32("FB_JUDGE_END_OP_ID", &end_op_id);
+    trace_op_start = parse_env_flag("FB_JUDGE_TRACE_OP_START");
+    trace_op_return = parse_env_flag("FB_JUDGE_TRACE_OP_RETURN");
+    suppress_op_results = parse_env_flag("FB_JUDGE_SUPPRESS_OP_RESULTS");
+    validate_heap = parse_env_flag("FB_JUDGE_VALIDATE_HEAP");
+    fail_on_reference_skip = parse_env_flag("FB_JUDGE_FAIL_ON_REFERENCE_SKIP");
+    audit_reference_skips = fail_on_reference_skip;
+    if (!audit_reference_skips) {
+        const char *reference_path_override = getenv("FB_JUDGE_REFERENCE_OP_LIST");
+        audit_reference_skips =
+            (reference_path_override != NULL && reference_path_override[0] != '\0');
+    }
+
+    if (audit_reference_skips && !load_reference_op_list(&reference_ops)) {
+        fprintf(stderr,
+                "[FATAL] failed to load reference op list for judge skip audit\n");
+        free(all_ops);
+        return 1;
+    }
+
+    if (has_start_filter && has_end_filter && end_op_id < start_op_id) {
+        fprintf(stderr, "[FATAL] FB_JUDGE_END_OP_ID (%u) is less than FB_JUDGE_START_OP_ID (%u)\n",
+                (unsigned)end_op_id, (unsigned)start_op_id);
+        free_reference_op_list(&reference_ops);
+        free(all_ops);
+        return 1;
+    }
+
+    for (size_t oi = 0; oi < all_op_count; oi++) {
+        uint32_t op_id = all_ops[oi].op_id;
+        if (op_id < start_op_id || op_id > end_op_id) {
+            continue;
+        }
+        selected_op_count++;
+    }
 
     char profile_dir[512];
-    snprintf(profile_dir, sizeof(profile_dir),
-             "%s/fb_judge_runner_profiles", tmp);
+    build_profile_dir(profile_dir, sizeof(profile_dir));
 
     /* ---- Initialise judge ---- */
     fb_judge_status_t init_s = fb_judge_init(profile_dir);
     if (init_s != FB_JUDGE_OK) {
         fprintf(stderr, "[FATAL] fb_judge_init('%s') failed: %s\n",
                 profile_dir, judge_status_str(init_s));
+        free_reference_op_list(&reference_ops);
+        free(all_ops);
         return 1;
     }
 
@@ -546,9 +1196,13 @@ int main(void)
      * fb_reference_init() is a no-op when the DLL cannot be found; the 192   *
      * statically-wired named fields are still available in that case.        */
     {
-        const char *ref_names[] = { "faster_blaster_reference.dll", NULL };
+        const char *ref_names[] = {
+            "faster_blaster_reference.dll",
+            "libfaster_blaster_reference.dll",
+            NULL
+        };
         const char *ref_paths[] = {
-            "../faster-blaster-reference/build-extended",
+            FB_REFERENCE_DLL_DIR,
             /* same dir as the test exe: DLL copied there by POST_BUILD */
             ".",
             NULL
@@ -566,6 +1220,8 @@ int main(void)
     if (!oracle_vtable) {
         fprintf(stderr, "[FATAL] fb_reference_backend() returned NULL\n");
         fb_judge_shutdown();
+        free_reference_op_list(&reference_ops);
+        free(all_ops);
         return 1;
     }
     fb_judge_register_oracle(oracle_vtable);
@@ -575,11 +1231,20 @@ int main(void)
     printf("  faster-blaster Judge Runner — end-to-end CI test\n");
     printf("  Oracle:      reference (built-in)\n");
     printf("  Profile dir: %s\n", profile_dir);
-    printf("  Ops tested:  %d  |  Backends: %d\n",
-           k_op_count, k_backend_count);
+    printf("  Ops tested:  %u  |  Backends: %d\n",
+           (unsigned)selected_op_count, k_backend_count);
+        if (audit_reference_skips) {
+         printf("  Ref audit:   enabled (%s)\n",
+             reference_ops.path_used ? reference_ops.path_used : "<unknown>");
+        }
+    if (has_start_filter || has_end_filter) {
+        printf("  Op filter:   [%u, %u]\n",
+               (unsigned)start_op_id, (unsigned)end_op_id);
+    }
     printf("======================================================\n\n");
 
     int global_pass = 0, global_fail = 0, global_skip = 0;
+        int global_reference_skip = 0;
 
     /* ---- Run each backend ---- */
     for (int bi = 0; bi < k_backend_count; bi++) {
@@ -596,6 +1261,8 @@ int main(void)
                     "[FATAL] Mandatory backend '%s' vtable is NULL.\n",
                     be->name);
             fb_judge_shutdown();
+            free_reference_op_list(&reference_ops);
+            free(all_ops);
             return 1;
         }
 
@@ -608,31 +1275,85 @@ int main(void)
                "--------", "-----", "--------", "----------", "------");
 
         int b_pass = 0, b_fail = 0, b_skip = 0;
+        int b_reference_skip = 0;
 
-        for (int oi = 0; oi < k_op_count; oi++) {
-            const jr_op_entry_t *op = &k_ops[oi];
+        for (size_t oi = 0; oi < all_op_count; oi++) {
+            const jr_catalog_entry_t *catalog = &all_ops[oi];
+            if (catalog->op_id < start_op_id || catalog->op_id > end_op_id) {
+                continue;
+            }
+            const jr_op_entry_t *override = find_op_override(catalog->op_id);
+            const fb_op_judge_meta_t *meta = fb_judge_meta_get(catalog->op_id);
+                        fb_dtype_t dtype = override ? (fb_dtype_t)override->dtype
+                                                                                : (fb_dtype_t)catalog->dtype;
+            jr_metric_t metric = override ? override->metric : default_metric_from_meta(meta);
+            uint8_t min_digits = override ? override->min_digits
+                                                                                    : default_min_digits_from_meta(meta, dtype);
+            const char *op_name = override ? override->name : catalog->name;
 
             const char *dtype_str =
-                (op->dtype == FB_DTYPE_F32)  ? "f32"  :
-                (op->dtype == FB_DTYPE_F64)  ? "f64"  :
-                (op->dtype == FB_DTYPE_CF32) ? "cf32" :
-                (op->dtype == FB_DTYPE_CF64) ? "cf64" : "???";
+                                (dtype == FB_DTYPE_F32)  ? "f32"  :
+                                (dtype == FB_DTYPE_F64)  ? "f64"  :
+                                (dtype == FB_DTYPE_CF32) ? "cf32" :
+                                (dtype == FB_DTYPE_CF64) ? "cf64" :
+                                (dtype == FB_DTYPE_F16)  ? "f16"  :
+                                (dtype == FB_DTYPE_BF16) ? "bf16" :
+                                (dtype == FB_DTYPE_I8)   ? "i8"   :
+                                (dtype == FB_DTYPE_I32)  ? "i32"  : "???";
 
             fb_precision_profile_t prof;
             memset(&prof, 0, sizeof(prof));
 
+            if (validate_heap &&
+                !validate_process_heap("before", catalog->op_id, op_name)) {
+                free_reference_op_list(&reference_ops);
+                free(all_ops);
+                fb_judge_shutdown();
+                return 2;
+            }
+
+            if (trace_op_start) {
+                printf("  [BEGIN] %u %-8s %-5s\n",
+                       (unsigned)catalog->op_id, op_name, dtype_str);
+            }
+
             fb_judge_status_t rs = fb_judge_run(
-                op->op_id,
+                catalog->op_id,
                 be->backend_id,
                 /*device_id=*/0u,
                 FB_SIZE_SMALL,
-                op->dtype,
+                dtype,
                 /*deep_audit=*/false,
                 &prof);
 
+            if (trace_op_return) {
+                printf("  [END]   %u %-8s %-5s %s\n",
+                       (unsigned)catalog->op_id, op_name, dtype_str,
+                       judge_status_str(rs));
+            }
+
             if (rs == FB_JUDGE_ERR_NOT_IMPL) {
-                printf("  %-8s  %-5s  %-8s  %-10s  SKIP\n",
-                       op->name, dtype_str, "--", metric_name(op->metric));
+                if (audit_reference_skips &&
+                    reference_op_list_contains(&reference_ops, op_name)) {
+                    const char *normalized_name = op_name;
+
+                    if (strncmp(normalized_name, "cblas_", 6) == 0) {
+                        normalized_name += 6;
+                    }
+
+                    b_reference_skip++;
+                    if ((unsigned)b_reference_skip <= JR_MAX_REFERENCE_SKIP_PRINT) {
+                        fprintf(stderr,
+                                "[REF-SKIP] op_id=%u name=%s normalized=%s\n",
+                                (unsigned)catalog->op_id,
+                                op_name,
+                                normalized_name);
+                    }
+                }
+                if (!suppress_op_results) {
+                    printf("  %-8s  %-5s  %-8s  %-10s  SKIP\n",
+                           op_name, dtype_str, "--", metric_name(metric));
+                }
                 b_skip++;
                 continue;
             }
@@ -641,33 +1362,47 @@ int main(void)
                 /* Oracle returned non-finite results on ALL cases (likely extreme-
                  * scale overflow — expected for F32 matrix ops).  This is not a
                  * candidate failure; skip rather than fail. */
-                printf("  %-8s  %-5s  %-8s  %-10s  SKIP  (oracle overflow — extreme-scale case)\n",
-                       op->name, dtype_str, "--", metric_name(op->metric));
+                if (!suppress_op_results) {
+                    printf("  %-8s  %-5s  %-8s  %-10s  SKIP  (oracle overflow — extreme-scale case)\n",
+                          op_name, dtype_str, "--", metric_name(metric));
+                }
                 b_skip++;
                 continue;
             }
 
             if (rs != FB_JUDGE_OK) {
-                printf("  %-8s  %-5s  %-8s  %-10s  FAIL  (judge error: %s)\n",
-                       op->name, dtype_str, "--",
-                       metric_name(op->metric), judge_status_str(rs));
+                if (!suppress_op_results) {
+                    printf("  %-8s  %-5s  %-8s  %-10s  FAIL  (judge error: %s)\n",
+                          op_name, dtype_str, "--",
+                          metric_name(metric), judge_status_str(rs));
+                }
                 b_fail++;
                 continue;
             }
 
-            uint8_t  digits  = profile_primary_digits(&prof, op->metric);
+            if (validate_heap &&
+                !validate_process_heap("after", catalog->op_id, op_name)) {
+                free_reference_op_list(&reference_ops);
+                free(all_ops);
+                fb_judge_shutdown();
+                return 2;
+            }
+
+                 uint8_t  digits  = profile_primary_digits(&prof, metric);
             /* oracle_fatal on some cases = extreme-scale overflow (expected);
              * guaranteed_digits is already computed over the non-overflow cases. */
-            bool     passed  = (digits >= op->min_digits);
+                 bool     passed  = (digits >= min_digits);
 
-            printf("  %-8s  %-5s  %-8u  %-10s  %s"
-                   "  (need>=%u, p50=%uns)\n",
-                   op->name, dtype_str,
-                   (unsigned)digits,
-                   metric_name(op->metric),
-                   passed ? "PASS" : "FAIL",
-                   (unsigned)op->min_digits,
-                   prof.timing.p50_ns);
+                        if (!suppress_op_results) {
+                                printf("  %-8s  %-5s  %-8u  %-10s  %s"
+                                             "  (need>=%u, p50=%uns)\n",
+                                                 op_name, dtype_str,
+                                             (unsigned)digits,
+                                                 metric_name(metric),
+                                             passed ? "PASS" : "FAIL",
+                                                 (unsigned)min_digits,
+                                             prof.timing.p50_ns);
+                        }
 
             if (passed)
                 b_pass++;
@@ -677,24 +1412,42 @@ int main(void)
 
         printf("\n  Backend '%s': %d passed, %d failed, %d skipped\n\n",
                be->name, b_pass, b_fail, b_skip);
+        if (audit_reference_skips) {
+            printf("  Reference-overlap skips: %d\n\n", b_reference_skip);
+        }
 
         global_pass += b_pass;
         global_fail += b_fail;
         global_skip += b_skip;
+        global_reference_skip += b_reference_skip;
     }
 
     /* ---- Summary ---- */
     printf("======================================================\n");
     printf("  Total: %d passed, %d failed, %d skipped\n",
            global_pass, global_fail, global_skip);
-    if (global_fail == 0) {
+    if (audit_reference_skips) {
+        printf("  Reference-overlap skips: %d\n", global_reference_skip);
+    }
+    if (global_fail == 0 && (!fail_on_reference_skip || global_reference_skip == 0)) {
         printf("  Result: PASS\n");
     } else {
-        printf("  Result: FAIL  (%d operation(s) below precision threshold)\n",
-               global_fail);
+        if (global_fail > 0 && fail_on_reference_skip && global_reference_skip > 0) {
+            printf("  Result: FAIL  (%d operation(s) below precision threshold, %d reference op(s) skipped)\n",
+                   global_fail,
+                   global_reference_skip);
+        } else if (fail_on_reference_skip && global_reference_skip > 0) {
+            printf("  Result: FAIL  (%d reference op(s) skipped by judge)\n",
+                   global_reference_skip);
+        } else {
+            printf("  Result: FAIL  (%d operation(s) below precision threshold)\n",
+                   global_fail);
+        }
     }
     printf("======================================================\n");
 
     fb_judge_shutdown();
-    return (global_fail > 0) ? 1 : 0;
+    free_reference_op_list(&reference_ops);
+    free(all_ops);
+    return (global_fail > 0 || (fail_on_reference_skip && global_reference_skip > 0)) ? 1 : 0;
 }

@@ -1,2 +1,0 @@
-/* zhemmx */
-void zhemmx_() { }

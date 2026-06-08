@@ -1,2 +1,0 @@
-/* zgebak */
-void zgebak_() { }

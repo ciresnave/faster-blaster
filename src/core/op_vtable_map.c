@@ -2362,13 +2362,14 @@ fb_generic_fn fb_vtable_get_op(const fb_backend_vtable_t *v, uint32_t op_id) {
  * BLAS/LAPACK stem (e.g. "saxpy", "dgemm") to the FB_OP_* constant needed to
  * index ext_ops[][].
  *
- * The table MUST be sorted alphabetically by stem for bsearch() to work.
+ * The table is generated from multiple operation families and is not guaranteed
+ * to remain globally sorted. Lookup therefore uses an exact linear scan.
  * Re-generate with gen_sym_tables.py when new operations are added.
  * ========================================================================== */
 
 typedef struct { const char *stem; uint32_t op_id; } fb_stem_entry_t;
 
-/* Alphabetically sorted — DO NOT reorder manually. */
+/* Generated order — DO NOT reorder manually. */
 static const fb_stem_entry_t k_op_stem_map[] = {
     /* ---- Extended / fb_* ---------------------------------------- */
     { "caxpby",                                        FB_OP_CAXPBY },
@@ -5702,27 +5703,43 @@ static const fb_stem_entry_t k_op_stem_map[] = {
 #define K_OP_STEM_MAP_COUNT \
     ((int)(sizeof(k_op_stem_map) / sizeof(k_op_stem_map[0])))
 
-static int stem_compare(const void *key, const void *elem)
-{
-    return strcmp((const char *)key,
-                  ((const fb_stem_entry_t *)elem)->stem);
-}
-
 /**
  * Look up a canonical BLAS/LAPACK stem (e.g. "saxpy", "dgemm") and return the
  * corresponding FB_OP_* constant.  Returns FB_JUDGE_MAX_OPERATIONS if the stem
  * is not found in the table (i.e. it is not a recognised standard operation).
  *
- * Uses bsearch — O(log N) over 2266 entries (BLAS L1/L2/L3, LAPACK,
- * ScaLAPACK, and extended fb_* operations).
+ * Uses an exact linear scan over the generated stem table. This avoids
+ * silently missing valid operations when the generated table is not globally
+ * lexicographically sorted.
  */
 uint32_t fb_stem_to_op_id(const char *stem)
 {
     if (!stem) return (uint32_t)FB_JUDGE_MAX_OPERATIONS;
-    const fb_stem_entry_t *e =
-        (const fb_stem_entry_t *)bsearch(stem, k_op_stem_map,
-                                          K_OP_STEM_MAP_COUNT,
-                                          sizeof(k_op_stem_map[0]),
-                                          stem_compare);
-    return e ? e->op_id : (uint32_t)FB_JUDGE_MAX_OPERATIONS;
+
+    for (int i = 0; i < K_OP_STEM_MAP_COUNT; i++) {
+        if (strcmp(k_op_stem_map[i].stem, stem) == 0) {
+            return k_op_stem_map[i].op_id;
+        }
+    }
+
+    return (uint32_t)FB_JUDGE_MAX_OPERATIONS;
+}
+
+uint32_t fb_get_op_stem_map_count(void)
+{
+    return (uint32_t)K_OP_STEM_MAP_COUNT;
+}
+
+const char *fb_get_op_stem_map_stem(uint32_t index)
+{
+    if (index >= (uint32_t)K_OP_STEM_MAP_COUNT) return NULL;
+    return k_op_stem_map[index].stem;
+}
+
+uint32_t fb_get_op_stem_map_op_id(uint32_t index)
+{
+    if (index >= (uint32_t)K_OP_STEM_MAP_COUNT) {
+        return (uint32_t)FB_JUDGE_MAX_OPERATIONS;
+    }
+    return k_op_stem_map[index].op_id;
 }

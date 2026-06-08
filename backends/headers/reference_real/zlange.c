@@ -1,2 +1,0 @@
-/* zlange */
-void zlange_() { }

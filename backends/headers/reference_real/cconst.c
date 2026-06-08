@@ -1,2 +1,0 @@
-/* cconst */
-void cconst_() { }

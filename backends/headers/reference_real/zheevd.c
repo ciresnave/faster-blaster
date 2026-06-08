@@ -1,2 +1,0 @@
-/* zheevd */
-void zheevd_() { }

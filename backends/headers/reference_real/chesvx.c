@@ -1,2 +1,0 @@
-/* chesvx */
-void chesvx_() { }

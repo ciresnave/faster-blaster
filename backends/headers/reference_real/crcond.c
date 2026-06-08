@@ -1,2 +1,0 @@
-/* crcond */
-void crcond_() { }

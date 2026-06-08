@@ -1,2 +1,0 @@
-/* crange */
-void crange_() { }

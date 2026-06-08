@@ -1,2 +1,0 @@
-/* cprec */
-void cprec_() { }

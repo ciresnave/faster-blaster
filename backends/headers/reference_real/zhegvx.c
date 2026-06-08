@@ -1,2 +1,0 @@
-/* zhegvx */
-void zhegvx_() { }

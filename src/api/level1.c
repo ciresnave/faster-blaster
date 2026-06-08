@@ -378,8 +378,8 @@ void fb_cscal(const int N, const void *alpha, void *X, const int incX)
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSCAL);
     if (backend && backend->cscal) {
-        backend->cscal(N, *(const fb_complex_float_t *)alpha,
-                       (fb_complex_float_t *)X, incX);
+      backend->cscal(N, (const fb_complex_float_t *)alpha,
+                     (fb_complex_float_t *)X, incX);
     } else {
         fprintf(stderr, "fb_cscal: No backend available\n");
     }
@@ -401,9 +401,9 @@ void fb_caxpy(const int N, const void *alpha, const void *X, const int incX,
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CAXPY);
     if (backend && backend->caxpy) {
-        backend->caxpy(N, *(const fb_complex_float_t *)alpha,
-                       (const fb_complex_float_t *)X, incX,
-                       (fb_complex_float_t *)Y, incY);
+      backend->caxpy(N, (const fb_complex_float_t *)alpha,
+                     (const fb_complex_float_t *)X, incX,
+                     (fb_complex_float_t *)Y, incY);
     } else {
         fprintf(stderr, "fb_caxpy: No backend available\n");
     }
@@ -483,8 +483,8 @@ void fb_zscal(const int N, const void *alpha, void *X, const int incX)
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSCAL);
     if (backend && backend->zscal) {
-        backend->zscal(N, *(const fb_complex_double_t *)alpha,
-                       (fb_complex_double_t *)X, incX);
+      backend->zscal(N, (const fb_complex_double_t *)alpha,
+                     (fb_complex_double_t *)X, incX);
     } else {
         fprintf(stderr, "fb_zscal: No backend available\n");
     }
@@ -506,9 +506,9 @@ void fb_zaxpy(const int N, const void *alpha, const void *X, const int incX,
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZAXPY);
     if (backend && backend->zaxpy) {
-        backend->zaxpy(N, *(const fb_complex_double_t *)alpha,
-                       (const fb_complex_double_t *)X, incX,
-                       (fb_complex_double_t *)Y, incY);
+      backend->zaxpy(N, (const fb_complex_double_t *)alpha,
+                     (const fb_complex_double_t *)X, incX,
+                     (fb_complex_double_t *)Y, incY);
     } else {
         fprintf(stderr, "fb_zaxpy: No backend available\n");
     }

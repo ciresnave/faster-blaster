@@ -16,6 +16,10 @@
 #include "../backends/backend_interface.h"
 #include <stddef.h>
 
+/* These wrappers require extended vtable with reduce_unified operation.
+ * Guard compilation until vtable is extended. */
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
+
 /* ============================================================================
  * Tensor Reductions (Section 15.2)
  * ========================================================================= */
@@ -32,7 +36,7 @@ void fb_tensor_reduce_sum_from_unified(const void *input, void *output,
   }
 
   vtable->reduce_unified(FB_REDUCE_SUM,          /* operation */
-                         FB_REDUCE_SCOPE_TENSOR, /* scope */
+                         FB_REDUCE_LOCAL, /* scope */
                          input, output, dims, ndims, reduce_axes, num_axes,
                          keep_dims, NULL, 0, /* no workspace needed */
                          NULL                /* default stream */
@@ -50,7 +54,7 @@ void fb_tensor_reduce_max_from_unified(const void *input, void *output,
     return;
   }
 
-  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_SCOPE_TENSOR, input, output,
+  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_LOCAL, input, output,
                          dims, ndims, reduce_axes, num_axes, keep_dims, NULL, 0,
                          NULL);
 }
@@ -66,7 +70,7 @@ void fb_tensor_reduce_min_from_unified(const void *input, void *output,
     return;
   }
 
-  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_SCOPE_TENSOR, input, output,
+  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_LOCAL, input, output,
                          dims, ndims, reduce_axes, num_axes, keep_dims, NULL, 0,
                          NULL);
 }
@@ -82,7 +86,7 @@ void fb_tensor_reduce_mean_from_unified(const void *input, void *output,
     return;
   }
 
-  vtable->reduce_unified(FB_REDUCE_MEAN, FB_REDUCE_SCOPE_TENSOR, input, output,
+  vtable->reduce_unified(FB_REDUCE_MEAN, FB_REDUCE_LOCAL, input, output,
                          dims, ndims, reduce_axes, num_axes, keep_dims, NULL, 0,
                          NULL);
 }
@@ -98,7 +102,7 @@ void fb_tensor_reduce_norm_l1_from_unified(const void *input, void *output,
     return;
   }
 
-  vtable->reduce_unified(FB_REDUCE_NORM_L1, FB_REDUCE_SCOPE_TENSOR, input,
+  vtable->reduce_unified(FB_REDUCE_NORM_L1, FB_REDUCE_LOCAL, input,
                          output, dims, ndims, reduce_axes, num_axes, keep_dims,
                          NULL, 0, NULL);
 }
@@ -114,7 +118,7 @@ void fb_tensor_reduce_norm_l2_from_unified(const void *input, void *output,
     return;
   }
 
-  vtable->reduce_unified(FB_REDUCE_NORM_L2, FB_REDUCE_SCOPE_TENSOR, input,
+  vtable->reduce_unified(FB_REDUCE_NORM_L2, FB_REDUCE_LOCAL, input,
                          output, dims, ndims, reduce_axes, num_axes, keep_dims,
                          NULL, 0, NULL);
 }
@@ -136,7 +140,7 @@ void fb_prim_reduce_sum_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 0, /* don't keep dims */
                          NULL, 0, NULL);
 }
@@ -153,7 +157,7 @@ void fb_prim_reduce_max_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -169,7 +173,7 @@ void fb_prim_reduce_min_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -185,7 +189,7 @@ void fb_prim_reduce_product_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_SCOPE_LOCAL, input,
+  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_LOCAL, input,
                          output, dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -205,7 +209,7 @@ void fb_prim_scan_sum_inclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1,
                          1, /* keep_dims for scan semantics */
                          NULL, 0, NULL);
@@ -223,7 +227,7 @@ void fb_prim_scan_sum_exclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -239,7 +243,7 @@ void fb_prim_scan_max_inclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -255,7 +259,7 @@ void fb_prim_scan_max_exclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MAX, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -271,7 +275,7 @@ void fb_prim_scan_min_inclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -287,7 +291,7 @@ void fb_prim_scan_min_exclusive_from_unified(const void *input, void *output,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_SCOPE_LOCAL, input, output,
+  vtable->reduce_unified(FB_REDUCE_MIN, FB_REDUCE_LOCAL, input, output,
                          dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -303,7 +307,7 @@ void fb_prim_scan_product_inclusive_from_unified(const void *input,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_SCOPE_LOCAL, input,
+  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_LOCAL, input,
                          output, dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -319,7 +323,7 @@ void fb_prim_scan_product_exclusive_from_unified(const void *input,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_SCOPE_LOCAL, input,
+  vtable->reduce_unified(FB_REDUCE_PRODUCT, FB_REDUCE_LOCAL, input,
                          output, dims, 1, reduce_axes, 1, 1, NULL, 0, NULL);
 }
 
@@ -338,7 +342,7 @@ void fb_stats_sum_from_unified(const void *data, size_t n, void *result) {
   size_t dims[1] = {n};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_SCOPE_LOCAL, data, result,
+  vtable->reduce_unified(FB_REDUCE_SUM, FB_REDUCE_LOCAL, data, result,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -353,7 +357,7 @@ void fb_stats_mean_from_unified(const void *data, size_t n, void *result) {
   size_t dims[1] = {n};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_MEAN, FB_REDUCE_SCOPE_LOCAL, data, result,
+  vtable->reduce_unified(FB_REDUCE_MEAN, FB_REDUCE_LOCAL, data, result,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -368,7 +372,7 @@ void fb_stats_variance_from_unified(const void *data, size_t n, void *result) {
   size_t dims[1] = {n};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_VARIANCE, FB_REDUCE_SCOPE_LOCAL, data,
+  vtable->reduce_unified(FB_REDUCE_VARIANCE, FB_REDUCE_LOCAL, data,
                          result, dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -383,7 +387,7 @@ void fb_stats_std_dev_from_unified(const void *data, size_t n, void *result) {
   size_t dims[1] = {n};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(FB_REDUCE_STD_DEV, FB_REDUCE_SCOPE_LOCAL, data, result,
+  vtable->reduce_unified(FB_REDUCE_STD_DEV, FB_REDUCE_LOCAL, data, result,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, NULL);
 }
 
@@ -404,7 +408,7 @@ void fb_nccl_allreduce_from_unified(const void *send_buf, void *recv_buf,
   size_t dims[1] = {count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(op, FB_REDUCE_SCOPE_COLLECTIVE, send_buf, recv_buf,
+  vtable->reduce_unified(op, FB_REDUCE_COLLECTIVE, send_buf, recv_buf,
                          dims, 1, reduce_axes, 1, 0, NULL, 0,
                          comm /* pass communicator as stream parameter */
   );
@@ -423,7 +427,7 @@ void fb_nccl_reduce_from_unified(const void *send_buf, void *recv_buf,
   size_t dims[1] = {count};
   int reduce_axes[1] = {root}; /* use reduce_axes to pass root rank */
 
-  vtable->reduce_unified(op, FB_REDUCE_SCOPE_COLLECTIVE, send_buf, recv_buf,
+  vtable->reduce_unified(op, FB_REDUCE_COLLECTIVE, send_buf, recv_buf,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, comm);
 }
 
@@ -440,7 +444,7 @@ void fb_nccl_reduce_scatter_from_unified(const void *send_buf, void *recv_buf,
   size_t dims[1] = {recv_count};
   int reduce_axes[1] = {0};
 
-  vtable->reduce_unified(op, FB_REDUCE_SCOPE_COLLECTIVE, send_buf, recv_buf,
+  vtable->reduce_unified(op, FB_REDUCE_COLLECTIVE, send_buf, recv_buf,
                          dims, 1, reduce_axes, 1, 0, NULL, 0, comm);
 }
 
@@ -549,3 +553,6 @@ void fb_autofill_reduction_from_unified(fb_backend_vtable_t *vtable) {
     vtable->nccl_reduce_scatter = fb_nccl_reduce_scatter_from_unified;
   }
 }
+
+#endif /* FB_EXTENDED_VTABLE_SUPPORT */
+

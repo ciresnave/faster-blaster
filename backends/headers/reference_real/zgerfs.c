@@ -1,2 +1,0 @@
-/* zgerfs */
-void zgerfs_() { }

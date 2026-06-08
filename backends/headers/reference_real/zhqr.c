@@ -1,2 +1,0 @@
-/* zhqr */
-void zhqr_() { }

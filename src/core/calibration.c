@@ -195,7 +195,7 @@ static int benchmark_gemm(
     }
     
     /* Benchmark */
-    uint64_t *times = malloc(sizeof(uint64_t) * num_iterations);
+    uint *times = malloc(sizeof(uint) * num_iterations);
     if (!times) {
         free(A); free(B); free(C);
         return -1;
@@ -277,7 +277,7 @@ fb_calibration_result_t *fb_calibration_run(
                 
                 /* Calculate GFLOPS for GEMM: 2*N^3 flops */
                 if (bench->passed && op == FB_BLAS_GEMM) {
-                    uint64_t flops = 2ULL * size * size * size;
+                    uint flops = 2ULL * size * size * size;
                     bench->gflops = fb_timing_to_gflops(flops, bench->timing.median_ns);
                 }
                 

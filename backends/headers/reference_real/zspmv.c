@@ -1,2 +1,0 @@
-/* zspmv */
-void zspmv_() { }

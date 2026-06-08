@@ -1,2 +1,0 @@
-/* ctpcon */
-void ctpcon_() { }

@@ -1,0 +1,4 @@
+[DIAG] saxpy_smart: n=5 x=00000080000FFAD0 y=00000080000FFAB0 handle=0000000000000000 trait_init=NULL trait_saxpy=NULL
+[DIAG] saxpy_smart: early return (x=1 y=1 n=5 handle=0)
+[DIAG] saxpy_smart: n=4 x=00000080000FFAE0 y=00000080000FFAD0 handle=0000000000000000 trait_init=NULL trait_saxpy=NULL
+[DIAG] saxpy_smart: early return (x=1 y=1 n=4 handle=0)

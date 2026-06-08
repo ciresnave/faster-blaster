@@ -1,2 +1,0 @@
-/* csyrfs */
-void csyrfs_() { }

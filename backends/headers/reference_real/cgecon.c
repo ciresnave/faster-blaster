@@ -1,2 +1,0 @@
-/* cgecon */
-void cgecon_() { }

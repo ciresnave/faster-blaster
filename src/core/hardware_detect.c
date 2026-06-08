@@ -214,7 +214,7 @@ int fb_hw_detect(fb_hardware_info_t *info) {
         long pages = sysconf(_SC_PHYS_PAGES);
         long page_size = sysconf(_SC_PAGE_SIZE);
         if (pages > 0 && page_size > 0) {
-            info->ram_bytes = (uint64_t)pages * (uint64_t)page_size;
+            info->ram_bytes = (uint)pages * (uint)page_size;
         }
     #endif
     

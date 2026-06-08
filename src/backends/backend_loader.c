@@ -661,6 +661,7 @@ const char* fb_backend_get_error(void) {
 
 /* Backend-specific loaders */
 static int load_openblas_backend(fb_backend_vtable_t* vtable) {
+#ifdef FB_ENABLE_OPENBLAS
     if (fb_openblas_init() != 0) {
         set_error("Failed to initialize OpenBLAS backend");
         return -1;
@@ -674,9 +675,15 @@ static int load_openblas_backend(fb_backend_vtable_t* vtable) {
     
     *vtable = *openblas_vtable;
     return 0;
+#else
+    (void)vtable;
+    set_error("OpenBLAS backend not enabled in this build");
+    return -1;
+#endif
 }
 
 static int load_mkl_backend(fb_backend_vtable_t* vtable) {
+#ifdef FB_ENABLE_MKL
     if (fb_mkl_init() != 0) {
         set_error("Failed to initialize MKL backend");
         return -1;
@@ -690,24 +697,33 @@ static int load_mkl_backend(fb_backend_vtable_t* vtable) {
     
     *vtable = *mkl_vtable;
     return 0;
+#else
+    (void)vtable;
+    set_error("MKL backend not enabled in this build");
+    return -1;
+#endif
 }
 
 static int load_accelerate_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
     set_error("Accelerate backend loader not yet implemented");
     return -1;
 }
 
 static int load_aocl_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
     set_error("AOCL backend loader not yet implemented");
     return -1;
 }
 
 static int load_blis_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
     set_error("BLIS backend loader not yet implemented");
     return -1;
 }
 
 static int load_cublas_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
 #ifdef FB_ENABLE_CUDA
     extern const fb_gpu_backend_trait_t* fb_cublas_get_backend(void);
     const fb_gpu_backend_trait_t* cublas = fb_cublas_get_backend();
@@ -727,6 +743,7 @@ static int load_cublas_backend(fb_backend_vtable_t* vtable) {
 }
 
 static int load_rocblas_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
 #if defined(FB_ENABLE_HIP) && defined(FB_HAVE_ROCBLAS_BACKEND)
     extern const fb_gpu_backend_trait_t* fb_rocblas_get_backend(void);
     const fb_gpu_backend_trait_t* rocblas = fb_rocblas_get_backend();
@@ -740,13 +757,13 @@ static int load_rocblas_backend(fb_backend_vtable_t* vtable) {
     set_error("rocBLAS vtable wrapper not yet implemented");
     return -1;
 #else
-    (void)vtable;
     set_error("rocBLAS backend not compiled in (needs CUDA->HIP conversion fixes)");
     return -1;
 #endif
 }
 
 static int load_onemkl_gpu_backend(fb_backend_vtable_t* vtable) {
+    (void)vtable;
 #ifdef FB_ENABLE_ONEMKL
     extern const fb_gpu_backend_trait_t* fb_onemkl_gpu_get_backend(void);
     const fb_gpu_backend_trait_t* onemkl = fb_onemkl_gpu_get_backend();

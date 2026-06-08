@@ -1,2 +1,0 @@
-/* zgbmvx */
-void zgbmvx_() { }

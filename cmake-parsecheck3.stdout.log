@@ -1,0 +1,6 @@
+-- Auto-detected vcpkg: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg
+-- [WINDOWS TOOLCHAIN] Added x64 INCLUDE paths for clang-cl
+-- [WINDOWS TOOLCHAIN] Added x64 LIB paths for lld-link
+-- The C compiler identification is unknown
+-- The CXX compiler identification is unknown
+-- Configuring incomplete, errors occurred!

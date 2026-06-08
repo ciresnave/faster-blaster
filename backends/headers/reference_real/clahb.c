@@ -1,2 +1,0 @@
-/* clahb */
-void clahb_() { }

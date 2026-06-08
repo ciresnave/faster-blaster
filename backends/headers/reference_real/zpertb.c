@@ -1,2 +1,0 @@
-/* zpertb */
-void zpertb_() { }

@@ -1,2 +1,0 @@
-/* cunmbr */
-void cunmbr_() { }

@@ -1,0 +1,115 @@
+[1/49] Building C object tests\CMakeFiles\test_benchmark_system.dir\test_benchmark_system.c.obj
+[2/49] Building C object tests\CMakeFiles\test_plugin_architecture.dir\test_plugin_architecture.c.obj
+[3/49] Building C object tests\CMakeFiles\test_level1_ops.dir\test_level1_ops.c.obj
+[4/49] Building C object tests\CMakeFiles\test_device_api.dir\test_device_api.c.obj
+[5/49] Building C object tests\CMakeFiles\test_device_memory_simple.dir\test_device_memory_simple.c.obj
+[6/49] Building C object tests\CMakeFiles\test_smart_wrappers.dir\test_smart_wrappers.c.obj
+[7/49] Building C object examples\CMakeFiles\simple_gemm.dir\simple_gemm.c.obj
+[8/49] Building C object tests\CMakeFiles\test_phase1_gpu_operations.dir\test_phase1_gpu_operations.c.obj
+[9/49] Building C object examples\CMakeFiles\vector_ops.dir\vector_ops.c.obj
+[10/49] Building C object tests\CMakeFiles\test_backend_loader.dir\test_backend_loader.c.obj
+[11/49] Building CXX object tests\CMakeFiles\test_hipblas_backend.dir\test_hipblas_backend.cpp.obj
+[12/49] Building C object CMakeFiles\faster-blaster.dir\src\plugins\clblast_vtable_wrappers.c.obj
+In file included from C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\clblast_vtable_wrappers.c:15:
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(52,50): warning: unused parameter 'k' [-Wunused-parameter]
+   52 |     int64_t* m_inout, int64_t* n_inout, int64_t* k,
+      |                                                  ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(55,13): warning: unused parameter 'c_inout' [-Wunused-parameter]
+   55 |     float** c_inout, int64_t* ldc_inout)
+      |             ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(92,19): warning: unused parameter 'a_inout' [-Wunused-parameter]
+   92 |     const float** a_inout, int64_t* lda_inout)
+      |                   ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(121,50): warning: unused parameter 'k' [-Wunused-parameter]
+  121 |     int64_t* m_inout, int64_t* n_inout, int64_t* k,
+      |                                                  ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(124,14): warning: unused parameter 'c_inout' [-Wunused-parameter]
+  124 |     double** c_inout, int64_t* ldc_inout)
+      |              ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\layout_translation.h(152,20): warning: unused parameter 'a_inout' [-Wunused-parameter]
+  152 |     const double** a_inout, int64_t* lda_inout)
+      |                    ^
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\clblast_vtable_wrappers.c(193,87): warning: format specifies type 'long long' but the argument has type 'int' [-Wformat]
+  193 |     fprintf(stderr, "[CLBlast] saxpy: About to call CLBlast with n=%lld, alpha=%f\n", n, alpha);
+      |                                                                    ~~~~               ^
+      |                                                                    %d
+C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\plugins\clblast_vtable_wrappers.c(53,12): warning: unused variable 'g_registry_initialized' [-Wunused-variable]
+   53 | static int g_registry_initialized = 0;
+      |            ^~~~~~~~~~~~~~~~~~~~~~
+8 warnings generated.
+[13/49] Performing update step for 'openblas-backend'
+-- Already at requested tag: v0.3.30
+[14/49] Building C object tests\CMakeFiles\test_clblast_execution.dir\test_clblast_execution.c.obj
+[15/49] No patch step for 'openblas-backend'
+[16/49] Building C object tests\CMakeFiles\test_comprehensive_correctness.dir\test_comprehensive_correctness.c.obj
+[17/49] No configure step for 'openblas-backend'
+[18/49] Building C object CMakeFiles\faster-blaster.dir\src\judge\judge_store.c.obj
+[19/49] Building C object tests\CMakeFiles\test_judge.dir\test_judge.c.obj
+[20/49] Linking C shared library faster-blaster.dll
+FAILED: [code=4294967295] faster-blaster.dll faster-blaster.lib 
+C:\WINDOWS\system32\cmd.exe /C ""C:\Program Files\CMake\bin\cmake.exe" -E __create_def C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\CMakeFiles\faster-blaster.dir\.\exports.def C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\CMakeFiles\faster-blaster.dir\.\exports.def.objs --nm="C:\Program Files\LLVM\bin\llvm-nm.exe" && "C:\Program Files\CMake\bin\cmake.exe" -E vs_link_dll --msvc-ver=1944 --intdir=CMakeFiles\faster-blaster.dir --rc=C:\PROGRA~1\LLVM\bin\llvm-rc.exe --mt=C:\PROGRA~1\LLVM\bin\llvm-mt.exe --manifests  -- C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo @CMakeFiles\faster-blaster.rsp  /out:faster-blaster.dll /implib:faster-blaster.lib /pdb:faster-blaster.pdb /dll /version:0.0 /machine:x64 /debug /INCREMENTAL /DELAYLOAD:cudart64_13.dll /DELAYLOAD:cudart64_12.dll /DELAYLOAD:cudart64_11.dll /DELAYLOAD:cublas64_13.dll /DELAYLOAD:cublas64_12.dll /DELAYLOAD:cublas64_11.dll /DELAYLOAD:cusolver64_13.dll /DELAYLOAD:cusolver64_12.dll /DELAYLOAD:cusolver64_11.dll /DELAYLOAD:nvml.dll /DELAYLOAD:amdhip64_6.dll /DELAYLOAD:amdhip64_5.dll /DELAYLOAD:rocblas.dll /DEF:CMakeFiles\faster-blaster.dir\.\exports.def && C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang && "C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file C:/libraries/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/faster-blaster.dll -installedDir C:/libraries/vcpkg/installed/x64-windows/debug/bin -OutVariable out""
+LINK Pass 1: command "C:\PROGRA~1\LLVM\bin\lld-link.exe /nologo @CMakeFiles\faster-blaster.rsp /out:faster-blaster.dll /implib:faster-blaster.lib /pdb:faster-blaster.pdb /dll /version:0.0 /machine:x64 /debug /INCREMENTAL /DELAYLOAD:cudart64_13.dll /DELAYLOAD:cudart64_12.dll /DELAYLOAD:cudart64_11.dll /DELAYLOAD:cublas64_13.dll /DELAYLOAD:cublas64_12.dll /DELAYLOAD:cublas64_11.dll /DELAYLOAD:cusolver64_13.dll /DELAYLOAD:cusolver64_12.dll /DELAYLOAD:cusolver64_11.dll /DELAYLOAD:nvml.dll /DELAYLOAD:amdhip64_6.dll /DELAYLOAD:amdhip64_5.dll /DELAYLOAD:rocblas.dll /DEF:CMakeFiles\faster-blaster.dir\.\exports.def /MANIFEST /MANIFESTFILE:CMakeFiles\faster-blaster.dir/intermediate.manifest CMakeFiles\faster-blaster.dir/manifest.res" failed (exit code 1) with the following output:
+lld-link: error: undefined symbol: FB_SELECT_BALANCED
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\dispatch_unified.c:135
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\dispatch_unified.c.obj:(fb_init)
+
+
+
+lld-link: error: undefined symbol: fb_judge_build_dispatch_table
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\dispatch_unified.c:135
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\dispatch_unified.c.obj:(fb_init)
+
+
+
+lld-link: error: undefined symbol: fb_autofill_normalization_from_unified
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\vtable_autofill.c:94
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\vtable_autofill.c.obj:(fb_autofill_unified_to_specific)
+
+
+
+lld-link: error: undefined symbol: fb_autofill_reduction_from_unified
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\vtable_autofill.c:98
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\vtable_autofill.c.obj:(fb_autofill_unified_to_specific)
+
+
+
+lld-link: error: undefined symbol: fb_autofill_all_from_batched
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\vtable_autofill.c:134
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\vtable_autofill.c.obj:(fb_autofill_batched_to_single)
+
+
+
+lld-link: error: undefined symbol: fb_autofill_all_strided_from_array
+
+>>> referenced by C:\Users\cires\OneDrive\Documents\projects\faster-blaster\src\core\vtable_autofill.c:152
+
+>>>               CMakeFiles\faster-blaster.dir\src\core\vtable_autofill.c.obj:(fb_autofill_array_to_strided)
+
+[21/49] Performing update step for 'clblast-backend'
+-- Fetching latest from the remote origin
+[22/49] Performing update step for 'blis-backend'
+-- Fetching latest from the remote origin
+[23/49] Performing build step for 'openblas-backend'
+FAILED: [code=1] openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\openblas-backend-prefix\src\openblas-backend-build && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake:49 (message):
+  Command failed: 1
+
+   'powershell' '-ExecutionPolicy' 'Bypass' '-File' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/cmake/build_openblas_msvc_conly.ps1' '-SourceDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-src' '-InstallDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas' '-Target' 'ZEN' '-NumCores' '32'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-*.log
+
+
+ninja: build stopped: subcommand failed.

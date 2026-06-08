@@ -1,2 +1,0 @@
-/* cdetnrm */
-void cdetnrm_() { }

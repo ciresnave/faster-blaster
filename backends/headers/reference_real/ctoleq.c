@@ -1,2 +1,0 @@
-/* ctoleq */
-void ctoleq_() { }

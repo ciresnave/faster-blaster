@@ -1,2 +1,0 @@
-/* zggglm */
-void zggglm_() { }

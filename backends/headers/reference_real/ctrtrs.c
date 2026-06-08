@@ -1,2 +1,0 @@
-/* ctrtrs */
-void ctrtrs_() { }

@@ -1,2 +1,0 @@
-/* csscal */
-void csscal_() { }

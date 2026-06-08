@@ -1,2 +1,0 @@
-/* zgemmc */
-void zgemmc_() { }

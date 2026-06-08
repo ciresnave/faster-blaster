@@ -1,0 +1,1803 @@
+[1/33] Building CUDA object tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj
+FAILED: [code=1] tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj 
+C:\PROGRA~1\NVIDIA~2\CUDA\v13.0\bin\nvcc.exe -forward-unknown-to-host-compiler -DFB_ENABLE_OPENCL -D_CRT_SECURE_NO_WARNINGS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -D_WINDOWS -Xcompiler=" /GR /EHsc" -Xcompiler=" -Zi -Ob0 -Od /RTC1" -std=c++20 -Xcompiler=-MDd -MD -MT tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -MF tests\CMakeFiles\cublas_trait.dir\__\src\backends\gpu\cublas_trait_impl.c.obj.d -x cu -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/cublas_trait_impl.c -o tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -Xcompiler=-Fdtests\CMakeFiles\cublas_trait.dir\cublas_trait.pdb,-FS
+nvcc fatal   : Cannot find compiler 'cl.exe' in PATH
+[2/33] Building C object tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj
+FAILED: [code=1] tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_OPENCL -D_CRT_SECURE_NO_WARNINGS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -O0 -g -Xclang -gcodeview -std=gnu11 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -MD -MT tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj -MF tests\CMakeFiles\test_device_api.dir\test_device_api.c.obj.d -o tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/tests/test_device_api.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/tests/test_device_api.c:221:5: error: call to undeclared function 'fb_register_all_plugins'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+  221 |     fb_register_all_plugins();
+      |     ^
+1 error generated.
+[3/33] Performing configure step for 'openblas_external'
+FAILED: [code=1] external/openblas/src/openblas_external-stamp/openblas_external-configure C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-stamp/openblas_external-configure 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external-build && "C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/install -DBUILD_SHARED_LIBS=ON -DUSE_THREAD=1 -DUSE_OPENMP=1 -DDYNAMIC_ARCH=ON -DBUILD_TESTING=OFF -GNinja -S C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external -B C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-stamp/openblas_external-configure"
+CMake Warning at CMakeLists.txt:122 (message):
+  CMake support is experimental.  It does not yet support all build options
+  and may not produce the same Makefiles that OpenBLAS ships with.
+
+
+-- GEMM multithread threshold set to 4.
+-- Disabling Advanced Vector Extensions 512 (AVX512).
+-- Multi-threading enabled with 32 threads.
+-- No Fortran compiler found, can build only BLAS and f2c-converted LAPACK
+-- MSVC
+CMake Error at cmake/prebuild.cmake:1492 (MESSAGE):
+  Compiling getarch failed Change Dir:
+  'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build/CMakeFiles/CMakeTmp'
+
+
+
+  Run Build Command(s): C:/bin/ninja.exe -v cmTC_b4fbd
+
+  [1/2]
+  C:\PROGRA~2\MICROS~2\2019\BUILDT~1\VC\Tools\MSVC\1429~1.301\bin\Hostx64\x64\cl.exe
+  /nologo -DFORCE_GENERIC -D_MBCS /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd
+  -march=native -DGEMM_MULTITHREAD_THRESHOLD=4 -DNO_AVX512 /Zi /Ob0 /Od /RTC1
+  -DNO_PARALLEL_MAKE=0
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build"
+  /showIncludes /FoCMakeFiles\cmTC_b4fbd.dir\getarch.c.obj
+  /FdCMakeFiles\cmTC_b4fbd.dir\ /FS -c
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c
+
+  FAILED: [code=2] CMakeFiles/cmTC_b4fbd.dir/getarch.c.obj 
+
+  
+  C:\PROGRA~2\MICROS~2\2019\BUILDT~1\VC\Tools\MSVC\1429~1.301\bin\Hostx64\x64\cl.exe
+  /nologo -DFORCE_GENERIC -D_MBCS /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd
+  -march=native -DGEMM_MULTITHREAD_THRESHOLD=4 -DNO_AVX512 /Zi /Ob0 /Od /RTC1
+  -DNO_PARALLEL_MAKE=0
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build"
+  /showIncludes /FoCMakeFiles\cmTC_b4fbd.dir\getarch.c.obj
+  /FdCMakeFiles\cmTC_b4fbd.dir\ /FS -c
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c
+
+  cl : Command line warning D9002 : ignoring unknown option '-march=native'
+
+  
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c(80):
+  fatal error C1083: Cannot open include file: 'stdio.h': No such file or
+  directory
+
+  ninja: build stopped: subcommand failed.
+
+
+
+Call Stack (most recent call first):
+  cmake/system.cmake:177 (include)
+  CMakeLists.txt:125 (include)
+
+
+-- Configuring incomplete, errors occurred!
+[4/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_profile.c.obj
+[5/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_index.c.obj
+[6/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge.c.obj
+[7/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_factorization.c.obj
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_factorization.c:43:59: warning: unused parameter 'n' [-Wunused-parameter]
+   43 | static float *clone_matrix_f32(const float *A, int m, int n, int lda)
+      |                                                           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_factorization.c:53:61: warning: unused parameter 'n' [-Wunused-parameter]
+   53 | static double *clone_matrix_f64(const double *A, int m, int n, int lda)
+      |                                                             ^
+2 warnings generated.
+[8/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_solve.c.obj
+[9/33] Building C object CMakeFiles/faster-blaster.dir/src/plugins/plugin_mkl.c.obj
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:504:15: warning: initializing 'void *' with an expression of type 'FARPROC' (aka 'long long (*)(void)') converts between void pointer and function pointer [-Wpedantic]
+  504 |         void* cblas_sdot_sym = FB_GET_PROC_ADDRESS(test_handle, "cblas_sdot");
+      |               ^                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:505:15: warning: initializing 'void *' with an expression of type 'FARPROC' (aka 'long long (*)(void)') converts between void pointer and function pointer [-Wpedantic]
+  505 |         void* cblas_sgemm_sym = FB_GET_PROC_ADDRESS(test_handle, "cblas_sgemm");
+      |               ^                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:467:59: warning: unused parameter 'unused_lib_handle' [-Wunused-parameter]
+  467 | static fb_plugin_probe_result_t mkl_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
+      |                                                           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:701:71: warning: unused parameter 'ctx' [-Wunused-parameter]
+  701 | static const fb_backend_vtable_t* mkl_get_vtable(fb_plugin_context_t* ctx) {
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:709:54: warning: unused parameter 'ctx' [-Wunused-parameter]
+  709 | static void mkl_set_num_threads(fb_plugin_context_t* ctx, int num_threads) {
+      |                                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:715:53: warning: unused parameter 'ctx' [-Wunused-parameter]
+  715 | static int mkl_get_num_threads(fb_plugin_context_t* ctx) {
+      |                                                     ^
+6 warnings generated.
+[10/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_spectral.c.obj
+FAILED: [code=1] CMakeFiles/faster-blaster.dir/src/judge/judge_spectral.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_AOCL -DFB_ENABLE_BLIS -DFB_ENABLE_CUDA -DFB_ENABLE_HIP -DFB_ENABLE_MKL -DFB_ENABLE_OPENCL -DFB_ENABLE_STATISTICS -D_CRT_SECURE_NO_WARNINGS -Dfaster_blaster_EXPORTS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/core -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends -I"C:/Program Files/AMD/ROCm/6.4/include" -I"C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include" -IC:/BLIS/include -I"C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64" -I"C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64" -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -isystem C:/libraries/vcpkg/installed/x64-windows/include -O0 -g -Xclang -gcodeview -std=gnu23 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/faster-blaster.dir/src/judge/judge_spectral.c.obj -MF CMakeFiles\faster-blaster.dir\src\judge\judge_spectral.c.obj.d -o CMakeFiles/faster-blaster.dir/src/judge/judge_spectral.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:171:33: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  171 |             double re = (double)FB_CF_REAL(A[i * lda + j]);
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:172:33: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  172 |             double im = (double)FB_CF_IMAG(A[i * lda + j]);
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:185:25: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  185 |             double re = FB_CD_REAL(A[i * lda + j]);
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:28:30: note: expanded from macro 'FB_CD_REAL'
+   28 | #  define FB_CD_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:186:25: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  186 |             double im = FB_CD_IMAG(A[i * lda + j]);
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:29:30: note: expanded from macro 'FB_CD_IMAG'
+   29 | #  define FB_CD_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:206:42: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  206 |                 double q_ki_re = (double)FB_CF_REAL(Q[k * ldq + i]);
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:207:42: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  207 |                 double q_ki_im = (double)FB_CF_IMAG(Q[k * ldq + i]);
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:208:42: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  208 |                 double q_kj_re = (double)FB_CF_REAL(Q[k * ldq + j]);
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:209:42: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  209 |                 double q_kj_im = (double)FB_CF_IMAG(Q[k * ldq + j]);
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:231:34: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  231 |                 double q_ki_re = FB_CD_REAL(Q[k * ldq + i]);
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:28:30: note: expanded from macro 'FB_CD_REAL'
+   28 | #  define FB_CD_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:232:34: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  232 |                 double q_ki_im = FB_CD_IMAG(Q[k * ldq + i]);
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:29:30: note: expanded from macro 'FB_CD_IMAG'
+   29 | #  define FB_CD_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:233:34: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  233 |                 double q_kj_re = FB_CD_REAL(Q[k * ldq + j]);
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:28:30: note: expanded from macro 'FB_CD_REAL'
+   28 | #  define FB_CD_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:234:34: error: member reference base type 'const fb_complex_double_t' (aka 'const _Complex double') is not a structure or union
+  234 |                 double q_kj_im = FB_CD_IMAG(Q[k * ldq + j]);
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:29:30: note: expanded from macro 'FB_CD_IMAG'
+   29 | #  define FB_CD_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:763:50: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  763 |                         double q_ik_re = (double)FB_CF_REAL(A_cand[i * lda + k]);
+      |                                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:764:50: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  764 |                         double q_ik_im = (double)FB_CF_IMAG(A_cand[i * lda + k]);
+      |                                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:765:50: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  765 |                         double q_jk_re = (double)FB_CF_REAL(A_cand[j * lda + k]);
+      |                                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:766:50: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  766 |                         double q_jk_im = (double)FB_CF_IMAG(A_cand[j * lda + k]);
+      |                                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:772:43: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  772 |                     double a_re = (double)FB_CF_REAL(A_in[i * lda + j]);
+      |                                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:26:30: note: expanded from macro 'FB_CF_REAL'
+   26 | #  define FB_CF_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:773:43: error: member reference base type 'const fb_complex_float_t' (aka 'const _Complex float') is not a structure or union
+  773 |                     double a_im = (double)FB_CF_IMAG(A_in[i * lda + j]);
+      |                                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:27:30: note: expanded from macro 'FB_CF_IMAG'
+   27 | #  define FB_CF_IMAG(z)  ((z).imag)
+      |                           ~~~^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:905:42: error: member reference base type 'fb_complex_double_t' (aka '_Complex double') is not a structure or union
+  905 |                         double q_ik_re = FB_CD_REAL(A_cand[i * lda + k]);
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/judge/judge_spectral.c:28:30: note: expanded from macro 'FB_CD_REAL'
+   28 | #  define FB_CD_REAL(z)  ((z).real)
+      |                           ~~~^~~~~
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+[11/33] Building C object CMakeFiles/faster-blaster.dir/src/judge/judge_direct.c.obj
+[12/33] Building C object CMakeFiles/faster-blaster.dir/src/backends/gpu/clblast_trait_impl.c.obj
+FAILED: [code=1] CMakeFiles/faster-blaster.dir/src/backends/gpu/clblast_trait_impl.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_AOCL -DFB_ENABLE_BLIS -DFB_ENABLE_CUDA -DFB_ENABLE_HIP -DFB_ENABLE_MKL -DFB_ENABLE_OPENCL -DFB_ENABLE_STATISTICS -D_CRT_SECURE_NO_WARNINGS -Dfaster_blaster_EXPORTS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/core -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends -I"C:/Program Files/AMD/ROCm/6.4/include" -I"C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include" -IC:/BLIS/include -I"C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64" -I"C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64" -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -isystem C:/libraries/vcpkg/installed/x64-windows/include -O0 -g -Xclang -gcodeview -std=gnu23 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/faster-blaster.dir/src/backends/gpu/clblast_trait_impl.c.obj -MF CMakeFiles\faster-blaster.dir\src\backends\gpu\clblast_trait_impl.c.obj.d -o CMakeFiles/faster-blaster.dir/src/backends/gpu/clblast_trait_impl.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:408:68: warning: unused parameter 'device_id' [-Wunused-parameter]
+  408 | static int clblast_get_device_properties(void* backend_handle, int device_id,
+      |                                                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:451:32: warning: unused parameter 'backend_handle' [-Wunused-parameter]
+  451 | static void clblast_free(void* backend_handle, fb_gpu_ptr_t ptr) {
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:516:42: warning: unused parameter 'backend_handle' [-Wunused-parameter]
+  516 | static void clblast_stream_destroy(void* backend_handle, fb_gpu_stream_t stream) {
+      |                                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:906:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  906 | static void clblast_ssymm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:906:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  906 | static void clblast_ssymm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:907:38: warning: unused parameter 'side' [-Wunused-parameter]
+  907 |                                 char side, char uplo, int m, int n,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:907:49: warning: unused parameter 'uplo' [-Wunused-parameter]
+  907 |                                 char side, char uplo, int m, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:907:59: warning: unused parameter 'm' [-Wunused-parameter]
+  907 |                                 char side, char uplo, int m, int n,
+      |                                                           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:907:66: warning: unused parameter 'n' [-Wunused-parameter]
+  907 |                                 char side, char uplo, int m, int n,
+      |                                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:908:46: warning: unused parameter 'alpha' [-Wunused-parameter]
+  908 |                                 const float* alpha, fb_gpu_ptr_t A, int lda,
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:908:66: warning: unused parameter 'A' [-Wunused-parameter]
+  908 |                                 const float* alpha, fb_gpu_ptr_t A, int lda,
+      |                                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:908:73: warning: unused parameter 'lda' [-Wunused-parameter]
+  908 |                                 const float* alpha, fb_gpu_ptr_t A, int lda,
+      |                                                                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:909:46: warning: unused parameter 'B' [-Wunused-parameter]
+  909 |                                 fb_gpu_ptr_t B, int ldb, const float* beta,
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:909:53: warning: unused parameter 'ldb' [-Wunused-parameter]
+  909 |                                 fb_gpu_ptr_t B, int ldb, const float* beta,
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:909:71: warning: unused parameter 'beta' [-Wunused-parameter]
+  909 |                                 fb_gpu_ptr_t B, int ldb, const float* beta,
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:910:46: warning: unused parameter 'C' [-Wunused-parameter]
+  910 |                                 fb_gpu_ptr_t C, int ldc) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:910:53: warning: unused parameter 'ldc' [-Wunused-parameter]
+  910 |                                 fb_gpu_ptr_t C, int ldc) {
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:914:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  914 | static void clblast_dsymm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:914:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  914 | static void clblast_dsymm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:915:38: warning: unused parameter 'side' [-Wunused-parameter]
+  915 |                                 char side, char uplo, int m, int n,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:915:49: warning: unused parameter 'uplo' [-Wunused-parameter]
+  915 |                                 char side, char uplo, int m, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:915:59: warning: unused parameter 'm' [-Wunused-parameter]
+  915 |                                 char side, char uplo, int m, int n,
+      |                                                           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:915:66: warning: unused parameter 'n' [-Wunused-parameter]
+  915 |                                 char side, char uplo, int m, int n,
+      |                                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:916:47: warning: unused parameter 'alpha' [-Wunused-parameter]
+  916 |                                 const double* alpha, fb_gpu_ptr_t A, int lda,
+      |                                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:916:67: warning: unused parameter 'A' [-Wunused-parameter]
+  916 |                                 const double* alpha, fb_gpu_ptr_t A, int lda,
+      |                                                                   ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:916:74: warning: unused parameter 'lda' [-Wunused-parameter]
+  916 |                                 const double* alpha, fb_gpu_ptr_t A, int lda,
+      |                                                                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:917:46: warning: unused parameter 'B' [-Wunused-parameter]
+  917 |                                 fb_gpu_ptr_t B, int ldb, const double* beta,
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:917:53: warning: unused parameter 'ldb' [-Wunused-parameter]
+  917 |                                 fb_gpu_ptr_t B, int ldb, const double* beta,
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:917:72: warning: unused parameter 'beta' [-Wunused-parameter]
+  917 |                                 fb_gpu_ptr_t B, int ldb, const double* beta,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:918:46: warning: unused parameter 'C' [-Wunused-parameter]
+  918 |                                 fb_gpu_ptr_t C, int ldc) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:918:53: warning: unused parameter 'ldc' [-Wunused-parameter]
+  918 |                                 fb_gpu_ptr_t C, int ldc) {
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:922:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  922 | static void clblast_strmm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:922:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  922 | static void clblast_strmm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:923:38: warning: unused parameter 'side' [-Wunused-parameter]
+  923 |                                 char side, char uplo, char transa, char diag,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:923:49: warning: unused parameter 'uplo' [-Wunused-parameter]
+  923 |                                 char side, char uplo, char transa, char diag,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:923:60: warning: unused parameter 'transa' [-Wunused-parameter]
+  923 |                                 char side, char uplo, char transa, char diag,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:923:73: warning: unused parameter 'diag' [-Wunused-parameter]
+  923 |                                 char side, char uplo, char transa, char diag,
+      |                                                                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:924:37: warning: unused parameter 'm' [-Wunused-parameter]
+  924 |                                 int m, int n, const float* alpha,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:924:44: warning: unused parameter 'n' [-Wunused-parameter]
+  924 |                                 int m, int n, const float* alpha,
+      |                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:924:60: warning: unused parameter 'alpha' [-Wunused-parameter]
+  924 |                                 int m, int n, const float* alpha,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:925:46: warning: unused parameter 'A' [-Wunused-parameter]
+  925 |                                 fb_gpu_ptr_t A, int lda,
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:925:53: warning: unused parameter 'lda' [-Wunused-parameter]
+  925 |                                 fb_gpu_ptr_t A, int lda,
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:926:46: warning: unused parameter 'B' [-Wunused-parameter]
+  926 |                                 fb_gpu_ptr_t B, int ldb) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:926:53: warning: unused parameter 'ldb' [-Wunused-parameter]
+  926 |                                 fb_gpu_ptr_t B, int ldb) {
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:930:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  930 | static void clblast_dtrmm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:930:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  930 | static void clblast_dtrmm_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:931:38: warning: unused parameter 'side' [-Wunused-parameter]
+  931 |                                 char side, char uplo, char transa, char diag,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:931:49: warning: unused parameter 'uplo' [-Wunused-parameter]
+  931 |                                 char side, char uplo, char transa, char diag,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:931:60: warning: unused parameter 'transa' [-Wunused-parameter]
+  931 |                                 char side, char uplo, char transa, char diag,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:931:73: warning: unused parameter 'diag' [-Wunused-parameter]
+  931 |                                 char side, char uplo, char transa, char diag,
+      |                                                                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:932:37: warning: unused parameter 'm' [-Wunused-parameter]
+  932 |                                 int m, int n, const double* alpha,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:932:44: warning: unused parameter 'n' [-Wunused-parameter]
+  932 |                                 int m, int n, const double* alpha,
+      |                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:932:61: warning: unused parameter 'alpha' [-Wunused-parameter]
+  932 |                                 int m, int n, const double* alpha,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:933:46: warning: unused parameter 'A' [-Wunused-parameter]
+  933 |                                 fb_gpu_ptr_t A, int lda,
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:933:53: warning: unused parameter 'lda' [-Wunused-parameter]
+  933 |                                 fb_gpu_ptr_t A, int lda,
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:934:46: warning: unused parameter 'B' [-Wunused-parameter]
+  934 |                                 fb_gpu_ptr_t B, int ldb) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:934:53: warning: unused parameter 'ldb' [-Wunused-parameter]
+  934 |                                 fb_gpu_ptr_t B, int ldb) {
+      |                                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:942:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  942 | static int clblast_sgetrf_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:942:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  942 | static int clblast_sgetrf_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:943:37: warning: unused parameter 'm' [-Wunused-parameter]
+  943 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:943:44: warning: unused parameter 'n' [-Wunused-parameter]
+  943 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:943:60: warning: unused parameter 'A' [-Wunused-parameter]
+  943 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:943:67: warning: unused parameter 'lda' [-Wunused-parameter]
+  943 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                                                   ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:944:46: warning: unused parameter 'ipiv' [-Wunused-parameter]
+  944 |                                 fb_gpu_ptr_t ipiv) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:949:38: warning: unused parameter 'handle' [-Wunused-parameter]
+  949 | static int clblast_dgetrf_impl(void* handle, fb_gpu_stream_t stream,
+      |                                      ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:949:62: warning: unused parameter 'stream' [-Wunused-parameter]
+  949 | static int clblast_dgetrf_impl(void* handle, fb_gpu_stream_t stream,
+      |                                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:950:37: warning: unused parameter 'm' [-Wunused-parameter]
+  950 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:950:44: warning: unused parameter 'n' [-Wunused-parameter]
+  950 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:950:60: warning: unused parameter 'A' [-Wunused-parameter]
+  950 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:950:67: warning: unused parameter 'lda' [-Wunused-parameter]
+  950 |                                 int m, int n, fb_gpu_ptr_t A, int lda,
+      |                                                                   ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:951:46: warning: unused parameter 'ipiv' [-Wunused-parameter]
+  951 |                                 fb_gpu_ptr_t ipiv) {
+      |                                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:1018:14: error: incompatible function pointer types initializing 'void (*)(void *, fb_gpu_stream_t, char, char, int, int, float, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int, float, fb_gpu_ptr_t, int)' (aka 'void (*)(void *, void *, char, char, int, int, float, void *, int, void *, int, float, void *, int)') with an expression of type 'void (void *, fb_gpu_stream_t, char, char, int, int, const float *, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int, const float *, fb_gpu_ptr_t, int)' (aka 'void (void *, void *, char, char, int, int, const float *, void *, int, void *, int, const float *, void *, int)') [-Wincompatible-function-pointer-types]
+ 1018 |     .ssymm = clblast_ssymm_impl,
+      |              ^~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:1019:14: error: incompatible function pointer types initializing 'void (*)(void *, fb_gpu_stream_t, char, char, int, int, double, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int, double, fb_gpu_ptr_t, int)' (aka 'void (*)(void *, void *, char, char, int, int, double, void *, int, void *, int, double, void *, int)') with an expression of type 'void (void *, fb_gpu_stream_t, char, char, int, int, const double *, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int, const double *, fb_gpu_ptr_t, int)' (aka 'void (void *, void *, char, char, int, int, const double *, void *, int, void *, int, const double *, void *, int)') [-Wincompatible-function-pointer-types]
+ 1019 |     .dsymm = clblast_dsymm_impl,
+      |              ^~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:1022:14: error: incompatible function pointer types initializing 'void (*)(void *, fb_gpu_stream_t, char, char, char, char, int, int, float, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int)' (aka 'void (*)(void *, void *, char, char, char, char, int, int, float, void *, int, void *, int)') with an expression of type 'void (void *, fb_gpu_stream_t, char, char, char, char, int, int, const float *, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int)' (aka 'void (void *, void *, char, char, char, char, int, int, const float *, void *, int, void *, int)') [-Wincompatible-function-pointer-types]
+ 1022 |     .strmm = clblast_strmm_impl,
+      |              ^~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/clblast_trait_impl.c:1023:14: error: incompatible function pointer types initializing 'void (*)(void *, fb_gpu_stream_t, char, char, char, char, int, int, double, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int)' (aka 'void (*)(void *, void *, char, char, char, char, int, int, double, void *, int, void *, int)') with an expression of type 'void (void *, fb_gpu_stream_t, char, char, char, char, int, int, const double *, fb_gpu_ptr_t, int, fb_gpu_ptr_t, int)' (aka 'void (void *, void *, char, char, char, char, int, int, const double *, void *, int, void *, int)') [-Wincompatible-function-pointer-types]
+ 1023 |     .dtrmm = clblast_dtrmm_impl,
+      |              ^~~~~~~~~~~~~~~~~~
+71 warnings and 4 errors generated.
+[13/33] Linking C executable tests\test_blis_backend.exe
+[14/33] Building C object CMakeFiles/faster-blaster.dir/src/backends/reference.c.obj
+FAILED: [code=1] CMakeFiles/faster-blaster.dir/src/backends/reference.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_AOCL -DFB_ENABLE_BLIS -DFB_ENABLE_CUDA -DFB_ENABLE_HIP -DFB_ENABLE_MKL -DFB_ENABLE_OPENCL -DFB_ENABLE_STATISTICS -D_CRT_SECURE_NO_WARNINGS -Dfaster_blaster_EXPORTS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/core -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends -I"C:/Program Files/AMD/ROCm/6.4/include" -I"C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include" -IC:/BLIS/include -I"C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64" -I"C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64" -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -isystem C:/libraries/vcpkg/installed/x64-windows/include -O0 -g -Xclang -gcodeview -std=gnu23 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/faster-blaster.dir/src/backends/reference.c.obj -MF CMakeFiles\faster-blaster.dir\src\backends\reference.c.obj.d -o CMakeFiles/faster-blaster.dir/src/backends/reference.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c
+In file included from C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:64:
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:42:9: warning: unused variable 'len_x' [-Wunused-variable]
+   42 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:120:9: warning: unused variable 'len_x' [-Wunused-variable]
+  120 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:213:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  213 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:230:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  230 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:245:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  245 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:262:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  262 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:276:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  276 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:290:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  290 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:191:9: warning: unused variable 'len_x' [-Wunused-variable]
+  191 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:345:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  345 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:359:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  359 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:373:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  373 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:389:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  389 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:403:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  403 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:417:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  417 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:324:9: warning: unused variable 'len_x' [-Wunused-variable]
+  324 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:701:9: warning: unused variable 'len_x' [-Wunused-variable]
+  701 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:682:23: warning: unused parameter 'layout' [-Wunused-parameter]
+  682 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:760:9: warning: unused variable 'len_x' [-Wunused-variable]
+  760 |     int len_x = (trans == FB_NO_TRANS) ? n : m;
+      |         ^~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:741:23: warning: unused parameter 'layout' [-Wunused-parameter]
+  741 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:837:38: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  837 |             fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                      ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:851:38: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  851 |             fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                      ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:865:38: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  865 |             fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                      ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:798:23: warning: unused parameter 'layout' [-Wunused-parameter]
+  798 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:920:39: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  920 |             fb_complex_double_t sum = {0.0, 0.0};
+      |                                       ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:934:39: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  934 |             fb_complex_double_t sum = {0.0, 0.0};
+      |                                       ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:948:39: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  948 |             fb_complex_double_t sum = {0.0, 0.0};
+      |                                       ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:882:23: warning: unused parameter 'layout' [-Wunused-parameter]
+  882 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1170:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1170 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1188:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1188 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1208:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1208 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1224:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1224 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1277:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1277 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1293:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1293 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1311:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1311 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1327:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1327 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1622:96: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1622 |                     fb_complex_float_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_float_t){0.0f, 0.0f};
+      |                                                                                                ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1632:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1632 |                     fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                              ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1648:96: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1648 |                     fb_complex_float_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_float_t){0.0f, 0.0f};
+      |                                                                                                ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1661:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1661 |                     fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                              ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1679:96: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1679 |                     fb_complex_float_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_float_t){0.0f, 0.0f};
+      |                                                                                                ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1692:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1692 |                     fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                              ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1742:98: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1742 |                     fb_complex_double_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_double_t){0.0, 0.0};
+      |                                                                                                  ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1752:47: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1752 |                     fb_complex_double_t sum = {0.0, 0.0};
+      |                                               ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1768:98: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1768 |                     fb_complex_double_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_double_t){0.0, 0.0};
+      |                                                                                                  ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1781:47: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1781 |                     fb_complex_double_t sum = {0.0, 0.0};
+      |                                               ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1799:98: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1799 |                     fb_complex_double_t sum = (diag == FB_UNIT) ? temp[i] : (fb_complex_double_t){0.0, 0.0};
+      |                                                                                                  ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:1812:47: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1812 |                     fb_complex_double_t sum = {0.0, 0.0};
+      |                                               ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2661:37: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2661 |     fb_complex_float_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2668:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2668 |                 fb_complex_float_t yj_conj = {__real__(y[j * incy]), -__imag__(y[j * incy])};
+      |                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2669:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2669 |                 fb_complex_float_t xj_conj = {__real__(x[j * incx]), -__imag__(x[j * incx])};
+      |                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2672:44: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2672 |                 fb_complex_float_t term1 = {
+      |                                            ^
+ 2673 |                     __real__(alpha) * (__real__(xi) * __real__(yj_conj) - __imag__(xi) * __imag__(yj_conj)) - 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2674 |                     __imag__(alpha) * (__real__(xi) * __imag__(yj_conj) + __imag__(xi) * __real__(yj_conj)),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2675 |                     __real__(alpha) * (__real__(xi) * __imag__(yj_conj) + __imag__(xi) * __real__(yj_conj)) + 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2676 |                     __imag__(alpha) * (__real__(xi) * __real__(yj_conj) - __imag__(xi) * __imag__(yj_conj))
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2677 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2680:44: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2680 |                 fb_complex_float_t term2 = {
+      |                                            ^
+ 2681 |                     __real__(alpha_conj) * (__real__(yi) * __real__(xj_conj) - __imag__(yi) * __imag__(xj_conj)) - 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2682 |                     __imag__(alpha_conj) * (__real__(yi) * __imag__(xj_conj) + __imag__(yi) * __real__(xj_conj)),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2683 |                     __real__(alpha_conj) * (__real__(yi) * __imag__(xj_conj) + __imag__(yi) * __real__(xj_conj)) + 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2684 |                     __imag__(alpha_conj) * (__real__(yi) * __real__(xj_conj) - __imag__(yi) * __imag__(xj_conj))
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2685 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2712:38: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2712 |     fb_complex_double_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2719:47: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2719 |                 fb_complex_double_t yj_conj = {__real__(y[j * incy]), -__imag__(y[j * incy])};
+      |                                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2720:47: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2720 |                 fb_complex_double_t xj_conj = {__real__(x[j * incx]), -__imag__(x[j * incx])};
+      |                                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2723:45: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2723 |                 fb_complex_double_t term1 = {
+      |                                             ^
+ 2724 |                     __real__(alpha) * (__real__(xi) * __real__(yj_conj) - __imag__(xi) * __imag__(yj_conj)) - 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2725 |                     __imag__(alpha) * (__real__(xi) * __imag__(yj_conj) + __imag__(xi) * __real__(yj_conj)),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2726 |                     __real__(alpha) * (__real__(xi) * __imag__(yj_conj) + __imag__(xi) * __real__(yj_conj)) + 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2727 |                     __imag__(alpha) * (__real__(xi) * __real__(yj_conj) - __imag__(xi) * __imag__(yj_conj))
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2728 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2731:45: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 2731 |                 fb_complex_double_t term2 = {
+      |                                             ^
+ 2732 |                     __real__(alpha_conj) * (__real__(yi) * __real__(xj_conj) - __imag__(yi) * __imag__(xj_conj)) - 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2733 |                     __imag__(alpha_conj) * (__real__(yi) * __imag__(xj_conj) + __imag__(yi) * __real__(xj_conj)),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2734 |                     __real__(alpha_conj) * (__real__(yi) * __imag__(xj_conj) + __imag__(yi) * __real__(xj_conj)) + 
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2735 |                     __imag__(alpha_conj) * (__real__(yi) * __real__(xj_conj) - __imag__(yi) * __imag__(xj_conj))
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 2736 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2756:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2756 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2789:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2789 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2819:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2819 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2820:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2820 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2823:30: warning: unused parameter 'alpha' [-Wunused-parameter]
+ 2823 |     const fb_complex_float_t alpha,
+      |                              ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2824:31: warning: unused parameter 'A' [-Wunused-parameter]
+ 2824 |     const fb_complex_float_t *A,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2825:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 2825 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2826:31: warning: unused parameter 'x' [-Wunused-parameter]
+ 2826 |     const fb_complex_float_t *x,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2844:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2844 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2845:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2845 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2848:31: warning: unused parameter 'alpha' [-Wunused-parameter]
+ 2848 |     const fb_complex_double_t alpha,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2849:32: warning: unused parameter 'A' [-Wunused-parameter]
+ 2849 |     const fb_complex_double_t *A,
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2850:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 2850 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2851:32: warning: unused parameter 'x' [-Wunused-parameter]
+ 2851 |     const fb_complex_double_t *x,
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2875:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2875 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2876:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2876 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2899:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2899 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2900:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2900 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2921:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2921 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2922:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2922 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2923:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2923 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2924:21: warning: unused parameter 'diag' [-Wunused-parameter]
+ 2924 |     const fb_diag_t diag,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2927:31: warning: unused parameter 'A' [-Wunused-parameter]
+ 2927 |     const fb_complex_float_t *A,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2928:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 2928 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2929:25: warning: unused parameter 'x' [-Wunused-parameter]
+ 2929 |     fb_complex_float_t *x,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2939:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2939 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2940:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2940 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2941:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2941 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2942:21: warning: unused parameter 'diag' [-Wunused-parameter]
+ 2942 |     const fb_diag_t diag,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2945:32: warning: unused parameter 'A' [-Wunused-parameter]
+ 2945 |     const fb_complex_double_t *A,
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2946:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 2946 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2947:26: warning: unused parameter 'x' [-Wunused-parameter]
+ 2947 |     fb_complex_double_t *x,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2957 | void fb_ref_stbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2957 | void fb_ref_stbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2957 | void fb_ref_stbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2958:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2958 |                   enum FBLAS_DIAG diag, int n, int k, const float* A, int lda,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2958:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2957 | void fb_ref_stbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2957:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2957 | void fb_ref_stbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2958:52: warning: unused parameter 'k' [-Wunused-parameter]
+ 2958 |                   enum FBLAS_DIAG diag, int n, int k, const float* A, int lda,
+      |                                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2985 | void fb_ref_dtbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2985 | void fb_ref_dtbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2985 | void fb_ref_dtbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2986:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2986 |                   enum FBLAS_DIAG diag, int n, int k, const double* A, int lda,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2986:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 2985 | void fb_ref_dtbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2985:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 2985 | void fb_ref_dtbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:2986:52: warning: unused parameter 'k' [-Wunused-parameter]
+ 2986 |                   enum FBLAS_DIAG diag, int n, int k, const double* A, int lda,
+      |                                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3012 | void fb_ref_ctbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3012 | void fb_ref_ctbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3012 | void fb_ref_ctbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3012:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3013:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3013 |                   enum FBLAS_DIAG diag, int n, int k, const void* A, int lda,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3013:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3020 | void fb_ref_ztbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3020 | void fb_ref_ztbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3020 | void fb_ref_ztbsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3020:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3021:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3021 |                   enum FBLAS_DIAG diag, int n, int k, const void* A, int lda,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3021:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3029 | void fb_ref_sspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3029 | void fb_ref_sspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3029 | void fb_ref_sspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3029:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3029 | void fb_ref_sspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3054 | void fb_ref_dspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3054 | void fb_ref_dspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3054 | void fb_ref_dspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3054:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3054 | void fb_ref_dspmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3077 | void fb_ref_chpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3077 | void fb_ref_chpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3077 | void fb_ref_chpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3077:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3077 | void fb_ref_chpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3115 | void fb_ref_zhpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3115 | void fb_ref_zhpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3115 | void fb_ref_zhpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3115:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3115 | void fb_ref_zhpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3153:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3153 |                   enum FBLAS_DIAG diag, int n, const float* AP, float* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3153:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3152:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 3152 | void fb_ref_stpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3165:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3165 |                   enum FBLAS_DIAG diag, int n, const double* AP, double* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3165:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3164:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 3164 | void fb_ref_dtpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3175 | void fb_ref_ctpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3175 | void fb_ref_ctpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3175 | void fb_ref_ctpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3175:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3176:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3176 |                   enum FBLAS_DIAG diag, int n, const void* AP, void* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3176:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3182 | void fb_ref_ztpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3182 | void fb_ref_ztpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3182 | void fb_ref_ztpmv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3182:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3183:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3183 |                   enum FBLAS_DIAG diag, int n, const void* AP, void* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3183:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3190 | void fb_ref_stpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3190 | void fb_ref_stpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3190 | void fb_ref_stpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3191:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3191 |                   enum FBLAS_DIAG diag, int n, const float* AP, float* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3191:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3190 | void fb_ref_stpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3190:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 3190 | void fb_ref_stpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3217 | void fb_ref_dtpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3217 | void fb_ref_dtpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3217 | void fb_ref_dtpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3218:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3218 |                   enum FBLAS_DIAG diag, int n, const double* AP, double* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3218:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3217 | void fb_ref_dtpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3217:88: warning: unused parameter 'trans' [-Wunused-parameter]
+ 3217 | void fb_ref_dtpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3243 | void fb_ref_ctpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3243 | void fb_ref_ctpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3243 | void fb_ref_ctpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3243:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3244:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3244 |                   enum FBLAS_DIAG diag, int n, const void* AP, void* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3244:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3250 | void fb_ref_ztpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3250 | void fb_ref_ztpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:72: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3250 | void fb_ref_ztpsv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, enum FBLAS_TRANSPOSE trans,
+      |                                                                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3250:72: warning: declaration of 'enum FBLAS_TRANSPOSE' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3251:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3251 |                   enum FBLAS_DIAG diag, int n, const void* AP, void* x, int incx) {
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3251:24: warning: declaration of 'enum FBLAS_DIAG' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3258 | void fb_ref_sspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3258 | void fb_ref_sspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3258 | void fb_ref_sspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3258:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3258 | void fb_ref_sspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3270 | void fb_ref_dspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3270 | void fb_ref_dspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3270 | void fb_ref_dspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3270:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3270 | void fb_ref_dspr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3282 | void fb_ref_chpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3282 | void fb_ref_chpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3282 | void fb_ref_chpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3282:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3282 | void fb_ref_chpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3297 | void fb_ref_zhpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3297 | void fb_ref_zhpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3297 | void fb_ref_zhpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3297:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3297 | void fb_ref_zhpr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3312 | void fb_ref_sspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3312 | void fb_ref_sspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3312 | void fb_ref_sspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3312:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3312 | void fb_ref_sspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3326 | void fb_ref_dspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3326 | void fb_ref_dspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3326 | void fb_ref_dspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3326:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3326 | void fb_ref_dspr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3340 | void fb_ref_chpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3340 | void fb_ref_chpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3340 | void fb_ref_chpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3340:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3340 | void fb_ref_chpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3363 | void fb_ref_zhpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3363 | void fb_ref_zhpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3363 | void fb_ref_zhpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3363:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3363 | void fb_ref_zhpr2(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3385 | void fb_ref_csymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3385 | void fb_ref_csymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3385 | void fb_ref_csymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3385:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3385 | void fb_ref_csymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3432 | void fb_ref_zsymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:50: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3432 | void fb_ref_zsymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                  ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:50: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:37: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3432 | void fb_ref_zsymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3432:61: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3432 | void fb_ref_zsymv(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3477 | void fb_ref_csyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3477 | void fb_ref_csyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3477 | void fb_ref_csyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3477:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3477 | void fb_ref_csyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3504 | void fb_ref_zsyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:49: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 3504 | void fb_ref_zsyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                 ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:49: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:36: warning: unused parameter 'layout' [-Wunused-parameter]
+ 3504 | void fb_ref_zsyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                    ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level2.c:3504:60: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 3504 | void fb_ref_zsyr(enum FBLAS_LAYOUT layout, enum FBLAS_UPLO uplo, int n,
+      |                                                            ^
+In file included from C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:71:
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:233:53: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  233 |                 __real__(tmp) = __real__(beta) * Cij->real - __imag__(beta) * Cij->imag;
+      |                                                  ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:233:82: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  233 |                 __real__(tmp) = __real__(beta) * Cij->real - __imag__(beta) * Cij->imag;
+      |                                                                               ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:234:53: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  234 |                 __imag__(tmp) = __real__(beta) * Cij->imag + __imag__(beta) * Cij->real;
+      |                                                  ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:234:82: error: member reference base type 'fb_complex_float_t' (aka '_Complex float') is not a structure or union
+  234 |                 __imag__(tmp) = __real__(beta) * Cij->imag + __imag__(beta) * Cij->real;
+      |                                                                               ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:245:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  245 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:276:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  276 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:343:53: error: member reference base type 'fb_complex_double_t' (aka '_Complex double') is not a structure or union
+  343 |                 __real__(tmp) = __real__(beta) * Cij->real - __imag__(beta) * Cij->imag;
+      |                                                  ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:343:82: error: member reference base type 'fb_complex_double_t' (aka '_Complex double') is not a structure or union
+  343 |                 __real__(tmp) = __real__(beta) * Cij->real - __imag__(beta) * Cij->imag;
+      |                                                                               ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:344:53: error: member reference base type 'fb_complex_double_t' (aka '_Complex double') is not a structure or union
+  344 |                 __imag__(tmp) = __real__(beta) * Cij->imag + __imag__(beta) * Cij->real;
+      |                                                  ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:344:82: error: member reference base type 'fb_complex_double_t' (aka '_Complex double') is not a structure or union
+  344 |                 __imag__(tmp) = __real__(beta) * Cij->imag + __imag__(beta) * Cij->real;
+      |                                                                               ~~~^ ~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:355:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  355 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:386:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  386 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:573:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  573 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:576:45: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  576 |                         (fb_complex_float_t){__real__(A[k * lda + i]), -__imag__(A[k * lda + i])} :  // conj(A[k,i])
+      |                                             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:618:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  618 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:621:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  621 |                         (fb_complex_double_t){__real__(A[k * lda + i]), -__imag__(A[k * lda + i])} :
+      |                                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:764:51: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  764 |                     fb_complex_float_t Ajp_conj = {__real__(A[j * lda + p]), -__imag__(A[j * lda + p])};
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:818:52: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  818 |                     fb_complex_double_t Ajp_conj = {__real__(A[j * lda + p]), -__imag__(A[j * lda + p])};
+      |                                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:921:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  921 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:955:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  955 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1066:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1066 |                 fb_complex_float_t temp = {
+      |                                           ^
+ 1067 |                     __real__(alpha) * __real__(Bij) - __imag__(alpha) * __imag__(Bij),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1068 |                     __real__(alpha) * __imag__(Bij) + __imag__(alpha) * __real__(Bij)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1069 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1108:44: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1108 |                 fb_complex_double_t temp = {
+      |                                            ^
+ 1109 |                     __real__(alpha) * __real__(Bij) - __imag__(alpha) * __imag__(Bij),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1110 |                     __real__(alpha) * __imag__(Bij) + __imag__(alpha) * __real__(Bij)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1111 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1248:41: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1248 |         fb_complex_float_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1252:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1252 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1256:51: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1256 |                     fb_complex_float_t Bjp_conj = {__real__(B[j * ldb + p]), -__imag__(B[j * ldb + p])};
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1258:51: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1258 |                     fb_complex_float_t Ajp_conj = {__real__(A[j * lda + p]), -__imag__(A[j * lda + p])};
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1261:48: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1261 |                     fb_complex_float_t term1 = {
+      |                                                ^
+ 1262 |                         __real__(Aip) * __real__(Bjp_conj) - __imag__(Aip) * __imag__(Bjp_conj),
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1263 |                         __real__(Aip) * __imag__(Bjp_conj) + __imag__(Aip) * __real__(Bjp_conj)
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1264 |                     };
+      |                     ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1267:48: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1267 |                     fb_complex_float_t term2 = {
+      |                                                ^
+ 1268 |                         __real__(Bip) * __real__(Ajp_conj) - __imag__(Bip) * __imag__(Ajp_conj),
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1269 |                         __real__(Bip) * __imag__(Ajp_conj) + __imag__(Bip) * __real__(Ajp_conj)
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1270 |                     };
+      |                     ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1248:28: warning: unused variable 'alpha_conj' [-Wunused-variable]
+ 1248 |         fb_complex_float_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                            ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1319:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1319 |         fb_complex_double_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                                          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1323:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1323 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1327:52: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1327 |                     fb_complex_double_t Bjp_conj = {__real__(B[j * ldb + p]), -__imag__(B[j * ldb + p])};
+      |                                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1329:52: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1329 |                     fb_complex_double_t Ajp_conj = {__real__(A[j * lda + p]), -__imag__(A[j * lda + p])};
+      |                                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1331:49: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1331 |                     fb_complex_double_t term1 = {
+      |                                                 ^
+ 1332 |                         __real__(Aip) * __real__(Bjp_conj) - __imag__(Aip) * __imag__(Bjp_conj),
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1333 |                         __real__(Aip) * __imag__(Bjp_conj) + __imag__(Aip) * __real__(Bjp_conj)
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1334 |                     };
+      |                     ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1336:49: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1336 |                     fb_complex_double_t term2 = {
+      |                                                 ^
+ 1337 |                         __real__(Bip) * __real__(Ajp_conj) - __imag__(Bip) * __imag__(Ajp_conj),
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1338 |                         __real__(Bip) * __imag__(Ajp_conj) + __imag__(Bip) * __real__(Ajp_conj)
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1339 |                     };
+      |                     ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1319:29: warning: unused variable 'alpha_conj' [-Wunused-variable]
+ 1319 |         fb_complex_double_t alpha_conj = {__real__(alpha), -__imag__(alpha)};
+      |                             ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1392:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1392 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1399:45: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1399 |                 fb_complex_float_t result = {
+      |                                             ^
+ 1400 |                     __real__(alpha) * __real__(sum) - __imag__(alpha) * __imag__(sum),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1401 |                     __real__(alpha) * __imag__(sum) + __imag__(alpha) * __real__(sum)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1402 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1439:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1439 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1446:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1446 |                 fb_complex_double_t result = {
+      |                                              ^
+ 1447 |                     __real__(alpha) * __real__(sum) - __imag__(alpha) * __imag__(sum),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1448 |                     __real__(alpha) * __imag__(sum) + __imag__(alpha) * __real__(sum)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1449 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1493:42: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1493 |                 fb_complex_float_t sum = {0.0f, 0.0f};
+      |                                          ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1505:45: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1505 |                 fb_complex_float_t result = {
+      |                                             ^
+ 1506 |                     __real__(alpha) * __real__(sum) - __imag__(alpha) * __imag__(sum),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1507 |                     __real__(alpha) * __imag__(sum) + __imag__(alpha) * __real__(sum)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1508 |                 };
+      |                 ~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1547:43: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1547 |                 fb_complex_double_t sum = {0.0, 0.0};
+      |                                           ^~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_level3.c:1559:46: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1559 |                 fb_complex_double_t result = {
+      |                                              ^
+ 1560 |                     __real__(alpha) * __real__(sum) - __imag__(alpha) * __imag__(sum),
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1561 |                     __real__(alpha) * __imag__(sum) + __imag__(alpha) * __real__(sum)
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 1562 |                 };
+      |                 ~
+In file included from C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:78:
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:851:51: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  851 |                     fb_complex_float_t Lik_conj = {__real__(A[i * lda + k]), -__imag__(A[i * lda + k])};
+      |                                                   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:900:52: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+  900 |                     fb_complex_double_t Lik_conj = {__real__(A[i * lda + k]), -__imag__(A[i * lda + k])};
+      |                                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1070:39: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1070 |             fb_complex_float_t beta = {-norm, 0.0f};
+      |                                       ^~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1076:37: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1076 |             fb_complex_float_t u1 = {__real__(alpha) - __real__(beta), __imag__(alpha) - __imag__(beta)};
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1127:40: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1127 |             fb_complex_double_t beta = {-norm, 0.0};
+      |                                        ^~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1133:38: warning: complex initialization specifying real and imaginary components is an extension [-Wcomplex-component-init]
+ 1133 |             fb_complex_double_t u1 = {__real__(alpha) - __real__(beta), __imag__(alpha) - __imag__(beta)};
+      |                                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1263:31: warning: unused parameter 'tau' [-Wunused-parameter]
+ 1263 |     const fb_complex_float_t *tau)
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1294:32: warning: unused parameter 'tau' [-Wunused-parameter]
+ 1294 |     const fb_complex_double_t *tau)
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1433:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1433 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1434:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 1434 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1438:25: warning: unused parameter 'A' [-Wunused-parameter]
+ 1438 |     fb_complex_float_t *A,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1439:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1439 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1440:25: warning: unused parameter 'B' [-Wunused-parameter]
+ 1440 |     fb_complex_float_t *B,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1441:15: warning: unused parameter 'ldb' [-Wunused-parameter]
+ 1441 |     const int ldb)
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1452:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1452 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1453:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 1453 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1457:26: warning: unused parameter 'A' [-Wunused-parameter]
+ 1457 |     fb_complex_double_t *A,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1458:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1458 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1459:26: warning: unused parameter 'B' [-Wunused-parameter]
+ 1459 |     fb_complex_double_t *B,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1460:15: warning: unused parameter 'ldb' [-Wunused-parameter]
+ 1460 |     const int ldb)
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1553:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1553 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1554:21: warning: unused parameter 'side' [-Wunused-parameter]
+ 1554 |     const fb_side_t side,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1555:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 1555 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1559:31: warning: unused parameter 'A' [-Wunused-parameter]
+ 1559 |     const fb_complex_float_t *A,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1560:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1560 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1561:31: warning: unused parameter 'tau' [-Wunused-parameter]
+ 1561 |     const fb_complex_float_t *tau,
+      |                               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1562:25: warning: unused parameter 'C' [-Wunused-parameter]
+ 1562 |     fb_complex_float_t *C,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1563:15: warning: unused parameter 'ldc' [-Wunused-parameter]
+ 1563 |     const int ldc)
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1574:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1574 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1575:21: warning: unused parameter 'side' [-Wunused-parameter]
+ 1575 |     const fb_side_t side,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1576:26: warning: unused parameter 'trans' [-Wunused-parameter]
+ 1576 |     const fb_transpose_t trans,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1580:32: warning: unused parameter 'A' [-Wunused-parameter]
+ 1580 |     const fb_complex_double_t *A,
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1581:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1581 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1582:32: warning: unused parameter 'tau' [-Wunused-parameter]
+ 1582 |     const fb_complex_double_t *tau,
+      |                                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1583:26: warning: unused parameter 'C' [-Wunused-parameter]
+ 1583 |     fb_complex_double_t *C,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1584:15: warning: unused parameter 'ldc' [-Wunused-parameter]
+ 1584 |     const int ldc)
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1610:11: warning: unused parameter 'rcond' [-Wunused-parameter]
+ 1610 |     float rcond,
+      |           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1641:12: warning: unused parameter 'rcond' [-Wunused-parameter]
+ 1641 |     double rcond,
+      |            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1661:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1661 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1665:25: warning: unused parameter 'A' [-Wunused-parameter]
+ 1665 |     fb_complex_float_t *A,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1666:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1666 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1667:25: warning: unused parameter 'B' [-Wunused-parameter]
+ 1667 |     fb_complex_float_t *B,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1668:15: warning: unused parameter 'ldb' [-Wunused-parameter]
+ 1668 |     const int ldb,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1669:12: warning: unused parameter 's' [-Wunused-parameter]
+ 1669 |     float *s,
+      |            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1670:11: warning: unused parameter 'rcond' [-Wunused-parameter]
+ 1670 |     float rcond,
+      |           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1683:23: warning: unused parameter 'layout' [-Wunused-parameter]
+ 1683 |     const fb_layout_t layout,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1687:26: warning: unused parameter 'A' [-Wunused-parameter]
+ 1687 |     fb_complex_double_t *A,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1688:15: warning: unused parameter 'lda' [-Wunused-parameter]
+ 1688 |     const int lda,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1689:26: warning: unused parameter 'B' [-Wunused-parameter]
+ 1689 |     fb_complex_double_t *B,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1690:15: warning: unused parameter 'ldb' [-Wunused-parameter]
+ 1690 |     const int ldb,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1691:13: warning: unused parameter 's' [-Wunused-parameter]
+ 1691 |     double *s,
+      |             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1692:12: warning: unused parameter 'rcond' [-Wunused-parameter]
+ 1692 |     double rcond,
+      |            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1712:16: warning: unused parameter 'jobz' [-Wunused-parameter]
+ 1712 |     const char jobz,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1713:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 1713 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1734:16: warning: unused parameter 'jobz' [-Wunused-parameter]
+ 1734 |     const char jobz,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1735:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 1735 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1754:16: warning: unused parameter 'jobz' [-Wunused-parameter]
+ 1754 |     const char jobz,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1755:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 1755 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1775:16: warning: unused parameter 'jobz' [-Wunused-parameter]
+ 1775 |     const char jobz,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1776:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 1776 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1812:12: warning: unused parameter 'superb' [-Wunused-parameter]
+ 1812 |     float *superb)
+      |            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1869:13: warning: unused parameter 'superb' [-Wunused-parameter]
+ 1869 |     double *superb)
+      |             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1910:16: warning: unused parameter 'jobu' [-Wunused-parameter]
+ 1910 |     const char jobu,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1911:16: warning: unused parameter 'jobvt' [-Wunused-parameter]
+ 1911 |     const char jobvt,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1917:25: warning: unused parameter 'U' [-Wunused-parameter]
+ 1917 |     fb_complex_float_t *U,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1918:15: warning: unused parameter 'ldu' [-Wunused-parameter]
+ 1918 |     const int ldu,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1919:25: warning: unused parameter 'VT' [-Wunused-parameter]
+ 1919 |     fb_complex_float_t *VT,
+      |                         ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1920:15: warning: unused parameter 'ldvt' [-Wunused-parameter]
+ 1920 |     const int ldvt,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1921:12: warning: unused parameter 'superb' [-Wunused-parameter]
+ 1921 |     float *superb)
+      |            ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1940:16: warning: unused parameter 'jobu' [-Wunused-parameter]
+ 1940 |     const char jobu,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1941:16: warning: unused parameter 'jobvt' [-Wunused-parameter]
+ 1941 |     const char jobvt,
+      |                ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1947:26: warning: unused parameter 'U' [-Wunused-parameter]
+ 1947 |     fb_complex_double_t *U,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1948:15: warning: unused parameter 'ldu' [-Wunused-parameter]
+ 1948 |     const int ldu,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1949:26: warning: unused parameter 'VT' [-Wunused-parameter]
+ 1949 |     fb_complex_double_t *VT,
+      |                          ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1950:15: warning: unused parameter 'ldvt' [-Wunused-parameter]
+ 1950 |     const int ldvt,
+      |               ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:1951:13: warning: unused parameter 'superb' [-Wunused-parameter]
+ 1951 |     double *superb)
+      |             ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2053:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2053 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2077:21: warning: unused parameter 'uplo' [-Wunused-parameter]
+ 2077 |     const fb_uplo_t uplo,
+      |                     ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2099:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2099 | int fb_ref_sgesdd(enum FBLAS_LAYOUT layout, char jobz, int m, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2099:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2103:26: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2103 |     return fb_ref_sgesvd(layout, jobz, jobz, m, n, A, lda, s, U, ldu, VT, ldvt, NULL);
+      |            ~~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2106:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2106 | int fb_ref_dgesdd(enum FBLAS_LAYOUT layout, char jobz, int m, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2106:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2109:26: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2109 |     return fb_ref_dgesvd(layout, jobz, jobz, m, n, A, lda, s, U, ldu, VT, ldvt, NULL);
+      |            ~~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2112:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2112 | int fb_ref_cgesdd(enum FBLAS_LAYOUT layout, char jobz, int m, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2112:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2115:26: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2115 |     return fb_ref_cgesvd(layout, jobz, jobz, m, n, A, lda, s, U, ldu, VT, ldvt, NULL);
+      |            ~~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2118:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2118 | int fb_ref_zgesdd(enum FBLAS_LAYOUT layout, char jobz, int m, int n,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2118:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2121:26: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2121 |     return fb_ref_zgesvd(layout, jobz, jobz, m, n, A, lda, s, U, ldu, VT, ldvt, NULL);
+      |            ~~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2125:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2125 | int fb_ref_ssygv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2125:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2125:71: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2125 | int fb_ref_ssygv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2125:71: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2130:39: warning: implicit conversion from enumeration type 'enum FBLAS_UPLO' to different enumeration type 'fb_uplo_t' [-Wenum-conversion]
+ 2130 |     return fb_ref_ssyev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~               ^~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2130:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2130 |     return fb_ref_ssyev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2133:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2133 | int fb_ref_dsygv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2133:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2133:71: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2133 | int fb_ref_dsygv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2133:71: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2136:39: warning: implicit conversion from enumeration type 'enum FBLAS_UPLO' to different enumeration type 'fb_uplo_t' [-Wenum-conversion]
+ 2136 |     return fb_ref_dsyev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~               ^~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2136:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2136 |     return fb_ref_dsyev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2140:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2140 | int fb_ref_chegv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2140:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2140:71: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2140 | int fb_ref_chegv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2140:71: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2143:39: warning: implicit conversion from enumeration type 'enum FBLAS_UPLO' to different enumeration type 'fb_uplo_t' [-Wenum-conversion]
+ 2143 |     return fb_ref_cheev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~               ^~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2143:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2143 |     return fb_ref_cheev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2146:23: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2146 | int fb_ref_zhegv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2146:23: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2146:71: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2146 | int fb_ref_zhegv(enum FBLAS_LAYOUT layout, int itype, char jobz, enum FBLAS_UPLO uplo,
+      |                                                                       ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2146:71: warning: declaration of 'enum FBLAS_UPLO' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2149:39: warning: implicit conversion from enumeration type 'enum FBLAS_UPLO' to different enumeration type 'fb_uplo_t' [-Wenum-conversion]
+ 2149 |     return fb_ref_zheev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~               ^~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2149:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2149 |     return fb_ref_zheev(layout, jobz, uplo, n, A, lda, w);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2153:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2153 | int fb_ref_sgelsy(enum FBLAS_LAYOUT layout, int m, int n, int nrhs,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2153:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2158:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2158 |     return fb_ref_sgels(layout, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2161:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2161 | int fb_ref_dgelsy(enum FBLAS_LAYOUT layout, int m, int n, int nrhs,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2161:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2165:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2165 |     return fb_ref_dgels(layout, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2168:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2168 | int fb_ref_cgelsy(enum FBLAS_LAYOUT layout, int m, int n, int nrhs,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2168:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2172:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2172 |     return fb_ref_cgels(layout, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2175:24: warning: forward references to 'enum' types are a Microsoft extension [-Wmicrosoft-enum-forward-reference]
+ 2175 | int fb_ref_zgelsy(enum FBLAS_LAYOUT layout, int m, int n, int nrhs,
+      |                        ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2175:24: warning: declaration of 'enum FBLAS_LAYOUT' will not be visible outside of this function [-Wvisibility]
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends\reference_lapack.c:2179:25: warning: implicit conversion from enumeration type 'enum FBLAS_LAYOUT' to different enumeration type 'fb_layout_t' [-Wenum-conversion]
+ 2179 |     return fb_ref_zgels(layout, FB_NO_TRANS, m, n, nrhs, A, lda, B, ldb);
+      |            ~~~~~~~~~~~~ ^~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:172:22: error: incompatible function pointer types assigning to 'fb_crotg_fn' (aka 'void (*)(_Complex float *, _Complex float *, float *, _Complex float *)') from 'void (fb_complex_float_t *, const fb_complex_float_t *, float *, fb_complex_float_t *)' (aka 'void (_Complex float *, const _Complex float *, float *, _Complex float *)') [-Wincompatible-function-pointer-types]
+  172 |         vtable.crotg = fb_ref_crotg;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:173:22: error: incompatible function pointer types assigning to 'fb_zrotg_fn' (aka 'void (*)(_Complex double *, _Complex double *, double *, _Complex double *)') from 'void (fb_complex_double_t *, const fb_complex_double_t *, double *, fb_complex_double_t *)' (aka 'void (_Complex double *, const _Complex double *, double *, _Complex double *)') [-Wincompatible-function-pointer-types]
+  173 |         vtable.zrotg = fb_ref_zrotg;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:214:22: error: incompatible function pointer types assigning to 'fb_csymv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const int, const void *, const void *, const int, const void *, const int, const void *, void *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, int, const void *, const void *, int, const void *, int, const void *, void *, int)' [-Wincompatible-function-pointer-types]
+  214 |         vtable.csymv = fb_ref_csymv;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:215:22: error: incompatible function pointer types assigning to 'fb_zsymv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const int, const void *, const void *, const int, const void *, const int, const void *, void *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, int, const void *, const void *, int, const void *, int, const void *, void *, int)' [-Wincompatible-function-pointer-types]
+  215 |         vtable.zsymv = fb_ref_zsymv;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:236:21: error: incompatible function pointer types assigning to 'fb_csyr_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const int, const void *, const void *, const int, void *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, int, const void *, const void *, int, void *, int)' [-Wincompatible-function-pointer-types]
+  236 |         vtable.csyr = fb_ref_csyr;
+      |                     ^ ~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:237:21: error: incompatible function pointer types assigning to 'fb_zsyr_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const int, const void *, const void *, const int, void *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, int, const void *, const void *, int, void *, int)' [-Wincompatible-function-pointer-types]
+  237 |         vtable.zsyr = fb_ref_zsyr;
+      |                     ^ ~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:264:22: error: incompatible function pointer types assigning to 'fb_stbsv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const fb_transpose_t, const fb_diag_t, const int, const int, const float *, const int, float *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, enum FBLAS_TRANSPOSE, enum FBLAS_DIAG, int, int, const float *, int, float *, int)' [-Wincompatible-function-pointer-types]
+  264 |         vtable.stbsv = fb_ref_stbsv;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:265:22: error: incompatible function pointer types assigning to 'fb_dtbsv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const fb_transpose_t, const fb_diag_t, const int, const int, const double *, const int, double *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, enum FBLAS_TRANSPOSE, enum FBLAS_DIAG, int, int, const double *, int, double *, int)' [-Wincompatible-function-pointer-types]
+  265 |         vtable.dtbsv = fb_ref_dtbsv;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:266:22: error: incompatible function pointer types assigning to 'fb_ctbsv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const fb_transpose_t, const fb_diag_t, const int, const int, const _Complex float *, const int, _Complex float *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, enum FBLAS_TRANSPOSE, enum FBLAS_DIAG, int, int, const void *, int, void *, int)' [-Wincompatible-function-pointer-types]
+  266 |         vtable.ctbsv = fb_ref_ctbsv;
+      |                      ^ ~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/reference.c:267:22: error: incompatible function pointer types assigning to 'fb_ztbsv_fn' (aka 'void (*)(const fb_layout_t, const fb_uplo_t, const fb_transpose_t, const fb_diag_t, const int, const int, const _Complex double *, const int, _Complex double *, const int)') from 'void (enum FBLAS_LAYOUT, enum FBLAS_UPLO, enum FBLAS_TRANSPOSE, enum FBLAS_DIAG, int, int, const void *, int, void *, int)' [-Wincompatible-function-pointer-types]

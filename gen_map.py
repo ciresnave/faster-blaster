@@ -1,0 +1,10 @@
+import re, os
+os.chdir(r'c:\Users\cires\OneDrive\Documents\projects\faster-blaster')
+vt = open('src/backends/backend_interface.h', encoding='utf-8').read()
+m = re.search(r'typedef struct fb_backend_vtable\s*\{(.+?)\}\s*fb_backend_vtable_t', vt, re.DOTALL)
+body = m.group(1)
+fields = re.findall(r'fb_\w+_fn\s+(\w+)\s*;', body)
+jop = open('src/judge/judge_op_ids.h', encoding='utf-8').read()
+op_defs = dict(re.findall(r'#define\s+(FB_OP_\w+)\s+(\d+)', jop))
+entries = []; [entries.append((int(op_defs['FB_OP_'+f.upper()]), 'FB_OP_'+f.upper(), f)) for f in fields if 'FB_OP_'+f.upper() in op_defs]; entries.sort()
+print(len(entries))

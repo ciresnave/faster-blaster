@@ -635,60 +635,64 @@ static void clblast_dscal_impl(void* handle, fb_gpu_stream_t stream,
     }
 }
 
-static void clblast_sdot_impl(void* handle, fb_gpu_stream_t stream,
+static float clblast_sdot_impl(void* handle, fb_gpu_stream_t stream,
                                int n, fb_gpu_ptr_t x, int incx,
-                               fb_gpu_ptr_t y, int incy, float* result) {
+                               fb_gpu_ptr_t y, int incy) {
     clblast_context_t* ctx = (clblast_context_t*)handle;
     cl_command_queue queue = stream ? (cl_command_queue)stream : ctx->queue;
-    
+    float result = 0.0f;
     if (ctx->sdot) {
         // Allocate temp buffer for result
         cl_mem result_buf = clCreateBuffer(ctx->context, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
         ctx->sdot(n, result_buf, 0, (cl_mem)x, 0, incx, (cl_mem)y, 0, incy, &queue, NULL);
-        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(float), result, 0, NULL, NULL);
+        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(float), &result, 0, NULL, NULL);
         clReleaseMemObject(result_buf);
     }
+    return result;
 }
 
-static void clblast_ddot_impl(void* handle, fb_gpu_stream_t stream,
+static double clblast_ddot_impl(void* handle, fb_gpu_stream_t stream,
                                int n, fb_gpu_ptr_t x, int incx,
-                               fb_gpu_ptr_t y, int incy, double* result) {
+                               fb_gpu_ptr_t y, int incy) {
     clblast_context_t* ctx = (clblast_context_t*)handle;
     cl_command_queue queue = stream ? (cl_command_queue)stream : ctx->queue;
-    
+    double result = 0.0;
     if (ctx->ddot) {
         // Allocate temp buffer for result
         cl_mem result_buf = clCreateBuffer(ctx->context, CL_MEM_READ_WRITE, sizeof(double), NULL, NULL);
         ctx->ddot(n, result_buf, 0, (cl_mem)x, 0, incx, (cl_mem)y, 0, incy, &queue, NULL);
-        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(double), result, 0, NULL, NULL);
+        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(double), &result, 0, NULL, NULL);
         clReleaseMemObject(result_buf);
     }
+    return result;
 }
 
-static void clblast_snrm2_impl(void* handle, fb_gpu_stream_t stream,
-                                int n, fb_gpu_ptr_t x, int incx, float* result) {
+static float clblast_snrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, fb_gpu_ptr_t x, int incx) {
     clblast_context_t* ctx = (clblast_context_t*)handle;
     cl_command_queue queue = stream ? (cl_command_queue)stream : ctx->queue;
-    
+    float result = 0.0f;
     if (ctx->snrm2) {
         cl_mem result_buf = clCreateBuffer(ctx->context, CL_MEM_READ_WRITE, sizeof(float), NULL, NULL);
         ctx->snrm2(n, result_buf, 0, (cl_mem)x, 0, incx, &queue, NULL);
-        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(float), result, 0, NULL, NULL);
+        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(float), &result, 0, NULL, NULL);
         clReleaseMemObject(result_buf);
     }
+    return result;
 }
 
-static void clblast_dnrm2_impl(void* handle, fb_gpu_stream_t stream,
-                                int n, fb_gpu_ptr_t x, int incx, double* result) {
+static double clblast_dnrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, fb_gpu_ptr_t x, int incx) {
     clblast_context_t* ctx = (clblast_context_t*)handle;
     cl_command_queue queue = stream ? (cl_command_queue)stream : ctx->queue;
-    
+    double result = 0.0;
     if (ctx->dnrm2) {
         cl_mem result_buf = clCreateBuffer(ctx->context, CL_MEM_READ_WRITE, sizeof(double), NULL, NULL);
         ctx->dnrm2(n, result_buf, 0, (cl_mem)x, 0, incx, &queue, NULL);
-        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(double), result, 0, NULL, NULL);
+        clEnqueueReadBuffer(queue, result_buf, CL_TRUE, 0, sizeof(double), &result, 0, NULL, NULL);
         clReleaseMemObject(result_buf);
     }
+    return result;
 }
 
 
@@ -901,23 +905,23 @@ static void clblast_dtrsm_impl(void* handle, fb_gpu_stream_t stream,
 // Stubs for remaining BLAS Level 3 functions
 static void clblast_ssymm_impl(void* handle, fb_gpu_stream_t stream,
                                 char side, char uplo, int m, int n,
-                                const float* alpha, fb_gpu_ptr_t A, int lda,
-                                fb_gpu_ptr_t B, int ldb, const float* beta,
+                                float alpha, fb_gpu_ptr_t A, int lda,
+                                fb_gpu_ptr_t B, int ldb, float beta,
                                 fb_gpu_ptr_t C, int ldc) {
     // TODO: Implement
 }
 
 static void clblast_dsymm_impl(void* handle, fb_gpu_stream_t stream,
                                 char side, char uplo, int m, int n,
-                                const double* alpha, fb_gpu_ptr_t A, int lda,
-                                fb_gpu_ptr_t B, int ldb, const double* beta,
+                                double alpha, fb_gpu_ptr_t A, int lda,
+                                fb_gpu_ptr_t B, int ldb, double beta,
                                 fb_gpu_ptr_t C, int ldc) {
     // TODO: Implement
 }
 
 static void clblast_strmm_impl(void* handle, fb_gpu_stream_t stream,
                                 char side, char uplo, char transa, char diag,
-                                int m, int n, const float* alpha,
+                                int m, int n, float alpha,
                                 fb_gpu_ptr_t A, int lda,
                                 fb_gpu_ptr_t B, int ldb) {
     // TODO: Implement
@@ -925,7 +929,7 @@ static void clblast_strmm_impl(void* handle, fb_gpu_stream_t stream,
 
 static void clblast_dtrmm_impl(void* handle, fb_gpu_stream_t stream,
                                 char side, char uplo, char transa, char diag,
-                                int m, int n, const double* alpha,
+                                int m, int n, double alpha,
                                 fb_gpu_ptr_t A, int lda,
                                 fb_gpu_ptr_t B, int ldb) {
     // TODO: Implement

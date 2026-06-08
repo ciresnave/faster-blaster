@@ -1,2 +1,0 @@
-/* zlanbs */
-void zlanbs_() { }

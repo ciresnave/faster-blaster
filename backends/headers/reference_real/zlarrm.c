@@ -1,2 +1,0 @@
-/* zlarrm */
-void zlarrm_() { }

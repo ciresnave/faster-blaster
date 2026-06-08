@@ -1,2 +1,0 @@
-/* zunmqr */
-void zunmqr_() { }

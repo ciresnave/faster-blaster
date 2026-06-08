@@ -118,6 +118,12 @@ Set-Location "build"
 # Configure CMake options
 $cmakeArgs = @(
     "..",
+    "-G", "Ninja",
+    "-DCMAKE_C_COMPILER=clang-cl",
+    "-DCMAKE_CXX_COMPILER=clang-cl",
+    "-DCMAKE_LINKER_TYPE=LLD",
+    "-DCMAKE_CUDA_HOST_COMPILER=clang-cl",
+    "-DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler",
     "-DFB_BUILD_BACKENDS_FROM_SOURCE=ON"
 )
 

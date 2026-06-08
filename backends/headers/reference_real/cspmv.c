@@ -1,2 +1,0 @@
-/* cspmv */
-void cspmv_() { }

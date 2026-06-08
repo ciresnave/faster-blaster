@@ -1,2 +1,0 @@
-/* cgebrd */
-void cgebrd_() { }

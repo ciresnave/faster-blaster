@@ -1,2 +1,0 @@
-/* ztrtrs */
-void ztrtrs_() { }

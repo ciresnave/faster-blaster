@@ -1,2 +1,0 @@
-/* cgero */
-void cgero_() { }

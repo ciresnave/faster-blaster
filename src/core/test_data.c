@@ -13,13 +13,13 @@
 #include <float.h>
 
 /* Simple XorShift random number generator for reproducibility */
-static uint64_t g_rng_state = 12345;
+static uint g_rng_state = 12345;
 
 void fb_test_init_rng(uint32_t seed) {
     g_rng_state = seed ? seed : 12345;
 }
 
-static uint64_t xorshift64(void) {
+static uint xorshift64(void) {
     g_rng_state ^= g_rng_state << 13;
     g_rng_state ^= g_rng_state >> 7;
     g_rng_state ^= g_rng_state << 17;

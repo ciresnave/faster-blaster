@@ -1,2 +1,0 @@
-/* zunmhr */
-void zunmhr_() { }

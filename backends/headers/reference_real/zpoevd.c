@@ -1,2 +1,0 @@
-/* zpoevd */
-void zpoevd_() { }

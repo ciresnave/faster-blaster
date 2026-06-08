@@ -121,23 +121,36 @@ typedef struct {
  * Preset criteria (non-modifiable constants)
  * ========================================================================= */
 
+/* Data-symbol visibility on Windows: functions are handled by
+ * WINDOWS_EXPORT_ALL_SYMBOLS but data (const globals) must be annotated
+ * explicitly with __declspec(dllexport) / __declspec(dllimport). */
+#if defined(_WIN32) || defined(__CYGWIN__)
+#  if defined(faster_blaster_EXPORTS)
+#    define FB_SELECT_DATA_EXPORT __declspec(dllexport)
+#  else
+#    define FB_SELECT_DATA_EXPORT __declspec(dllimport)
+#  endif
+#else
+#  define FB_SELECT_DATA_EXPORT
+#endif
+
 /**
  * Maximise precision; speed breaks ties.
  * allow_degraded = true (always returns something).
  */
-extern const fb_select_criteria_t FB_SELECT_MAX_PRECISION;
+extern FB_SELECT_DATA_EXPORT const fb_select_criteria_t FB_SELECT_MAX_PRECISION;
 
 /**
  * Maximise speed; digits break ties.
  * allow_degraded = true.
  */
-extern const fb_select_criteria_t FB_SELECT_MAX_SPEED;
+extern FB_SELECT_DATA_EXPORT const fb_select_criteria_t FB_SELECT_MAX_SPEED;
 
 /**
  * Equal-weight precision+speed combination over FB_SIZE_MEDIUM.
  * allow_degraded = true.
  */
-extern const fb_select_criteria_t FB_SELECT_BALANCED;
+extern FB_SELECT_DATA_EXPORT const fb_select_criteria_t FB_SELECT_BALANCED;
 
 /**
  * Helper: construct a PRECISION_FLOOR_THEN_SPEED criteria.

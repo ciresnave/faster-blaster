@@ -16,6 +16,10 @@
 #include "../backends/backend_interface.h"
 #include <stddef.h>
 
+/* These wrappers require extended vtable with normalize_unified operation.
+ * Guard compilation until vtable is extended. */
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
+
 /* ============================================================================
  * DNN Primitives: Batch Normalization Wrappers (Section 13.4)
  * ========================================================================= */
@@ -321,3 +325,5 @@ void fb_autofill_normalization_from_unified(fb_backend_vtable_t *vtable) {
     vtable->min_max_scale = fb_min_max_scale_from_unified;
   }
 }
+
+#endif /* FB_EXTENDED_VTABLE_SUPPORT */

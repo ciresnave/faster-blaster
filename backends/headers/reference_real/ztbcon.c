@@ -1,2 +1,0 @@
-/* ztbcon */
-void ztbcon_() { }

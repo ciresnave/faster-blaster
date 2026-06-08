@@ -1,2 +1,0 @@
-/* zlll */
-void zlll_() { }

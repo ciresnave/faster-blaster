@@ -11,6 +11,12 @@
 #include "op_dispatch.h"
 #include <stdio.h>
 
+#define FB_LAYOUT_ARG(value) ((fb_layout_t)(value))
+#define FB_SIDE_ARG(value) ((fb_side_t)(value))
+#define FB_TRANSPOSE_ARG(value) ((fb_transpose_t)(value))
+#define FB_UPLO_ARG(value) ((fb_uplo_t)(value))
+#define FB_DIAG_ARG(value) ((fb_diag_t)(value))
+
 /* ==== GEMM: C := alpha*op(A)*op(B) + beta*C ==== */
 
 void fb_sgemm(
@@ -31,7 +37,9 @@ void fb_sgemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SGEMM);
     if (backend && backend->sgemm) {
-        backend->sgemm(layout, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->sgemm(FB_LAYOUT_ARG(layout), FB_TRANSPOSE_ARG(transa),
+                       FB_TRANSPOSE_ARG(transb), m, n, k, alpha, A, lda, B,
+                       ldb, beta, C, ldc);
     } else {
         fprintf(stderr, "fb_sgemm: No backend available\n");
     }
@@ -55,7 +63,9 @@ void fb_dgemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DGEMM);
     if (backend && backend->dgemm) {
-        backend->dgemm(layout, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->dgemm(FB_LAYOUT_ARG(layout), FB_TRANSPOSE_ARG(transa),
+                       FB_TRANSPOSE_ARG(transb), m, n, k, alpha, A, lda, B,
+                       ldb, beta, C, ldc);
     } else {
         fprintf(stderr, "fb_dgemm: No backend available\n");
     }
@@ -80,7 +90,9 @@ void fb_ssymm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYMM);
     if (backend && backend->ssymm) {
-        backend->ssymm(layout, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->ssymm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n, alpha, A, lda, B, ldb, beta,
+                       C, ldc);
     } else {
         fprintf(stderr, "fb_ssymm: No backend available\n");
     }
@@ -103,7 +115,9 @@ void fb_dsymm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYMM);
     if (backend && backend->dsymm) {
-        backend->dsymm(layout, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->dsymm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n, alpha, A, lda, B, ldb, beta,
+                       C, ldc);
     } else {
         fprintf(stderr, "fb_dsymm: No backend available\n");
     }
@@ -126,7 +140,9 @@ void fb_ssyrk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYRK);
     if (backend && backend->ssyrk) {
-        backend->ssyrk(layout, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+        backend->ssyrk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k, alpha, A, lda, beta, C,
+                       ldc);
     } else {
         fprintf(stderr, "fb_ssyrk: No backend available\n");
     }
@@ -147,7 +163,9 @@ void fb_dsyrk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYRK);
     if (backend && backend->dsyrk) {
-        backend->dsyrk(layout, uplo, trans, n, k, alpha, A, lda, beta, C, ldc);
+        backend->dsyrk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k, alpha, A, lda, beta, C,
+                       ldc);
     } else {
         fprintf(stderr, "fb_dsyrk: No backend available\n");
     }
@@ -172,7 +190,9 @@ void fb_ssyr2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_SSYR2K);
     if (backend && backend->ssyr2k) {
-        backend->ssyr2k(layout, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->ssyr2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k, alpha, A, lda, B, ldb,
+                        beta, C, ldc);
     } else {
         fprintf(stderr, "fb_ssyr2k: No backend available\n");
     }
@@ -195,7 +215,9 @@ void fb_dsyr2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DSYR2K);
     if (backend && backend->dsyr2k) {
-        backend->dsyr2k(layout, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+        backend->dsyr2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k, alpha, A, lda, B, ldb,
+                        beta, C, ldc);
     } else {
         fprintf(stderr, "fb_dsyr2k: No backend available\n");
     }
@@ -219,7 +241,9 @@ void fb_strmm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STRMM);
     if (backend && backend->strmm) {
-        backend->strmm(layout, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+        backend->strmm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n, alpha, A, lda, B, ldb);
     } else {
         fprintf(stderr, "fb_strmm: No backend available\n");
     }
@@ -241,7 +265,9 @@ void fb_dtrmm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTRMM);
     if (backend && backend->dtrmm) {
-        backend->dtrmm(layout, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+        backend->dtrmm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n, alpha, A, lda, B, ldb);
     } else {
         fprintf(stderr, "fb_dtrmm: No backend available\n");
     }
@@ -265,7 +291,9 @@ void fb_strsm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_STRSM);
     if (backend && backend->strsm) {
-        backend->strsm(layout, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+        backend->strsm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n, alpha, A, lda, B, ldb);
     } else {
         fprintf(stderr, "fb_strsm: No backend available\n");
     }
@@ -287,7 +315,9 @@ void fb_dtrsm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_DTRSM);
     if (backend && backend->dtrsm) {
-        backend->dtrsm(layout, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb);
+        backend->dtrsm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n, alpha, A, lda, B, ldb);
     } else {
         fprintf(stderr, "fb_dtrsm: No backend available\n");
     }
@@ -307,7 +337,8 @@ void fb_cgemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CGEMM);
     if (backend && backend->cgemm) {
-        backend->cgemm(layout, transa, transb, m, n, k,
+        backend->cgemm(FB_LAYOUT_ARG(layout), FB_TRANSPOSE_ARG(transa),
+                       FB_TRANSPOSE_ARG(transb), m, n, k,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        (const fb_complex_float_t *)B, ldb,
@@ -329,7 +360,8 @@ void fb_csymm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSYMM);
     if (backend && backend->csymm) {
-        backend->csymm(layout, side, uplo, m, n,
+        backend->csymm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        (const fb_complex_float_t *)B, ldb,
@@ -351,7 +383,8 @@ void fb_chemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CHEMM);
     if (backend && backend->chemm) {
-        backend->chemm(layout, side, uplo, m, n,
+        backend->chemm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        (const fb_complex_float_t *)B, ldb,
@@ -372,7 +405,8 @@ void fb_csyrk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSYRK);
     if (backend && backend->csyrk) {
-        backend->csyrk(layout, uplo, trans, n, k,
+        backend->csyrk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        *(const fb_complex_float_t *)beta,
@@ -392,7 +426,8 @@ void fb_cherk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CHERK);
     if (backend && backend->cherk) {
-        backend->cherk(layout, uplo, trans, n, k, alpha,
+        backend->cherk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k, alpha,
                        (const fb_complex_float_t *)A, lda, beta,
                        (fb_complex_float_t *)C, ldc);
     } else {
@@ -411,7 +446,8 @@ void fb_csyr2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CSYR2K);
     if (backend && backend->csyr2k) {
-        backend->csyr2k(layout, uplo, trans, n, k,
+        backend->csyr2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k,
                         *(const fb_complex_float_t *)alpha,
                         (const fb_complex_float_t *)A, lda,
                         (const fb_complex_float_t *)B, ldb,
@@ -433,7 +469,8 @@ void fb_cher2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CHER2K);
     if (backend && backend->cher2k) {
-        backend->cher2k(layout, uplo, trans, n, k,
+        backend->cher2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k,
                         *(const fb_complex_float_t *)alpha,
                         (const fb_complex_float_t *)A, lda,
                         (const fb_complex_float_t *)B, ldb,
@@ -453,7 +490,9 @@ void fb_ctrmm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CTRMM);
     if (backend && backend->ctrmm) {
-        backend->ctrmm(layout, side, uplo, trans, diag, m, n,
+        backend->ctrmm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        (fb_complex_float_t *)B, ldb);
@@ -472,7 +511,9 @@ void fb_ctrsm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_CTRSM);
     if (backend && backend->ctrsm) {
-        backend->ctrsm(layout, side, uplo, trans, diag, m, n,
+        backend->ctrsm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n,
                        *(const fb_complex_float_t *)alpha,
                        (const fb_complex_float_t *)A, lda,
                        (fb_complex_float_t *)B, ldb);
@@ -495,7 +536,8 @@ void fb_zgemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZGEMM);
     if (backend && backend->zgemm) {
-        backend->zgemm(layout, transa, transb, m, n, k,
+        backend->zgemm(FB_LAYOUT_ARG(layout), FB_TRANSPOSE_ARG(transa),
+                       FB_TRANSPOSE_ARG(transb), m, n, k,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        (const fb_complex_double_t *)B, ldb,
@@ -517,7 +559,8 @@ void fb_zsymm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSYMM);
     if (backend && backend->zsymm) {
-        backend->zsymm(layout, side, uplo, m, n,
+        backend->zsymm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        (const fb_complex_double_t *)B, ldb,
@@ -539,7 +582,8 @@ void fb_zhemm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZHEMM);
     if (backend && backend->zhemm) {
-        backend->zhemm(layout, side, uplo, m, n,
+        backend->zhemm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), m, n,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        (const fb_complex_double_t *)B, ldb,
@@ -560,7 +604,8 @@ void fb_zsyrk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSYRK);
     if (backend && backend->zsyrk) {
-        backend->zsyrk(layout, uplo, trans, n, k,
+        backend->zsyrk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        *(const fb_complex_double_t *)beta,
@@ -580,7 +625,8 @@ void fb_zherk(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZHERK);
     if (backend && backend->zherk) {
-        backend->zherk(layout, uplo, trans, n, k, alpha,
+        backend->zherk(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                       FB_TRANSPOSE_ARG(trans), n, k, alpha,
                        (const fb_complex_double_t *)A, lda, beta,
                        (fb_complex_double_t *)C, ldc);
     } else {
@@ -599,7 +645,8 @@ void fb_zsyr2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZSYR2K);
     if (backend && backend->zsyr2k) {
-        backend->zsyr2k(layout, uplo, trans, n, k,
+        backend->zsyr2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k,
                         *(const fb_complex_double_t *)alpha,
                         (const fb_complex_double_t *)A, lda,
                         (const fb_complex_double_t *)B, ldb,
@@ -621,7 +668,8 @@ void fb_zher2k(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZHER2K);
     if (backend && backend->zher2k) {
-        backend->zher2k(layout, uplo, trans, n, k,
+        backend->zher2k(FB_LAYOUT_ARG(layout), FB_UPLO_ARG(uplo),
+                        FB_TRANSPOSE_ARG(trans), n, k,
                         *(const fb_complex_double_t *)alpha,
                         (const fb_complex_double_t *)A, lda,
                         (const fb_complex_double_t *)B, ldb,
@@ -641,7 +689,9 @@ void fb_ztrmm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZTRMM);
     if (backend && backend->ztrmm) {
-        backend->ztrmm(layout, side, uplo, trans, diag, m, n,
+        backend->ztrmm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        (fb_complex_double_t *)B, ldb);
@@ -660,7 +710,9 @@ void fb_ztrsm(
 {
     const fb_backend_vtable_t *backend = fb_get_vtable_for_op(FB_OP_ZTRSM);
     if (backend && backend->ztrsm) {
-        backend->ztrsm(layout, side, uplo, trans, diag, m, n,
+        backend->ztrsm(FB_LAYOUT_ARG(layout), FB_SIDE_ARG(side),
+                       FB_UPLO_ARG(uplo), FB_TRANSPOSE_ARG(trans),
+                       FB_DIAG_ARG(diag), m, n,
                        *(const fb_complex_double_t *)alpha,
                        (const fb_complex_double_t *)A, lda,
                        (fb_complex_double_t *)B, ldb);

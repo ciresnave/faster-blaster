@@ -1,2 +1,0 @@
-/* zsyrfs */
-void zsyrfs_() { }

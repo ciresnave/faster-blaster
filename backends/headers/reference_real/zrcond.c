@@ -1,2 +1,0 @@
-/* zrcond */
-void zrcond_() { }

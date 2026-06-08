@@ -55,6 +55,7 @@ static size_t calculate_vector_size(int n, int inc) {
 
 static size_t calculate_matrix_size_col_major(int rows, int cols, int ld) {
     /* Column-major: ld is leading dimension (>= rows) */
+    (void)rows;
     return (size_t)ld * cols;
 }
 
@@ -111,6 +112,7 @@ static int get_device_buffer_output(
     int is_inout,  /* true if output also depends on input (e.g., beta*y) */
     fb_gpu_ptr_t* device_ptr_out)
 {
+    (void)is_inout;
     fb_device_memory_manager_t* manager = get_device_manager();
     if (!manager) {
         return -1;
@@ -214,6 +216,7 @@ void cublas_sgemv_smart_wrapper(
     float beta,
     float* y, int incy)
 {
+    (void)layout;
     /* Parameter validation */
     if (!a || !x || !y || m <= 0 || n <= 0) {
         fprintf(stderr, "Invalid parameters to sgemv\n");
@@ -301,6 +304,7 @@ void cublas_dgemv_smart_wrapper(
     double beta,
     double* y, int incy)
 {
+    (void)layout;
     if (!a || !x || !y || m <= 0 || n <= 0 || !g_cublas_handle) {
         return;
     }

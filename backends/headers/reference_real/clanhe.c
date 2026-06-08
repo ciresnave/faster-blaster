@@ -1,2 +1,0 @@
-/* clanhe */
-void clanhe_() { }

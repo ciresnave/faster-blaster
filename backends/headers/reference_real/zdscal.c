@@ -1,2 +1,0 @@
-/* zdscal */
-void zdscal_() { }

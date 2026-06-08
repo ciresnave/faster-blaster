@@ -1,2 +1,0 @@
-/* zgecon */
-void zgecon_() { }

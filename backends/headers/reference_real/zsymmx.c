@@ -1,2 +1,0 @@
-/* zsymmx */
-void zsymmx_() { }

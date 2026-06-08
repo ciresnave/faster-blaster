@@ -1,2 +1,0 @@
-/* cmask */
-void cmask_() { }

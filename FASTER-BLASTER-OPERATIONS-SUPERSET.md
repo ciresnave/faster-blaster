@@ -6,6 +6,8 @@ This document enumerates the complete interface for faster-blaster v1.0, includi
 
 **Design Principle**: Operations are identified by (operation_name, data_type) pairs. The vtable must have entries for all combinations, even if initial implementations only support a subset.
 
+**Canonical Surface Note (Judge-Aligned, 2026-04)**: The authoritative concrete operation namespace for faster-blaster is the `3054` judge-tracked names in `src/judge/judge_op_ids.h` (IDs `0..3053`). Appendix A is the exact sorted expansion of that namespace. The family sections below remain grouped by mathematical domain for readability and may discuss unified implementations, aliases, or planning-oriented subtotals; when those differ from a concrete name count, `judge_op_ids.h` and Appendix A win.
+
 ---
 
 ## BLAS LEVEL 1: Vector Operations
@@ -1745,50 +1747,35 @@ Note: Includes standard LAPACK drivers (172) plus extended operations found in r
 
 ---
 
-## COMBINED SUPERSET (EXACT COUNTS)
+## COMBINED SUPERSET (AUTHORITATIVE CANONICAL COUNTS)
 
-**Standard BLAS/LAPACK Operations (as specified):**
+**Canonical concrete operation namespace (authoritative):**
 
-| Category                   | Count    |
-| -------------------------- | -------- |
-| **BLAS Level 1**           | 54       |
-| **BLAS Level 2**           | 90       |
-| **BLAS Level 3**           | 30       |
-| **BLAS Subtotal**          | **174**  |
-| **LAPACK Drivers**         | **264**  |
-| **LAPACK Computational**   | **840**  |
-| **LAPACK Auxiliary**       | **384**  |
-| **LAPACK Subtotal**        | **1488** |
-|                            |          |
-| **GRAND TOTAL (Standard)** | **1662** |
+| Item                                                   | Count    | Notes                                                                        |
+| ------------------------------------------------------ | -------- | ---------------------------------------------------------------------------- |
+| Concrete operation names in `src/judge/judge_op_ids.h` | **3054** | Canonical IDs `0..3053`                                                      |
+| Concrete operation names in Appendix A                 | **3054** | Exact sorted expansion of the judge namespace                                |
+| Previously extracted appendix surface                  | 2254     | Historical undercount from incomplete wildcard/family expansion              |
+| Additional names restored in the 2026-04 sync          | 800      | `796` judge-only names + `4` explicit names already present in the spec body |
 
-**Reference Implementation Actual Counts (faster-blaster-reference):**
+**What the previous appendix extraction missed:**
 
-| Category                 | Spec Count | Actual Count | Difference | Notes                                                                                 |
-| ------------------------ | ---------- | ------------ | ---------- | ------------------------------------------------------------------------------------- |
-| **BLAS Level 1**         | 54         | 90           | +36        | Extensions: batch, mask, max, min, prod, range, stride, sum, vec_op (9 ops × 4 types) |
-| **BLAS Level 2**         | 90         | 158          | +68        | Extended precision, batched, and auxiliary variants                                   |
-| **BLAS Level 3**         | 30         | 64           | +34        | Batched operations, extended precision variants                                       |
-| **BLAS Subtotal**        | **174**    | **312**      | **+138**   |                                                                                       |
-| **LAPACK Drivers**       | **264**    | **251**      | **-13**    | Some drivers not yet implemented                                                      |
-| **LAPACK Computational** | **840**    | **871**      | **+31**    | Additional computational routines                                                     |
-| **LAPACK Auxiliary**     | **384**    | **677**      | **+293**   | Many internal helper functions and variants                                           |
-| **LAPACK Subtotal**      | **1488**   | **1799**     | **+311**   |                                                                                       |
-|                          |            |              |            |                                                                                       |
-| **GRAND TOTAL**          | **1662**   | **2111**     | **+449**   | Reference implementation includes many extensions                                     |
+| Missing family in prior appendix extraction                                               | Added names |
+| ----------------------------------------------------------------------------------------- | ----------- |
+| `fb_*` operations                                                                         | 634         |
+| ScaLAPACK `p*` operations                                                                 | 154         |
+| Batched/strided GEMM concrete names                                                       | 8           |
+| Explicit spec names skipped by the old extractor (`isamax`, `idamax`, `icamax`, `izamax`) | 4           |
 
-**Notes:**
-- The **spec (1662 operations)** documents standard BLAS/LAPACK as defined by Netlib
-- The **reference implementation (2111 operations)** includes:
-  - Standard operations (1662)
-  - BLAS extensions for batch processing, masking, element-wise ops
-  - Additional LAPACK auxiliary functions for internal use
-  - Variants with extended precision and alternative algorithms
-- This is **intentional** - the spec defines the public API surface, while the implementation includes helper functions
+**Interpretation rules:**
 
-### Design vtable for: **1662 standard function pointers** (union set of standard BLAS + LAPACK operations)
+- `src/judge/judge_op_ids.h` and Appendix A define the concrete faster-blaster operation surface.
+- The family sections below remain organized by mathematical domain for readability.
+- Unified-implementation discussions, alias counts, and planning-oriented family subtotals are design notes, not a second authoritative concrete namespace.
 
-*Note: Backend implementations may expose fewer operations. The reference implementation includes 449 additional helper/extension operations beyond this spec.*
+### Design vtable for: **3054 canonical judge-tracked operations**
+
+*Note: Backend implementations may expose fewer operations. Family-level planning tables later in this document may count aliases, optional modules, or conceptual design groupings separately, but Appendix A remains the authoritative concrete list.*
 
 ---
 
@@ -4013,10 +4000,11 @@ fb_coulomb_direct_forces(positions[], charges[], n_atoms, forces[][])
 | **Geometric Deep Learning**           | 20          | 20              | 0       | ⚠️ **Recommended extension** (equivariant networks, molecular ML)                                       |
 | **Computational Chemistry**           | 15          | 15              | 0       | ⚠️ **Recommended extension** (atomistic simulations, materials science)                                 |
 | **ScaLAPACK**                         | 588         | 588             | 0       | ⏸️ **Optional module** (distributed computing, requires MPI)                                            |
-| **GRAND TOTAL**                       | **3489**    | **3326**        | **163** | **Total API Surface: 3489 operations** (3326 implementations + 163 zero-cost aliases)                  |
+| **GRAND TOTAL (family-planning surface)** | **3489** | **3326** | **163** | **Family-planning view: 3489 operations** (3326 implementations + 163 zero-cost aliases)               |
 
 **Key Metrics**:
-- **Total API Surface**: 3489 operations (what users can call) — *+47 added in Phase 4 spec expansion*
+- **Authoritative Concrete Surface**: 3054 judge-tracked names (Appendix A / `src/judge/judge_op_ids.h`)
+- **Family-Planning Surface**: 3489 operations (conceptual design view combining grouped families, aliases, and optional modules) — *+47 added in Phase 4 spec expansion*
 - **Unique Implementations**: 3326 operations (actual code to maintain)
 - **Zero-Cost Aliases**: 163 operations (inline wrappers, zero overhead)
 - **Duplication Eliminated**: 163 redundant implementations removed via unification pattern
@@ -4100,7 +4088,7 @@ typedef struct {
     // LAPACK Auxiliary (384 pointers)
     void (*lapack_auxiliary[384])(void);
     
-    // TOTAL: 1662 standard function pointers
+    // TOTAL: 1662 standard BLAS/LAPACK core pointers in the legacy core layout
 } fb_backend_vtable;
 
 // Optional extensions (Phase 2)

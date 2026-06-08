@@ -1,0 +1,114 @@
+========================================
+Smart Wrappers Test Suite
+========================================
+cuBLAS smart wrappers initialized (device 0)
+
+=== Test 1: saxpy (y = alpha*x + y) ===
+x = [1.0000, 2.0000, 3.0000, 4.0000, 5.0000]
+y (before) = [10.0000, 20.0000, 30.0000, 40.0000, 50.0000]
+y (after) = [12.0000, 24.0000, 36.0000, 48.0000, 60.0000]
+✅ Test passed!
+
+=== Test 2: scopy (y = x) ===
+x = [1.0000, 2.0000, 3.0000, 4.0000, 5.0000]
+y (before) = [0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
+y (after) = [1.0000, 2.0000, 3.0000, 4.0000, 5.0000]
+✅ Test passed!
+
+=== Test 3: sscal (x = alpha*x) ===
+x (before) = [1.0000, 2.0000, 3.0000, 4.0000, 5.0000]
+x (after) = [3.0000, 6.0000, 9.0000, 12.0000, 15.0000]
+✅ Test passed!
+
+=== Test 4: sdot (dot product) ===
+x = [1.0000, 2.0000, 3.0000, 4.0000, 5.0000]
+y = [2.0000, 3.0000, 4.0000, 5.0000, 6.0000]
+dot(x, y) = 70.0000 (expected 70.0000)
+✅ Test passed!
+
+=== Test 5: snrm2 (Euclidean norm) ===
+x = [3.0000, 4.0000, 0.0000]
+||x||₂ = 5.0000 (expected 5.0000)
+✅ Test passed!
+
+=== Test 6: Operation Chaining (Cache Efficiency) ===
+Initial:
+x = [1.0000, 2.0000, 3.0000, 4.0000]
+y = [10.0000, 20.0000, 30.0000, 40.0000]
+
+Operation 1: y = 2*x + y
+After Op 1 (stats):
+
+=== Device Memory Manager Stats (Device 0) ===
+Total allocated: 68 bytes (0.00 MB)
+Active entries: 4 / 64 capacity
+Allocations: 4
+Deallocations: 0
+Cache hits: 5
+Cache misses: 4
+Cache hit rate: 55.56%
+H2D copies: 9 (0.00 MB)
+D2H copies: 3 (0.00 MB)
+==========================================
+
+
+Operation 2: y = 3*y (should hit cache)
+After Op 2 (stats):
+
+=== Device Memory Manager Stats (Device 0) ===
+Total allocated: 68 bytes (0.00 MB)
+Active entries: 4 / 64 capacity
+Allocations: 4
+Deallocations: 0
+Cache hits: 5
+Cache misses: 4
+Cache hit rate: 55.56%
+H2D copies: 9 (0.00 MB)
+D2H copies: 3 (0.00 MB)
+==========================================
+
+
+Operation 3: norm = ||y||₂ (should hit cache)
+After Op 3 (stats):
+
+=== Device Memory Manager Stats (Device 0) ===
+Total allocated: 68 bytes (0.00 MB)
+Active entries: 4 / 64 capacity
+Allocations: 4
+Deallocations: 0
+Cache hits: 5
+Cache misses: 4
+Cache hit rate: 55.56%
+H2D copies: 9 (0.00 MB)
+D2H copies: 3 (0.00 MB)
+==========================================
+
+y (final) = [10.0000, 20.0000, 30.0000, 40.0000]
+norm = 0.0000
+
+Expected:
+y = [36.0000, 72.0000, 108.0000, 144.0000]
+norm = 197.1801
+❌ FAILED: y[0] = 10.0000, expected 36.0000
+
+========================================
+Final Memory Statistics
+========================================
+
+=== Device Memory Manager Stats (Device 0) ===
+Total allocated: 68 bytes (0.00 MB)
+Active entries: 4 / 64 capacity
+Allocations: 4
+Deallocations: 0
+Cache hits: 5
+Cache misses: 4
+Cache hit rate: 55.56%
+H2D copies: 9 (0.00 MB)
+D2H copies: 3 (0.00 MB)
+==========================================
+
+cuBLAS smart wrappers shut down
+
+========================================
+Test Summary: 5/6 tests passed
+========================================

@@ -1,2 +1,0 @@
-/* zsygvd */
-void zsygvd_() { }

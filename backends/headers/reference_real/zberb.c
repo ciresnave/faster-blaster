@@ -1,2 +1,0 @@
-/* zberb */
-void zberb_() { }

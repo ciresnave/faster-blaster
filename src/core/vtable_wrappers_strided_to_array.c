@@ -19,9 +19,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* These wrappers require extended vtable with batch operations (sgemm_batch,
+ * dgemm_batch, etc.). Guard compilation until vtable is extended. */
+#ifdef FB_EXTENDED_VTABLE_SUPPORT
+
 /* ============================================================================
- * Helper: Construct pointer arrays from strided data
- * ========================================================================= */
 
 /**
  * @brief Construct array of pointers from strided data
@@ -54,11 +56,11 @@ static void **fb_construct_strided_ptr_array(const void *base_ptr,
 
 void fb_sgemm_batch_strided_from_sgemm_batch(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const float alpha, const float *A, const int64_t lda,
-    const int64_t strideA, const float *B, const int64_t ldb,
-    const int64_t strideB, const float beta, float *C, const int64_t ldc,
-    const int64_t strideC, const int64_t batch_count) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const float alpha, const float *A, const int lda,
+    const int strideA, const float *B, const int ldb,
+    const int strideB, const float beta, float *C, const int ldc,
+    const int strideC, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->sgemm_batch) {
@@ -97,11 +99,11 @@ void fb_sgemm_batch_strided_from_sgemm_batch(
 
 void fb_dgemm_batch_strided_from_dgemm_batch(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const double alpha, const double *A, const int64_t lda,
-    const int64_t strideA, const double *B, const int64_t ldb,
-    const int64_t strideB, const double beta, double *C, const int64_t ldc,
-    const int64_t strideC, const int64_t batch_count) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const double alpha, const double *A, const int lda,
+    const int strideA, const double *B, const int ldb,
+    const int strideB, const double beta, double *C, const int ldc,
+    const int strideC, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->dgemm_batch) {
@@ -136,12 +138,12 @@ void fb_dgemm_batch_strided_from_dgemm_batch(
 
 void fb_cgemm_batch_strided_from_cgemm_batch(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const fb_complex_float_t alpha,
-    const fb_complex_float_t *A, const int64_t lda, const int64_t strideA,
-    const fb_complex_float_t *B, const int64_t ldb, const int64_t strideB,
-    const fb_complex_float_t beta, fb_complex_float_t *C, const int64_t ldc,
-    const int64_t strideC, const int64_t batch_count) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const fb_complex_float_t alpha,
+    const fb_complex_float_t *A, const int lda, const int strideA,
+    const fb_complex_float_t *B, const int ldb, const int strideB,
+    const fb_complex_float_t beta, fb_complex_float_t *C, const int ldc,
+    const int strideC, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->cgemm_batch) {
@@ -179,12 +181,12 @@ void fb_cgemm_batch_strided_from_cgemm_batch(
 
 void fb_zgemm_batch_strided_from_zgemm_batch(
     const fb_layout_t layout, const fb_transpose_t transa,
-    const fb_transpose_t transb, const int64_t m, const int64_t n,
-    const int64_t k, const fb_complex_double_t alpha,
-    const fb_complex_double_t *A, const int64_t lda, const int64_t strideA,
-    const fb_complex_double_t *B, const int64_t ldb, const int64_t strideB,
-    const fb_complex_double_t beta, fb_complex_double_t *C, const int64_t ldc,
-    const int64_t strideC, const int64_t batch_count) {
+    const fb_transpose_t transb, const int m, const int n,
+    const int k, const fb_complex_double_t alpha,
+    const fb_complex_double_t *A, const int lda, const int strideA,
+    const fb_complex_double_t *B, const int ldb, const int strideB,
+    const fb_complex_double_t beta, fb_complex_double_t *C, const int ldc,
+    const int strideC, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->zgemm_batch) {
@@ -221,11 +223,11 @@ void fb_zgemm_batch_strided_from_zgemm_batch(
  * ========================================================================= */
 
 void fb_sgemv_batch_strided_from_sgemv_batch(
-    const fb_layout_t layout, const fb_transpose_t trans, const int64_t m,
-    const int64_t n, const float alpha, const float *A, const int64_t lda,
-    const int64_t strideA, const float *x, const int64_t incx,
-    const int64_t stridex, const float beta, float *y, const int64_t incy,
-    const int64_t stridey, const int64_t batch_count) {
+    const fb_layout_t layout, const fb_transpose_t trans, const int m,
+    const int n, const float alpha, const float *A, const int lda,
+    const int strideA, const float *x, const int incx,
+    const int stridex, const float beta, float *y, const int incy,
+    const int stridey, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->sgemv_batch) {
@@ -259,11 +261,11 @@ void fb_sgemv_batch_strided_from_sgemv_batch(
  * ========================================================================= */
 
 void fb_dgemv_batch_strided_from_dgemv_batch(
-    const fb_layout_t layout, const fb_transpose_t trans, const int64_t m,
-    const int64_t n, const double alpha, const double *A, const int64_t lda,
-    const int64_t strideA, const double *x, const int64_t incx,
-    const int64_t stridex, const double beta, double *y, const int64_t incy,
-    const int64_t stridey, const int64_t batch_count) {
+    const fb_layout_t layout, const fb_transpose_t trans, const int m,
+    const int n, const double alpha, const double *A, const int lda,
+    const int strideA, const double *x, const int incx,
+    const int stridex, const double beta, double *y, const int incy,
+    const int stridey, const int batch_count) {
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->dgemv_batch) {
@@ -363,3 +365,5 @@ void fb_autofill_all_strided_from_array(fb_backend_vtable_t *vtable) {
   /* TODO: Phase 4.2 - Add normalization strided → array */
   /* TODO: Phase 4.3 - Add reduction strided → array */
 }
+
+#endif /* FB_EXTENDED_VTABLE_SUPPORT */

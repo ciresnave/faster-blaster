@@ -1,2 +1,0 @@
-/* zpivot */
-void zpivot_() { }

@@ -149,6 +149,8 @@ int fb_detect_intel_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_g
 #else
 
 int fb_detect_intel_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_gpus) {
+    (void)gpus;
+    (void)max_gpus;
     *num_gpus = 0;
     return -1;
 }
@@ -213,6 +215,8 @@ int fb_detect_metal_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_g
 #else
 
 int fb_detect_metal_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_gpus) {
+    (void)gpus;
+    (void)max_gpus;
     *num_gpus = 0;
     return -1;
 }
@@ -229,8 +233,10 @@ int fb_detect_gpus(fb_gpu_info_t* gpus, uint32_t max_gpus, uint32_t* num_gpus) {
     uint32_t cuda_count = 0, rocm_count = 0, intel_count = 0, metal_count = 0, opencl_count = 0;
     
     // Try CUDA
+#ifdef FB_ENABLE_CUDA
     fb_detect_cuda_gpus(gpus + *num_gpus, max_gpus - *num_gpus, &cuda_count);
     *num_gpus += cuda_count;
+#endif
     
     // Try ROCm
     fb_detect_rocm_gpus(gpus + *num_gpus, max_gpus - *num_gpus, &rocm_count);

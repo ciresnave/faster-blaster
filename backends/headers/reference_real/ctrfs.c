@@ -1,2 +1,0 @@
-/* ctrfs */
-void ctrfs_() { }

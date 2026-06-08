@@ -1,2 +1,0 @@
-/* zgglse */
-void zgglse_() { }

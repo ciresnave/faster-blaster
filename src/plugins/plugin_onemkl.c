@@ -78,7 +78,7 @@ static int is_intel_gpu_available(void) {
 /**
  * @brief Probe for Intel oneMKL GPU library
  */
-static fb_plugin_probe_result_t onemkl_probe(fb_plugin_context_t* unused_ctx, const char** search_paths) {
+static fb_plugin_probe_result_t onemkl_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
     fb_plugin_probe_result_t result = {0};
     
 #ifndef FB_ENABLE_ONEMKL
@@ -154,9 +154,9 @@ static fb_plugin_probe_result_t onemkl_probe(fb_plugin_context_t* unused_ctx, co
  * Note: Returns empty vtable as GPU operations use trait interface.
  * This plugin handles detection/scoring; actual GPU operations use existing traits.
  */
-static int onemkl_init(fb_plugin_context_t* ctx, const char* lib_path) {
-    (void)ctx;
-    (void)lib_path;
+static int onemkl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) {
+    (void)lib_handle;
+    (void)ctx_out;
     
 #ifdef FB_ENABLE_ONEMKL
     /* GPU backend initialization would go here */

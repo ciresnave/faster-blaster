@@ -1,2 +1,0 @@
-/* zlanhe */
-void zlanhe_() { }

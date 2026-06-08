@@ -1,2 +1,0 @@
-/* cptcon */
-void cptcon_() { }

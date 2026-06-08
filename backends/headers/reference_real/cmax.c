@@ -1,2 +1,0 @@
-/* cmax */
-void cmax_() { }

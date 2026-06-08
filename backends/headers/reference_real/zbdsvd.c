@@ -1,2 +1,0 @@
-/* zbdsvd */
-void zbdsvd_() { }

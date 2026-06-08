@@ -1,2 +1,0 @@
-/* csyr */
-void csyr_() { }

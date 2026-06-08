@@ -1,2 +1,0 @@
-/* cbcon */
-void cbcon_() { }

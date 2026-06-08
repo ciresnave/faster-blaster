@@ -1,2 +1,0 @@
-/* cbserr */
-void cbserr_() { }

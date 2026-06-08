@@ -1,2 +1,0 @@
-/* cgdmm */
-void cgdmm_() { }

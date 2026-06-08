@@ -1,2 +1,0 @@
-/* zlacon */
-void zlacon_() { }

@@ -1,2 +1,0 @@
-/* zhseqr */
-void zhseqr_() { }

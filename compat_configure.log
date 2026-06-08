@@ -1,0 +1,382 @@
+-- [WINDOWS TOOLCHAIN] Added x64 INCLUDE paths for clang-cl
+-- [WINDOWS TOOLCHAIN] Added x64 LIB paths for lld-link
+-- cargo and git found ΓÇö OxiBLAS from-source build ON by default
+-- Building backends with 32 parallel jobs
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: 16 core AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   AMD ROCm/HIP: Present
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:
+--   Γ£ô cuBLAS: 13.0.88 (found)
+  Γ£ù AMD rocBLAS: Not found
+  Γ£ù CLBlast: Not found
+
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- Γ£à NVIDIA GPU with CUDA Toolkit 13.0.88
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Γä╣∩╕Å  Some recommended backends are missing
+--    You can install them later and reconfigure
+--    Interactive prompts are suppressed for this non-interactive configure run
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- Building OpenBLAS from source with threading support...
+-- OpenBLAS will be built with threading support enabled
+--   Build will occur during 'cmake --build'
+-- cpuinfo not found, will fetch from source
+-- Found OpenCL: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include
+-- ΓÜá CLBlast not found (install via: vcpkg install clblast)
+--   CLBlast support will be disabled
+-- Γ£ô CUDA compiler (nvcc) found: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/nvcc.exe
+--   CUDA language remains disabled with clang-cl on Windows; cuBLAS links against CUDAToolkit::cublas directly
+-- Γ£ô CUDA Toolkit 13.0.88 detected
+--   cuBLAS plugin will be enabled
+-- Found rocBLAS:
+--   ROCm Root: C:/Program Files/AMD/ROCm/6.4
+--   HIP Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocBLAS Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocSOLVER Include: C:/Program Files/AMD/ROCm/6.4/include
+--   Libraries: C:/Program Files/AMD/ROCm/6.4/lib/rocblas.lib;C:/Program Files/AMD/ROCm/6.4/lib/rocsolver.lib;C:/Program Files/AMD/ROCm/6.4/lib/hipblas.lib
+-- Γ£ô ROCm  detected at C:/Program Files/AMD/ROCm/6.4
+--   rocBLAS plugin will be enabled
+--   Found hipcc: C:/Program Files/AMD/ROCm/6.4/bin/hipcc.exe
+--   HIP source files will be compiled using custom commands
+-- 
+-- GPU Backend Configuration:
+--   NVIDIA cuBLAS:  ON
+--   AMD rocBLAS:    ON
+--   Intel oneMKL:   OFF
+--   Apple Metal:    OFF
+-- 
+--   Intel OpenMP runtime: C:/Program Files (x86)/Intel/oneAPI/2025.3/lib/libiomp5md.lib
+-- Found Intel MKL:
+--   Include: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include
+--   Libraries: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_lp64.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_thread.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_core.lib;C:/Program Files (x86)/Intel/oneAPI/2025.3/lib/libiomp5md.lib
+--   Interface: mkl_intel_lp64 (8-byte pointers)
+--   Threading: mkl_intel_thread
+--   Note: You may also need to link: iomp5md (OpenMP runtime)
+-- Γ£ô Intel MKL  detected
+--   MKL CPU plugin will be enabled
+-- Found OpenBLAS:
+--   Include: C:/libraries/OpenBLAS-0.3.30-x64/include
+--   Library: C:/libraries/OpenBLAS-0.3.30-x64/lib/libopenblas.lib
+--   LAPACK: Included in OpenBLAS
+-- Γ£ô OpenBLAS  detected
+--   OpenBLAS plugin will be enabled
+-- Γ£ù OxiBLAS not found - OxiBLAS plugin disabled
+--   Build oxiblas-ffi: cargo build --release -p oxiblas-ffi
+-- Found BLIS:
+--   Include: C:/BLIS/include
+--   Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-dll.lib
+--   Note: BLIS provides BLAS only, LAPACK may be needed separately
+-- Γ£ô BLIS  detected
+--   BLIS plugin will be enabled
+-- Found AOCL:
+--   BLIS Include: C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64
+--   libFLAME Include: C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64
+--   BLIS Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-MT-dll.lib
+--   libFLAME: Not found (LAPACK operations unavailable)
+-- Γ£ô AMD AOCL  detected
+--   AOCL plugin will be enabled
+-- 
+-- CPU Backend Configuration:
+--   Intel MKL:      ON
+--   OpenBLAS:       ON
+--   OxiBLAS:        OFF (EXPERIMENTAL)
+--   BLIS:           ON
+--   AMD AOCL:       ON
+--   Accelerate:     OFF
+-- 
+--   HIP detection will compile using clang directly: C:/Program Files/AMD/ROCm/6.4/bin/clang.exe
+-- Adding Intel MKL CPU backend source
+-- Adding BLIS CPU backend source
+-- Adding OpenBLAS CPU backend source
+-- Adding AMD AOCL CPU backend source
+-- rocBLAS backend included (dynamic loading, deferred to runtime availability)
+-- Reference DLL (for test copy): C:/Users/cires/OneDrive/Documents/projects/faster-blaster/../faster-blaster-reference/build-extended/libfaster_blaster_reference.dll
+-- Linking CUDA libraries for cuBLAS plugin with GPU detection
+-- CUDA include dirs: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include
+--   Linked HIP runtime: C:/Program Files/AMD/ROCm/6.4/lib/amdhip64.lib
+-- ROCm HIP support enabled with HIP compiler
+-- Linking Intel MKL CPU libraries
+-- Linking OpenBLAS libraries
+-- Linking BLIS libraries
+-- Linking AMD AOCL libraries
+-- Linking OpenCL: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/lib/x64/OpenCL.lib
+-- Device Memory Manager simple test enabled
+-- Smart Wrappers GPU test enabled
+-- Phase 1 GPU Operations test enabled
+-- Comprehensive correctness test enabled
+-- Reference BLAS Level 1 expanded test enabled
+-- Judge module tests enabled
+-- Judge end-to-end runner test enabled
+-- Reference loader audit test enabled
+-- Reference loader alias regression test enabled
+-- GESV convention thunk test enabled
+-- LU convention thunk test enabled
+-- Cholesky convention thunk test enabled
+-- SYSV/HESV convention thunk test enabled
+-- QR-like convention thunk test enabled
+-- Explicit Q-generator convention thunk test enabled
+-- Reflector-application convention thunk test enabled
+-- Bidiagonal generator/application convention thunk test enabled
+-- Hessenberg reflector-application convention thunk test enabled
+-- Hessenberg generator convention thunk test enabled
+-- Tridiagonal-reduction generator convention thunk test enabled
+-- Unblocked Q-generator convention thunk test enabled
+-- Unblocked matrix+tau factorization convention thunk test enabled
+-- LAPACK LATRZ convention thunk test enabled
+-- LAPACK TZRZF convention thunk test enabled
+-- LAPACK LAUU2/LAUUM convention thunk test enabled
+-- LAPACK LATRD convention thunk test enabled
+-- LAPACK LATDF convention thunk test enabled
+-- LAPACK LATRS convention thunk test enabled
+-- LAPACK LATPS convention thunk test enabled
+-- LAPACK LATBS convention thunk test enabled
+-- LAPACK LASSQ convention thunk test enabled
+-- LAPACK LAEV2 convention thunk test enabled
+-- LAPACK LASV2 convention thunk test enabled
+-- LAPACK LA_GBAMV convention thunk test enabled
+-- CNRM2/ZNRM2 convention thunk test enabled
+-- LAPACK PPCON convention thunk test enabled
+-- Symmetric packed condition convention thunk test enabled
+-- Hermitian packed condition convention thunk test enabled
+-- LAPACK PPEQU convention thunk test enabled
+-- LAPACK PPRFS convention thunk test enabled
+-- LAPACK HPRFS convention thunk test enabled
+-- LAPACK PPSV convention thunk test enabled
+-- LAPACK HPSV convention thunk test enabled
+-- LAPACK PPSVX convention thunk test enabled
+-- LAPACK LAEIN convention thunk test enabled
+-- LAPACK LAHQR convention thunk test enabled
+-- LAPACK LAHRD convention thunk test enabled
+-- LAPACK LAQR0 convention thunk test enabled
+-- LAPACK LAQR1 convention thunk test enabled
+-- LAPACK LAQR2 convention thunk test enabled
+-- LAPACK LAQP2 convention thunk test enabled
+-- LAPACK LAQPS convention thunk test enabled
+-- LAPACK LARNV convention thunk test enabled
+-- LAPACK LARGE convention thunk test enabled
+-- LAPACK LARZ convention thunk test enabled
+-- LAPACK LARZB convention thunk test enabled
+-- LAPACK LARZT convention thunk test enabled
+-- LAPACK LARFB convention thunk test enabled
+-- LAPACK LARFT convention thunk test enabled
+-- LAPACK LARFX convention thunk test enabled
+-- LAPACK LARGV convention thunk test enabled
+-- LAPACK LARRA convention thunk test enabled
+-- LAPACK LARRB convention thunk test enabled
+-- LAPACK LARRC convention thunk test enabled
+-- LAPACK LARRD convention thunk test enabled
+-- LAPACK LARRE convention thunk test enabled
+-- LAPACK LARRF convention thunk test enabled
+-- LAPACK LARRJ convention thunk test enabled
+-- LAPACK LARRK convention thunk test enabled
+-- LAPACK LARRR convention thunk test enabled
+-- LAPACK LARRV convention thunk test enabled
+-- LAPACK LARTG convention thunk test enabled
+-- LAPACK LARTV convention thunk test enabled
+-- LAPACK LAS2 convention thunk test enabled
+-- LAPACK LASCL convention thunk test enabled
+-- LAPACK LASD0 convention thunk test enabled
+-- LAPACK LASD1 convention thunk test enabled
+-- LAPACK LASD2 convention thunk test enabled
+-- LAPACK LASD3 convention thunk test enabled
+-- LAPACK LASD4 convention thunk test enabled
+-- LAPACK LASD5 convention thunk test enabled
+-- LAPACK LASD6 convention thunk test enabled
+-- LAPACK LASD7 convention thunk test enabled
+-- LAPACK LASD8 convention thunk test enabled
+-- LAPACK LASDA convention thunk test enabled
+-- LAPACK LASDQ convention thunk test enabled
+-- LAPACK LASDT convention thunk test enabled
+-- LAPACK LASET convention thunk test enabled
+-- LAPACK LASQ1 convention thunk test enabled
+-- LAPACK LASQ2 convention thunk test enabled
+-- LAPACK LASQ3 convention thunk test enabled
+-- LAPACK LASQ4 convention thunk test enabled
+-- LAPACK LASQ5 convention thunk test enabled
+-- LAPACK LASQ6 convention thunk test enabled
+-- LAPACK LASR convention thunk test enabled
+-- LAPACK LAEXC convention thunk test enabled
+-- LAPACK LAESY convention thunk test enabled
+-- LAPACK LAIC1 convention thunk test enabled
+-- LAPACK LALN2 convention thunk test enabled
+-- LAPACK LACPY convention thunk test enabled
+-- LAPACK LASRT convention thunk test enabled
+-- LAPACK LASWP convention thunk test enabled
+-- Bidiagonal reduction convention thunk test enabled
+-- Condition-estimation convention thunk test enabled
+-- Matrix equilibration convention thunk test enabled
+-- Eigenvalue convention thunk test enabled
+-- Singular-value convention thunk test enabled
+-- Divide-and-conquer SVD convention thunk test enabled
+-- Symmetric/Hermitian eigenvalue convention thunk test enabled
+-- Packed symmetric divide-and-conquer convention thunk test enabled
+-- Packed symmetric generalized selection convention thunk test enabled
+-- Packed Hermitian eigen convention thunk test enabled
+-- Packed Hermitian divide-and-conquer convention thunk test enabled
+-- Packed Hermitian selection convention thunk test enabled
+-- Packed Hermitian generalized convention thunk test enabled
+-- Packed Hermitian generalized divide-and-conquer convention thunk test enabled
+-- Packed Hermitian generalized selection convention thunk test enabled
+-- Packed symmetric generalized eigen convention thunk test enabled
+-- Symmetric tridiagonal EVR convention thunk test enabled
+-- Symmetric tridiagonal EVX convention thunk test enabled
+-- Symmetric tridiagonal STEBZ convention thunk test enabled
+-- Symmetric tridiagonal STEIN convention thunk test enabled
+-- Symmetric tridiagonal STERF convention thunk test enabled
+-- Symmetric tridiagonal STEQR convention thunk test enabled
+-- Symmetric tridiagonal STEGR convention thunk test enabled
+-- Symmetric tridiagonal STEDC convention thunk test enabled
+-- Complex symmetric tridiagonal STEQR convention thunk test enabled
+-- Complex symmetric tridiagonal STEDC convention thunk test enabled
+-- Complex symmetric tridiagonal STEGR convention thunk test enabled
+-- Complex symmetric tridiagonal STEIN convention thunk test enabled
+-- Complex symmetric BLAS SYR convention thunk test enabled
+-- Complex symmetric BLAS SYR2 convention thunk test enabled
+-- Complex Hermitian BLAS HEMV convention thunk test enabled
+-- Complex Hermitian BLAS HPMV convention thunk test enabled
+-- Complex Hermitian BLAS HBMV convention thunk test enabled
+-- Complex symmetric BLAS SBMV convention thunk test enabled
+-- Complex Hermitian BLAS HPR convention thunk test enabled
+-- Complex Hermitian BLAS HPR2 convention thunk test enabled
+-- Complex Hermitian BLAS HER convention thunk test enabled
+-- Complex Hermitian BLAS HER2 convention thunk test enabled
+-- Complex Hermitian BLAS HERK convention thunk test enabled
+-- Complex Hermitian BLAS HER2K convention thunk test enabled
+-- Complex symmetric BLAS SYMM convention thunk test enabled
+-- Complex Hermitian BLAS HEMM convention thunk test enabled
+-- Complex symmetric BLAS SYRK convention thunk test enabled
+-- Complex symmetric BLAS SYR2K convention thunk test enabled
+-- Complex triangular BLAS TRMM convention thunk test enabled
+-- Complex triangular BLAS TRSM convention thunk test enabled
+-- Complex triangular BLAS TRMV/TRSV convention thunk test enabled
+-- Complex triangular band BLAS TBMV/TBSV convention thunk test enabled
+-- Complex triangular packed BLAS TPMV/TPSV convention thunk test enabled
+-- Complex general BLAS GEMV/GER convention thunk test enabled
+-- Real symmetric BLAS SBMV/SPMV convention thunk test enabled
+-- Real symmetric packed BLAS SPR/SPR2 convention thunk test enabled
+-- BLAS GBMV convention thunk test enabled
+-- LAPACK GEBAK/GEBAL convention thunk test enabled
+-- LAPACK GEBD2 convention thunk test enabled
+-- Complex symmetric BLAS SYMV convention thunk test enabled
+-- Symmetric/Hermitian EVD convention thunk test enabled
+-- Packed symmetric selection convention thunk test enabled
+-- Packed symmetric eigen convention thunk test enabled
+-- Packed symmetric generalized divide-and-conquer convention thunk test enabled
+-- Generalized symmetric/Hermitian eigenproblem convention thunk test enabled
+-- Least-squares driver convention thunk test enabled
+-- General band matrix-vector convention thunk test enabled
+-- RZ apply convention thunk test enabled
+-- Positive band equilibration convention thunk test enabled
+-- General band equilibration convention thunk test enabled
+-- General band factorization convention thunk test enabled
+-- General band factored solve convention thunk test enabled
+-- General band direct solve convention thunk test enabled
+-- Positive band condition-estimation convention thunk test enabled
+-- General band condition-estimation convention thunk test enabled
+-- Positive band solve convention thunk test enabled
+-- Positive band expert-driver convention thunk test enabled
+-- General band expert-driver convention thunk test enabled
+-- Positive band factor/factored-solve convention thunk test enabled
+-- Symmetric band factor convention thunk test enabled
+-- Positive packed factor convention thunk test enabled
+-- Positive packed inverse convention thunk test enabled
+-- Positive packed factored-solve convention thunk test enabled
+-- Positive tridiagonal condition convention thunk test enabled
+-- Positive tridiagonal QR iteration convention thunk test enabled
+-- Positive tridiagonal factor/factored-solve convention thunk test enabled
+-- Positive tridiagonal direct-solve convention thunk test enabled
+-- Positive tridiagonal expert-driver convention thunk test enabled
+-- PTRFS split convention thunk test enabled
+-- Complex ROTG convention thunk test enabled
+-- RSCL convention thunk test enabled
+-- Symmetric banded eigen convention thunk test enabled
+-- Symmetric banded divide-and-conquer convention thunk test enabled
+-- Symmetric banded selection convention thunk test enabled
+-- Hermitian banded convention thunk test enabled
+-- Hermitian banded EVD convention thunk test enabled
+-- Vtable compatibility autofill pilot test enabled
+-- Symmetric generalized banded convention thunk test enabled
+-- Hermitian generalized banded convention thunk test enabled
+-- Symmetric generalized banded divide-and-conquer convention thunk test enabled
+-- Symmetric generalized banded selection convention thunk test enabled
+-- Positive band refinement convention thunk test enabled
+-- LAPACK convention thunk policy test enabled
+-- Judge GELSD complex regression test enabled
+-- Judge GEMM3M regression test enabled
+-- Backend loader integration test enabled
+-- CLBlast execution test enabled
+-- AOCL tests enabled
+-- BLIS tests enabled
+-- MKL CPU tests enabled
+-- OpenBLAS CPU tests enabled
+-- Ranked dispatch table tests enabled
+-- Constraint-based selection tests enabled
+-- Operation sequence executor tests enabled
+-- 
+-- Backend Tests Configuration:
+--   cuBLAS: ON
+--   rocBLAS: ON
+--   hipBLAS: ON
+--   oneMKL: OFF
+--   MKL (CPU): ON
+--   OpenBLAS: ON
+--   AOCL (BLIS+libFLAME): ON
+--   BLIS: ON
+-- 
+-- 
+-- === Faster-BLASTER Configuration Summary ===
+-- Version: 0.1.0
+-- Build type: Debug
+-- Shared libraries: ON
+-- 
+-- Optional Features:
+--   Tests: ON
+--   Benchmarks: ON
+--   Examples: ON
+--   Statistics: ON
+-- 
+-- Backend Support:
+--   OpenBLAS: ON
+--   BLIS: ON
+--   Intel MKL: ON
+--   NVIDIA cuBLAS: ON
+--   AMD rocBLAS: ON
+--   Apple Accelerate: OFF
+-- ===========================================
+-- 
+-- Configuring done (116.1s)
+CMake Error at C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake:612 (_add_executable):
+  Cannot find source file:
+
+    test_vtable_compat_autofill_family.c
+
+  Tried extensions .c .C .c++ .cc .cpp .cxx .cu .mpp .m .M .mm .ixx .cppm
+  .ccm .cxxm .c++m .h .hh .h++ .hm .hpp .hxx .in .txx .f .F .for .f77 .f90
+  .f95 .f03 .hip .ispc
+Call Stack (most recent call first):
+  tests/CMakeLists.txt:5616 (add_executable)
+
+
+CMake Error at C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake:612 (_add_executable):
+  No SOURCES given to target: test_vtable_compat_autofill_family
+Call Stack (most recent call first):
+  tests/CMakeLists.txt:5616 (add_executable)
+
+
+CMake Generate step failed.  Build files cannot be regenerated correctly.

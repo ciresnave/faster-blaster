@@ -42,7 +42,21 @@ extern "C" {
  * The dispatch table allocated by fb_judge_build_dispatch_table() has this
  * many uint32_t slots.
  */
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmacro-redefined"
+#endif
+
+#ifdef FB_JUDGE_MAX_OPERATIONS
+#undef FB_JUDGE_MAX_OPERATIONS
+#endif
+#ifndef FB_JUDGE_MAX_OPERATIONS
 #define FB_JUDGE_MAX_OPERATIONS 3200u
+#endif
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 /* =========================================================================
  * Accuracy curve

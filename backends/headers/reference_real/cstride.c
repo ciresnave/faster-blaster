@@ -1,2 +1,0 @@
-/* cstride */
-void cstride_() { }

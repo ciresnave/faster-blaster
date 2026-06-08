@@ -23,11 +23,13 @@
 /* SGEMM - Single precision matrix multiply */
 void fb_sgemm_from_unified(const fb_layout_t layout,
                            const fb_transpose_t transa,
-                           const fb_transpose_t transb, const int64_t m,
-                           const int64_t n, const int64_t k, const float alpha,
-                           const float *A, const int64_t lda, const float *B,
-                           const int64_t ldb, const float beta, float *C,
-                           const int64_t ldc) {
+                           const fb_transpose_t transb, const int m,
+                           const int n, const int k, const float alpha,
+                           const float *A, const int lda, const float *B,
+                           const int ldb, const float beta, float *C,
+                           const int ldc) {
+
+  (void)layout;
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->gemm_unified) {
@@ -60,11 +62,13 @@ void fb_sgemm_from_unified(const fb_layout_t layout,
 /* DGEMM - Double precision matrix multiply */
 void fb_dgemm_from_unified(const fb_layout_t layout,
                            const fb_transpose_t transa,
-                           const fb_transpose_t transb, const int64_t m,
-                           const int64_t n, const int64_t k, const double alpha,
-                           const double *A, const int64_t lda, const double *B,
-                           const int64_t ldb, const double beta, double *C,
-                           const int64_t ldc) {
+                           const fb_transpose_t transb, const int m,
+                           const int n, const int k, const double alpha,
+                           const double *A, const int lda, const double *B,
+                           const int ldb, const double beta, double *C,
+                           const int ldc) {
+
+  (void)layout;
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->gemm_unified) {
@@ -87,13 +91,15 @@ void fb_dgemm_from_unified(const fb_layout_t layout,
 /* CGEMM - Complex single precision matrix multiply */
 void fb_cgemm_from_unified(const fb_layout_t layout,
                            const fb_transpose_t transa,
-                           const fb_transpose_t transb, const int64_t m,
-                           const int64_t n, const int64_t k,
+                           const fb_transpose_t transb, const int m,
+                           const int n, const int k,
                            const fb_complex_float_t alpha,
-                           const fb_complex_float_t *A, const int64_t lda,
-                           const fb_complex_float_t *B, const int64_t ldb,
+                           const fb_complex_float_t *A, const int lda,
+                           const fb_complex_float_t *B, const int ldb,
                            const fb_complex_float_t beta, fb_complex_float_t *C,
-                           const int64_t ldc) {
+                           const int ldc) {
+
+  (void)layout;
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->gemm_unified) {
@@ -116,13 +122,15 @@ void fb_cgemm_from_unified(const fb_layout_t layout,
 /* ZGEMM - Complex double precision matrix multiply */
 void fb_zgemm_from_unified(const fb_layout_t layout,
                            const fb_transpose_t transa,
-                           const fb_transpose_t transb, const int64_t m,
-                           const int64_t n, const int64_t k,
+                           const fb_transpose_t transb, const int m,
+                           const int n, const int k,
                            const fb_complex_double_t alpha,
-                           const fb_complex_double_t *A, const int64_t lda,
-                           const fb_complex_double_t *B, const int64_t ldb,
+                           const fb_complex_double_t *A, const int lda,
+                           const fb_complex_double_t *B, const int ldb,
                            const fb_complex_double_t beta,
-                           fb_complex_double_t *C, const int64_t ldc) {
+                           fb_complex_double_t *C, const int ldc) {
+
+  (void)layout;
 
   const fb_backend_vtable_t *vtable = fb_get_active_vtable();
   if (!vtable || !vtable->gemm_unified) {

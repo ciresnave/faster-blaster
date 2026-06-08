@@ -1,2 +1,0 @@
-/* cherkx */
-void cherkx_() { }

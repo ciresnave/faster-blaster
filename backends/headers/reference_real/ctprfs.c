@@ -1,2 +1,0 @@
-/* ctprfs */
-void ctprfs_() { }

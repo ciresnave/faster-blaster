@@ -1,2 +1,0 @@
-/* zlancb */
-void zlancb_() { }

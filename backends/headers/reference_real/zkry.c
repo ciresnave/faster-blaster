@@ -1,2 +1,0 @@
-/* zkry */
-void zkry_() { }

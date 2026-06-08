@@ -1,2 +1,0 @@
-/* ztrcon */
-void ztrcon_() { }

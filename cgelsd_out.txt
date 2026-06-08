@@ -1,0 +1,28 @@
+
+cgelsd basic
+  cgelsd: negative m is rejected
+  cgelsd: negative n is rejected
+  cgelsd: short lda is rejected
+  cgelsd: short ldb is rejected
+  cgelsd: short lwork is rejected
+** On entry to CGELSD, parameter number  1 had an illegal value
+** On entry to CGELSD, parameter number  2 had an illegal value
+** On entry to CGELSD, parameter number  5 had an illegal value
+** On entry to CGELSD, parameter number  7 had an illegal value
+** On entry to CGELSD, parameter number 12 had an illegal value
+  cgelsd: workspace query reports positive sizes
+  cgelsd: zero-size quick return preserves B
+  cgelsd: exact 2x2 solve reports rank and singular values
+
+cgelsd Results:
+  Total:  29
+  Passed: 29
+  Failed: 0
+  Success Rate: 100.0%
+start of SGELSD
+start of SGELSD
+overdetermined, path 1 
+end of SGELSD
+start of SGELSD
+overdetermined, path 1 
+end of SGELSD

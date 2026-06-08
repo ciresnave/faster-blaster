@@ -1,2 +1,0 @@
-/* zconst */
-void zconst_() { }

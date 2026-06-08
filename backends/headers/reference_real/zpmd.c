@@ -1,2 +1,0 @@
-/* zpmd */
-void zpmd_() { }

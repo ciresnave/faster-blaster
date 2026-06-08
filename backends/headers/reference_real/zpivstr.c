@@ -1,2 +1,0 @@
-/* zpivstr */
-void zpivstr_() { }

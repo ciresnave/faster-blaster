@@ -394,7 +394,7 @@ int fb_detect_cpu_frequency(uint32_t* base_freq_mhz, uint32_t* max_freq_mhz) {
     
 #elif defined(__APPLE__)
     // On macOS, use sysctl
-    uint64_t freq_hz = 0;
+    uint freq_hz = 0;
     size_t size = sizeof(freq_hz);
     if (sysctlbyname("hw.cpufrequency", &freq_hz, &size, NULL, 0) == 0) {
         *base_freq_mhz = (uint32_t)(freq_hz / 1000000);
@@ -490,7 +490,7 @@ int fb_detect_cache_hierarchy(fb_cache_hierarchy_t* cache) {
     
 #elif defined(__APPLE__)
     size_t len;
-    uint64_t value;
+    uint value;
     
     len = sizeof(value);
     if (sysctlbyname("hw.l1dcachesize", &value, &len, NULL, 0) == 0) {

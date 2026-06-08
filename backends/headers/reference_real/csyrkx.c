@@ -1,2 +1,0 @@
-/* csyrkx */
-void csyrkx_() { }

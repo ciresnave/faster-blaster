@@ -92,6 +92,35 @@ foreach(lib_name ${MKL_LIB_NAMES})
     endif()
 endforeach()
 
+# Find Intel OpenMP runtime library (separate search — iomp5md lives in the
+# Intel compiler runtime dir, NOT in the MKL lib dir)
+if(WIN32)
+    find_library(MKL_OMP_LIBRARY
+        NAMES iomp5md libiomp5md
+        PATHS
+            "C:/Program Files (x86)/Intel/oneAPI/2025.3/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/2025.2/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/2025.1/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/2025.0/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/2024.2/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/compiler/latest/lib"
+            "C:/Program Files (x86)/Intel/oneAPI/compiler/latest/windows/compiler/lib/intel64"
+            $ENV{ONEAPI_ROOT}/compiler/latest/lib
+    )
+    if(MKL_OMP_LIBRARY)
+        list(APPEND MKL_LIBRARIES ${MKL_OMP_LIBRARY})
+        message(STATUS "  Intel OpenMP runtime: ${MKL_OMP_LIBRARY}")
+    else()
+        message(WARNING "  Intel OpenMP runtime (iomp5md.lib) not found — mkl_intel_thread requires it")
+    endif()
+elseif(UNIX AND NOT APPLE)
+    # Linux: try to find gomp or iomp5
+    find_library(MKL_OMP_LIBRARY NAMES gomp iomp5)
+    if(MKL_OMP_LIBRARY)
+        list(APPEND MKL_LIBRARIES ${MKL_OMP_LIBRARY})
+    endif()
+endif()
+
 # Extract version from mkl_version.h
 if(MKL_INCLUDE_DIR)
     find_file(MKL_VERSION_FILE

@@ -19,6 +19,7 @@
 
 #include "compute_device.h"
 #include "device_registry.h"
+#include "fb_types.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -43,15 +44,7 @@ typedef enum {
     FB_DISPATCH_CUSTOM = 6
 } fb_dispatch_strategy_t;
 
-/**
- * @brief Precision type
- */
-typedef enum {
-    FB_PRECISION_FP32,
-    FB_PRECISION_FP64,
-    FB_PRECISION_FP16,
-    FB_PRECISION_BF16
-} fb_precision_t;
+/* fb_precision_t is defined in fb_types.h — available via the include above */
 
 /* ============================================================================
  * Global Initialization (Simplified API)

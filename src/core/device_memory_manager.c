@@ -27,16 +27,16 @@
 static fb_device_memory_manager_t* g_managers[MAX_DEVICES] = {NULL};
 
 /* Helper to get current timestamp (for LRU) */
-static uint64_t get_timestamp_ms(void) {
+static unsigned int get_timestamp_ms(void) {
 #ifdef _WIN32
     LARGE_INTEGER freq, counter;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&counter);
-    return (uint64_t)((counter.QuadPart * 1000) / freq.QuadPart);
+    return (unsigned int)((counter.QuadPart * 1000) / freq.QuadPart);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+    return (unsigned int)ts.tv_sec * 1000 + (unsigned int)ts.tv_nsec / 1000000;
 #endif
 }
 
@@ -187,12 +187,44 @@ int fb_device_memory_get_or_alloc(
         /* Cache hit! */
         fb_device_memory_entry_t* entry = &manager->entries[idx];
         
-        /* Verify size matches */
+        /* Verify size matches; if not, free old device allocation and fall through
+         * to the cache-miss path to reallocate at the correct size.  This handles
+         * the common case where a stack address is reused for a differently-sized
+         * array in a subsequent call (e.g. n=5 → n=4 between tests). */
         if (entry->size != size) {
-            fprintf(stderr, "Warning: Host ptr %p size mismatch (cached: %zu, requested: %zu)\n",
-                    host_ptr, entry->size, size);
-            /* Could reallocate here, but for now treat as error */
-            return -1;
+            if (trait->free && entry->device_ptr) {
+                trait->free(backend_handle, entry->device_ptr);
+            }
+            manager->total_allocated -= entry->size;
+
+            /* Remove this entry by swapping with the last one */
+            if (idx != (int)(manager->num_entries - 1)) {
+                manager->entries[idx] = manager->entries[manager->num_entries - 1];
+            }
+            memset(&manager->entries[manager->num_entries - 1], 0,
+                   sizeof(fb_device_memory_entry_t));
+            manager->num_entries--;
+
+            /* Fall through to the cache-miss path below */
+            goto cache_miss;
+        }
+
+        /* If dirty=1, device has authoritative data from an ongoing operation chain —
+         * skip H2D and use the device buffer as-is.
+         * If dirty=0, the entry was synced back to host but the host memory at this
+         * address may have changed since (e.g. a new stack allocation reusing the same
+         * address). Always re-upload to keep device current with host. */
+        if (!entry->dirty) {
+            if (trait->memcpy_h2d) {
+                int r = trait->memcpy_h2d(backend_handle, entry->device_ptr, host_ptr, size);
+                if (r != 0) {
+                    fprintf(stderr, "Cache-hit H2D refresh failed for %p (%zu bytes)\n",
+                            host_ptr, size);
+                    return -1;
+                }
+                manager->stats.num_h2d_copies++;
+                manager->stats.bytes_h2d += size;
+            }
         }
         
         /* Update metadata */
@@ -207,6 +239,7 @@ int fb_device_memory_get_or_alloc(
         return 0;
     }
     
+cache_miss:;
     /* Cache miss - need to allocate and transfer */
     manager->stats.num_cache_misses++;
     
@@ -504,7 +537,7 @@ void fb_device_memory_get_stats(
     }
     
     if (cache_hit_rate) {
-        uint64_t total_accesses = manager->stats.num_cache_hits + 
+        unsigned int total_accesses = manager->stats.num_cache_hits + 
                                    manager->stats.num_cache_misses;
         
         *cache_hit_rate = (total_accesses > 0) ? 
@@ -535,7 +568,7 @@ void fb_device_memory_print_stats(
     printf("Cache misses: %llu\n",
            (unsigned long long)manager->stats.num_cache_misses);
     
-    uint64_t total_accesses = manager->stats.num_cache_hits + 
+    unsigned int total_accesses = manager->stats.num_cache_hits + 
                                manager->stats.num_cache_misses;
     if (total_accesses > 0) {
         double hit_rate = (double)manager->stats.num_cache_hits / total_accesses;

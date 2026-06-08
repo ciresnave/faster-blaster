@@ -23,7 +23,7 @@
 /**
  * Helper: Compare two ranked operations by time (ascending for FASTEST)
  */
-static int compare_by_time(const void *a, const void *b) {
+[[maybe_unused]] static int compare_by_time(const void *a, const void *b) {
     const fb_ranked_operation_t *op_a = (const fb_ranked_operation_t *)a;
     const fb_ranked_operation_t *op_b = (const fb_ranked_operation_t *)b;
     
@@ -35,7 +35,7 @@ static int compare_by_time(const void *a, const void *b) {
 /**
  * Helper: Compare by accuracy (descending - higher is better)
  */
-static int compare_by_accuracy(const void *a, const void *b) {
+[[maybe_unused]] static int compare_by_accuracy(const void *a, const void *b) {
     const fb_ranked_operation_t *op_a = (const fb_ranked_operation_t *)a;
     const fb_ranked_operation_t *op_b = (const fb_ranked_operation_t *)b;
     
@@ -47,7 +47,7 @@ static int compare_by_accuracy(const void *a, const void *b) {
 /**
  * Helper: Compare by precision (descending - higher is better)
  */
-static int compare_by_precision(const void *a, const void *b) {
+[[maybe_unused]] static int compare_by_precision(const void *a, const void *b) {
     const fb_ranked_operation_t *op_a = (const fb_ranked_operation_t *)a;
     const fb_ranked_operation_t *op_b = (const fb_ranked_operation_t *)b;
     
@@ -61,7 +61,7 @@ static int compare_by_precision(const void *a, const void *b) {
  * Estimate: Power ~ FLOPs / time, so power efficiency ~ time / (relative perf)
  * For now: approximate as inverse of time_mean_ns (higher is better)
  */
-static int compare_by_power(const void *a, const void *b) {
+[[maybe_unused]] static int compare_by_power(const void *a, const void *b) {
     const fb_ranked_operation_t *op_a = (const fb_ranked_operation_t *)a;
     const fb_ranked_operation_t *op_b = (const fb_ranked_operation_t *)b;
     
@@ -76,7 +76,7 @@ static int compare_by_power(const void *a, const void *b) {
  * Helper: Balanced score = weighted combination of criteria
  * Weight: 40% speed, 30% accuracy, 20% precision, 10% power
  */
-static double compute_balanced_score(const fb_benchmark_stats_t *metrics) {
+[[maybe_unused]] static double compute_balanced_score(const fb_benchmark_stats_t *metrics) {
     double speed_score = 1.0 / (1.0 + (metrics->time_mean_ns / 1e9));  // Normalize to [0,1]
     double accuracy_score = metrics->accuracy_mean;  // Already [0,1]
     double precision_score = metrics->precision_mean;  // Already [0,1]
@@ -88,7 +88,7 @@ static double compute_balanced_score(const fb_benchmark_stats_t *metrics) {
 /**
  * Helper: Compare by balanced score (descending)
  */
-static int compare_by_balanced(const void *a, const void *b) {
+[[maybe_unused]] static int compare_by_balanced(const void *a, const void *b) {
     const fb_ranked_operation_t *op_a = (const fb_ranked_operation_t *)a;
     const fb_ranked_operation_t *op_b = (const fb_ranked_operation_t *)b;
     
@@ -160,7 +160,7 @@ const fb_ranked_operation_t* fb_select_operation(
     int size_class,
     int shape_class) {
     (void)constraints;
-    if (!tables || (int)op_id < 0 || (int)op_id >= FB_MAX_OPERATIONS) {
+    if (!tables || op_id >= (uint32_t)FB_MAX_OPERATIONS) {
         return NULL;
     }
     

@@ -1,2 +1,0 @@
-/* zorghr */
-void zorghr_() { }

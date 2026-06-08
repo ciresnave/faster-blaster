@@ -1,2 +1,0 @@
-/* zmatexp */
-void zmatexp_() { }

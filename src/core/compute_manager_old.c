@@ -383,7 +383,7 @@ double fb_estimate_operation_cost(fb_blas_op_t operation,
                                   size_t m, size_t n, size_t k,
                                   fb_precision_t precision) {
     // Estimate FLOPs for the operation
-    uint64_t flops = 0;
+    uint flops = 0;
     
     switch (operation) {
         // Level 1 (Vector-Vector)

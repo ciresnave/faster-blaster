@@ -1,2 +1,0 @@
-/* zherkv */
-void zherkv_() { }
