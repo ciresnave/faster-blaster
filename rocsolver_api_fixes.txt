@@ -1,0 +1,42 @@
+rocSOLVER API Conversion Notes
+==============================
+
+Key Differences from cuSOLVER:
+1. NO _bufferSize functions - rocSOLVER manages workspace internally
+2. Different function signatures - simpler parameters
+3. devInfo parameter handled differently - rocSOLVER writes directly to device memory
+
+Correct rocSOLVER API Patterns:
+
+LU Factorization (getrf):
+  rocsolver_Xgetrf(handle, m, n, A, lda, ipiv, info);
+  - No workspace needed
+  - ipiv is integer array
+  - info is device pointer
+
+LU Solve (getrs):
+  rocsolver_Xgetrs(handle, trans, n, nrhs, A, lda, ipiv, B, ldb);
+  - No info parameter (doesn't return error code via info)
+
+Cholesky (potrf):
+  rocsolver_Xpotrf(handle, uplo, n, A, lda, info);
+  - No workspace
+
+Cholesky Solve (potrs):
+  rocsolver_Xpotrs(handle, uplo, n, nrhs, A, lda, B, ldb);
+  - No info parameter
+
+QR (geqrf):
+  rocsolver_Xgeqrf(handle, m, n, A, lda, tau, info);
+  - tau vector for reflectors
+  - No workspace
+
+SVD (gesvd):
+  rocsolver_Xgesvd(handle, left_svect, right_svect, m, n, A, lda, S, U, ldu, V, ldv, E, info);
+  - E is superdiagonal elements (can be NULL)
+  - Different parameter order
+
+Eigenvalues (syevd/heevd):
+  rocsolver_Xsyevd(handle, evect, uplo, n, A, lda, D, E, info);
+  - D is eigenvalues
+  - E is off-diagonal (can be NULL)

@@ -1,0 +1,26 @@
+/**
+ * GENERATED FILE - DO NOT EDIT
+ * Backend: {{backend}}
+ * Operations: {{operations.length}}
+ */
+
+#ifndef FB_OPERATIONS_{{backend}}_H
+#define FB_OPERATIONS_{{backend}}_H
+
+{{#categories}}
+/* {{name}}: {{count}} operations */
+#ifdef OP
+{{#operations}}
+OP(
+    {{name}},  /* normalized name */
+    {{return_type}},  /* return type */
+    {{actual_name}},  /* actual function */
+    (void)  /* parameters (simplified) */
+)
+{{/operations}}
+#undef OP
+
+#endif
+{{/categories}}
+
+#endif /* FB_OPERATIONS_{{backend}}_H */

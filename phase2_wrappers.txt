@@ -1,0 +1,390 @@
+/* ============================================================================
+ * BLAS Level 2 Operations - NEW
+ * ========================================================================== */
+
+/* General band matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_dgbmv(const fb_layout_t layout,
+                       const fb_transpose_t trans,
+                       const int64_t m,
+                       const int64_t n,
+                       const int64_t kl,
+                       const int64_t ku,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx,
+                       const double beta,
+                       const double* y,
+                       const int64_t incy) {
+    if (g_aocl.dgbmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        g_aocl.dgbmv(cblas_layout, cblas_trans, (int)m, (int)n, (int)kl, (int)ku, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric band matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_dsbmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const int64_t k,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx,
+                       const double beta,
+                       const double* y,
+                       const int64_t incy) {
+    if (g_aocl.dsbmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsbmv(cblas_layout, cblas_uplo, (int)n, (int)k, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric packed matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_dspmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       double* Ap,
+                       const double* x,
+                       const int64_t incx,
+                       const double beta,
+                       const double* y,
+                       const int64_t incy) {
+    if (g_aocl.dspmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dspmv(cblas_layout, cblas_uplo, (int)n, alpha, Ap, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric packed rank-1 update: A = alpha*x*x' + A */
+static void aocl_dspr(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       const double* x,
+                       const int64_t incx,
+                       double* Ap) {
+    if (g_aocl.dspr) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dspr(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, Ap);
+    }
+}
+
+/* Symmetric rank-1 update: A = alpha*x*x' + A */
+static void aocl_dsyr(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       const double* x,
+                       const int64_t incx,
+                       const double* A,
+                       const int64_t lda) {
+    if (g_aocl.dsyr) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsyr(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, A, (int)lda);
+    }
+}
+
+/* Symmetric rank-2 update: A = alpha*x*y' + alpha*y*x' + A */
+static void aocl_dsyr2(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       const double* x,
+                       const int64_t incx,
+                       const double* y,
+                       const int64_t incy,
+                       const double* A,
+                       const int64_t lda) {
+    if (g_aocl.dsyr2) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsyr2(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, y, (int)incy, A, (int)lda);
+    }
+}
+
+/* Triangular band matrix-vector multiply: x = A*x */
+static void aocl_dtbmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const int64_t k,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtbmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtbmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, (int)k, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* Triangular band system solve: A*x = b */
+static void aocl_dtbsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const int64_t k,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtbsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtbsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, (int)k, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* General band matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_sgbmv(const fb_layout_t layout,
+                       const fb_transpose_t trans,
+                       const int64_t m,
+                       const int64_t n,
+                       const int64_t kl,
+                       const int64_t ku,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx,
+                       const float beta,
+                       const float* y,
+                       const int64_t incy) {
+    if (g_aocl.sgbmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        g_aocl.sgbmv(cblas_layout, cblas_trans, (int)m, (int)n, (int)kl, (int)ku, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric band matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_ssbmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const int64_t k,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx,
+                       const float beta,
+                       const float* y,
+                       const int64_t incy) {
+    if (g_aocl.ssbmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssbmv(cblas_layout, cblas_uplo, (int)n, (int)k, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric packed matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_sspmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       float* Ap,
+                       const float* x,
+                       const int64_t incx,
+                       const float beta,
+                       const float* y,
+                       const int64_t incy) {
+    if (g_aocl.sspmv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.sspmv(cblas_layout, cblas_uplo, (int)n, alpha, Ap, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Symmetric packed rank-1 update: A = alpha*x*x' + A */
+static void aocl_sspr(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       const float* x,
+                       const int64_t incx,
+                       float* Ap) {
+    if (g_aocl.sspr) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.sspr(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, Ap);
+    }
+}
+
+/* Symmetric rank-1 update: A = alpha*x*x' + A */
+static void aocl_ssyr(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       const float* x,
+                       const int64_t incx,
+                       const float* A,
+                       const int64_t lda) {
+    if (g_aocl.ssyr) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssyr(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, A, (int)lda);
+    }
+}
+
+/* Symmetric rank-2 update: A = alpha*x*y' + alpha*y*x' + A */
+static void aocl_ssyr2(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       const float* x,
+                       const int64_t incx,
+                       const float* y,
+                       const int64_t incy,
+                       const float* A,
+                       const int64_t lda) {
+    if (g_aocl.ssyr2) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssyr2(cblas_layout, cblas_uplo, (int)n, alpha, x, (int)incx, y, (int)incy, A, (int)lda);
+    }
+}
+
+/* Triangular band matrix-vector multiply: x = A*x */
+static void aocl_stbmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const int64_t k,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.stbmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.stbmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, (int)k, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* Triangular band system solve: A*x = b */
+static void aocl_stbsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const int64_t k,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.stbsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.stbsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, (int)k, A, (int)lda, x, (int)incx);
+    }
+}
+
+
+/* ============================================================================
+ * BLAS Level 3 Operations - NEW
+ * ========================================================================== */
+
+/* Symmetric rank-2k update: C = alpha*A*B' + alpha*B*A' + beta*C */
+static void aocl_dsyr2k(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const int64_t n,
+                       const int64_t k,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* B,
+                       const int64_t ldb,
+                       const double beta,
+                       double* C,
+                       const int64_t ldc) {
+    if (g_aocl.dsyr2k) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsyr2k(cblas_layout, cblas_uplo, cblas_trans, (int)n, (int)k, alpha, A, (int)lda, B, (int)ldb, beta, C, (int)ldc);
+    }
+}
+
+/* Symmetric rank-k update: C = alpha*A*A' + beta*C */
+static void aocl_dsyrk(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const int64_t n,
+                       const int64_t k,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double beta,
+                       double* C,
+                       const int64_t ldc) {
+    if (g_aocl.dsyrk) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsyrk(cblas_layout, cblas_uplo, cblas_trans, (int)n, (int)k, alpha, A, (int)lda, beta, C, (int)ldc);
+    }
+}
+
+/* Symmetric rank-2k update: C = alpha*A*B' + alpha*B*A' + beta*C */
+static void aocl_ssyr2k(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const int64_t n,
+                       const int64_t k,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* B,
+                       const int64_t ldb,
+                       const float beta,
+                       float* C,
+                       const int64_t ldc) {
+    if (g_aocl.ssyr2k) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssyr2k(cblas_layout, cblas_uplo, cblas_trans, (int)n, (int)k, alpha, A, (int)lda, B, (int)ldb, beta, C, (int)ldc);
+    }
+}
+
+/* Symmetric rank-k update: C = alpha*A*A' + beta*C */
+static void aocl_ssyrk(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const int64_t n,
+                       const int64_t k,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float beta,
+                       float* C,
+                       const int64_t ldc) {
+    if (g_aocl.ssyrk) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssyrk(cblas_layout, cblas_uplo, cblas_trans, (int)n, (int)k, alpha, A, (int)lda, beta, C, (int)ldc);
+    }
+}

@@ -1,0 +1,160 @@
+operation_name,file_path,category,subcategory,status,impl_percent,tests_written,tests_passing,assigned_to,start_date,estimated_finish,notes,priority,complexity
+saxpy,src/blas/l1/saxpy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Single precision: y := alpha*x + y,1,Easy
+daxpy,src/blas/l1/daxpy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Double precision variant of SAXPY,1,Easy
+caxpy,src/blas/l1/caxpy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Complex single precision variant,1,Easy
+zaxpy,src/blas/l1/zaxpy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Complex double precision variant,1,Easy
+sscal,src/blas/l1/sscal.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Scale vector by scalar (single precision),1,Easy
+dscal,src/blas/l1/dscal.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Scale vector by scalar (double precision),1,Easy
+cscal,src/blas/l1/cscal.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Scale vector by scalar (complex single),1,Easy
+zscal,src/blas/l1/zscal.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Scale vector by scalar (complex double),1,Easy
+scopy,src/blas/l1/scopy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Copy vector (single precision),1,Easy
+dcopy,src/blas/l1/dcopy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Copy vector (double precision),1,Easy
+ccopy,src/blas/l1/ccopy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Copy vector (complex single),1,Easy
+zcopy,src/blas/l1/zcopy.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Copy vector (complex double),1,Easy
+sswap,src/blas/l1/sswap.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Swap vectors (single precision),1,Easy
+dswap,src/blas/l1/dswap.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Swap vectors (double precision),1,Easy
+cswap,src/blas/l1/cswap.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Swap vectors (complex single),1,Easy
+zswap,src/blas/l1/zswap.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Swap vectors (complex double),1,Easy
+sdot,src/blas/l1/sdot.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product (single precision),1,Easy
+ddot,src/blas/l1/ddot.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product (double precision),1,Easy
+cdotu,src/blas/l1/cdotu.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product unconjugated (complex single),1,Easy
+zdotu,src/blas/l1/zdotu.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product unconjugated (complex double),1,Easy
+cdotc,src/blas/l1/cdotc.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product conjugated (complex single),1,Easy
+zdotc,src/blas/l1/zdotc.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Dot product conjugated (complex double),1,Easy
+snrm2,src/blas/l1/snrm2.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Euclidean norm (single precision),1,Easy
+dnrm2,src/blas/l1/dnrm2.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Euclidean norm (double precision),1,Easy
+cnrm2,src/blas/l1/cnrm2.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Euclidean norm (complex single),1,Easy
+znrm2,src/blas/l1/znrm2.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Euclidean norm (complex double),1,Easy
+sasum,src/blas/l1/sasum.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Sum of absolute values (single precision),1,Easy
+dasum,src/blas/l1/dasum.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Sum of absolute values (double precision),1,Easy
+scasum,src/blas/l1/scasum.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Sum of absolute values (complex single),1,Easy
+dzasum,src/blas/l1/dzasum.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Sum of absolute values (complex double),1,Easy
+isamax,src/blas/l1/isamax.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Index of max absolute value (single precision),1,Easy
+idamax,src/blas/l1/idamax.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Index of max absolute value (double precision),1,Easy
+icamax,src/blas/l1/icamax.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Index of max absolute value (complex single),1,Easy
+izamax,src/blas/l1/izamax.c,BLAS L1,Vector Operations,QUEUED,0,0,0,,,,Index of max absolute value (complex double),1,Easy
+srotg,src/blas/l1/srotg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate Givens rotation (single precision),2,Medium
+drotg,src/blas/l1/drotg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate Givens rotation (double precision),2,Medium
+crotg,src/blas/l1/crotg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate Givens rotation (complex single),2,Medium
+zrotg,src/blas/l1/zrotg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate Givens rotation (complex double),2,Medium
+srot,src/blas/l1/srot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply Givens rotation (single precision),2,Medium
+drot,src/blas/l1/drot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply Givens rotation (double precision),2,Medium
+crot,src/blas/l1/crot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply Givens rotation (complex single),2,Medium
+zrot,src/blas/l1/zrot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply Givens rotation (complex double),2,Medium
+csrot,src/blas/l1/csrot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply plane rotation real cos/sin to complex single,2,Medium
+zdrot,src/blas/l1/zdrot.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply plane rotation real cos/sin to complex double,2,Medium
+srotmg,src/blas/l1/srotmg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate modified Givens rotation (single precision),2,Medium
+drotmg,src/blas/l1/drotmg.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Generate modified Givens rotation (double precision),2,Medium
+srotm,src/blas/l1/srotm.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply modified Givens rotation (single precision),2,Medium
+drotm,src/blas/l1/drotm.c,BLAS L1,Rotation Operations,QUEUED,0,0,0,,,,Apply modified Givens rotation (double precision),2,Medium
+sgemv,src/blas/l2/sgemv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General matrix-vector multiply (single precision),3,Medium
+dgemv,src/blas/l2/dgemv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General matrix-vector multiply (double precision),3,Medium
+cgemv,src/blas/l2/cgemv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General matrix-vector multiply (complex single),3,Medium
+zgemv,src/blas/l2/zgemv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General matrix-vector multiply (complex double),3,Medium
+ssymv,src/blas/l2/ssymv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric matrix-vector multiply (single precision),3,Medium
+dsymv,src/blas/l2/dsymv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric matrix-vector multiply (double precision),3,Medium
+csymv,src/blas/l2/csymv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric matrix-vector multiply (complex single),3,Medium
+zsymv,src/blas/l2/zsymv.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric matrix-vector multiply (complex double),3,Medium
+sger,src/blas/l2/sger.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update (single precision),3,Medium
+dger,src/blas/l2/dger.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update (double precision),3,Medium
+cgeru,src/blas/l2/cgeru.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update unconjugated (complex single),3,Medium
+zgeru,src/blas/l2/zgeru.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update unconjugated (complex double),3,Medium
+cgerc,src/blas/l2/cgerc.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update conjugated (complex single),3,Medium
+zgerc,src/blas/l2/zgerc.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,General rank-1 update conjugated (complex double),3,Medium
+ssyr,src/blas/l2/ssyr.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-1 update (single precision),3,Medium
+dsyr,src/blas/l2/dsyr.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-1 update (double precision),3,Medium
+csyr,src/blas/l2/csyr.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-1 update (complex single),3,Medium
+zsyr,src/blas/l2/zsyr.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-1 update (complex double),3,Medium
+ssyr2,src/blas/l2/ssyr2.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-2 update (single precision),3,Medium
+dsyr2,src/blas/l2/dsyr2.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-2 update (double precision),3,Medium
+csyr2,src/blas/l2/csyr2.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-2 update (complex single),3,Medium
+zsyr2,src/blas/l2/zsyr2.c,BLAS L2,Matrix-Vector Operations,QUEUED,0,0,0,,,,Symmetric rank-2 update (complex double),3,Medium
+strmv,src/blas/l2/strmv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular matrix-vector multiply (single precision),3,Medium
+dtrmv,src/blas/l2/dtrmv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular matrix-vector multiply (double precision),3,Medium
+ctrmv,src/blas/l2/ctrmv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular matrix-vector multiply (complex single),3,Medium
+ztrmv,src/blas/l2/ztrmv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular matrix-vector multiply (complex double),3,Medium
+strsv,src/blas/l2/strsv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular system solve (single precision),3,Medium
+dtrsv,src/blas/l2/dtrsv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular system solve (double precision),3,Medium
+ctrsv,src/blas/l2/ctrsv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular system solve (complex single),3,Medium
+ztrsv,src/blas/l2/ztrsv.c,BLAS L2,Triangular Operations,QUEUED,0,0,0,,,,Triangular system solve (complex double),3,Medium
+sgemm,src/blas/l3/sgemm.c,BLAS L3,Matrix-Matrix Operations,QUEUED,0,0,0,,,,General matrix-matrix multiply (single precision),4,Hard
+dgemm,src/blas/l3/dgemm.c,BLAS L3,Matrix-Matrix Operations,QUEUED,0,0,0,,,,General matrix-matrix multiply (double precision),4,Hard
+cgemm,src/blas/l3/cgemm.c,BLAS L3,Matrix-Matrix Operations,QUEUED,0,0,0,,,,General matrix-matrix multiply (complex single),4,Hard
+zgemm,src/blas/l3/zgemm.c,BLAS L3,Matrix-Matrix Operations,QUEUED,0,0,0,,,,General matrix-matrix multiply (complex double),4,Hard
+sgesv,src/lapack/drivers/sgesv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,General linear system solve (single precision),5,Hard
+dgesv,src/lapack/drivers/dgesv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,General linear system solve (double precision),5,Hard
+cgesv,src/lapack/drivers/cgesv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,General linear system solve (complex single),5,Hard
+zgesv,src/lapack/drivers/zgesv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,General linear system solve (complex double),5,Hard
+sposv,src/lapack/drivers/sposv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Symmetric positive definite solver (single precision),5,Hard
+dposv,src/lapack/drivers/dposv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Symmetric positive definite solver (double precision),5,Hard
+cposv,src/lapack/drivers/cposv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Hermitian positive definite solver (complex single),5,Hard
+zposv,src/lapack/drivers/zposv.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Hermitian positive definite solver (complex double),5,Hard
+sgels,src/lapack/drivers/sgels.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Linear least squares (single precision),5,Hard
+dgels,src/lapack/drivers/dgels.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Linear least squares (double precision),5,Hard
+cgels,src/lapack/drivers/cgels.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Linear least squares (complex single),5,Hard
+zgels,src/lapack/drivers/zgels.c,LAPACK,Driver: Linear Systems,QUEUED,0,0,0,,,,Linear least squares (complex double),5,Hard
+sgeev,src/lapack/drivers/sgeev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Nonsymmetric eigenvalues and eigenvectors (single),5,Hard
+dgeev,src/lapack/drivers/dgeev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Nonsymmetric eigenvalues and eigenvectors (double),5,Hard
+cgeev,src/lapack/drivers/cgeev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Nonsymmetric eigenvalues and eigenvectors (complex single),5,Hard
+zgeev,src/lapack/drivers/zgeev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Nonsymmetric eigenvalues and eigenvectors (complex double),5,Hard
+ssyev,src/lapack/drivers/ssyev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Symmetric eigenvalues and eigenvectors (single precision),5,Hard
+dsyev,src/lapack/drivers/dsyev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Symmetric eigenvalues and eigenvectors (double precision),5,Hard
+cheev,src/lapack/drivers/cheev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Hermitian eigenvalues and eigenvectors (complex single),5,Hard
+zheev,src/lapack/drivers/zheev.c,LAPACK,Driver: Eigenvalues,QUEUED,0,0,0,,,,Hermitian eigenvalues and eigenvectors (complex double),5,Hard
+sgesvd,src/lapack/drivers/sgesvd.c,LAPACK,Driver: SVD,QUEUED,0,0,0,,,,Singular value decomposition (single precision),5,Hard
+dgesvd,src/lapack/drivers/dgesvd.c,LAPACK,Driver: SVD,QUEUED,0,0,0,,,,Singular value decomposition (double precision),5,Hard
+cgesvd,src/lapack/drivers/cgesvd.c,LAPACK,Driver: SVD,QUEUED,0,0,0,,,,Singular value decomposition (complex single),5,Hard
+zgesvd,src/lapack/drivers/zgesvd.c,LAPACK,Driver: SVD,QUEUED,0,0,0,,,,Singular value decomposition (complex double),5,Hard
+sgetrf,src/lapack/computational/sgetrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,LU factorization (single precision),6,Hard
+dgetrf,src/lapack/computational/dgetrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,LU factorization (double precision),6,Hard
+cgetrf,src/lapack/computational/cgetrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,LU factorization (complex single),6,Hard
+zgetrf,src/lapack/computational/zgetrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,LU factorization (complex double),6,Hard
+sgetrs,src/lapack/computational/sgetrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve LU factorized system (single precision),6,Hard
+dgetrs,src/lapack/computational/dgetrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve LU factorized system (double precision),6,Hard
+cgetrs,src/lapack/computational/cgetrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve LU factorized system (complex single),6,Hard
+zgetrs,src/lapack/computational/zgetrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve LU factorized system (complex double),6,Hard
+spotrf,src/lapack/computational/spotrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Cholesky factorization (single precision),6,Hard
+dpotrf,src/lapack/computational/dpotrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Cholesky factorization (double precision),6,Hard
+cpotrf,src/lapack/computational/cpotrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Cholesky factorization (complex single),6,Hard
+zpotrf,src/lapack/computational/zpotrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Cholesky factorization (complex double),6,Hard
+spotrs,src/lapack/computational/spotrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve Cholesky factorized system (single precision),6,Hard
+dpotrs,src/lapack/computational/dpotrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve Cholesky factorized system (double precision),6,Hard
+cpotrs,src/lapack/computational/cpotrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve Cholesky factorized system (complex single),6,Hard
+zpotrs,src/lapack/computational/zpotrs.c,LAPACK,Computational: Solve,QUEUED,0,0,0,,,,Solve Cholesky factorized system (complex double),6,Hard
+sgeqrf,src/lapack/computational/sgeqrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,QR factorization (single precision),6,Hard
+dgeqrf,src/lapack/computational/dgeqrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,QR factorization (double precision),6,Hard
+cgeqrf,src/lapack/computational/cgeqrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,QR factorization (complex single),6,Hard
+zgeqrf,src/lapack/computational/zgeqrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,QR factorization (complex double),6,Hard
+sorgqr,src/lapack/computational/sorgqr.c,LAPACK,Computational: Q Generation,QUEUED,0,0,0,,,,Generate orthogonal Q from QR (single precision),6,Hard
+dorgqr,src/lapack/computational/dorgqr.c,LAPACK,Computational: Q Generation,QUEUED,0,0,0,,,,Generate orthogonal Q from QR (double precision),6,Hard
+cungqr,src/lapack/computational/cungqr.c,LAPACK,Computational: Q Generation,QUEUED,0,0,0,,,,Generate unitary Q from QR (complex single),6,Hard
+zungqr,src/lapack/computational/zungqr.c,LAPACK,Computational: Q Generation,QUEUED,0,0,0,,,,Generate unitary Q from QR (complex double),6,Hard
+sormqr,src/lapack/computational/sormqr.c,LAPACK,Computational: Q Multiply,QUEUED,0,0,0,,,,Multiply by orthogonal Q from QR (single precision),6,Hard
+dormqr,src/lapack/computational/dormqr.c,LAPACK,Computational: Q Multiply,QUEUED,0,0,0,,,,Multiply by orthogonal Q from QR (double precision),6,Hard
+cunmqr,src/lapack/computational/cunmqr.c,LAPACK,Computational: Q Multiply,QUEUED,0,0,0,,,,Multiply by unitary Q from QR (complex single),6,Hard
+zunmqr,src/lapack/computational/zunmqr.c,LAPACK,Computational: Q Multiply,QUEUED,0,0,0,,,,Multiply by unitary Q from QR (complex double),6,Hard
+ssytrf,src/lapack/computational/ssytrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Symmetric indefinite factorization (single precision),6,Hard
+dsytrf,src/lapack/computational/dsytrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Symmetric indefinite factorization (double precision),6,Hard
+csytrf,src/lapack/computational/csytrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Complex symmetric indefinite factorization (complex single),6,Hard
+zsytrf,src/lapack/computational/zsytrf.c,LAPACK,Computational: Factorizations,QUEUED,0,0,0,,,,Complex symmetric indefinite factorization (complex double),6,Hard
+ssytrd,src/lapack/computational/ssytrd.c,LAPACK,Computational: Reductions,QUEUED,0,0,0,,,,Reduce symmetric to tridiagonal (single precision),6,Medium
+dsytrd,src/lapack/computational/dsytrd.c,LAPACK,Computational: Reductions,QUEUED,0,0,0,,,,Reduce symmetric to tridiagonal (double precision),6,Medium
+sgebrd,src/lapack/computational/sgebrd.c,LAPACK,Computational: Reductions,QUEUED,0,0,0,,,,Reduce general to bidiagonal (single precision),6,Hard
+dgebrd,src/lapack/computational/dgebrd.c,LAPACK,Computational: Reductions,QUEUED,0,0,0,,,,Reduce general to bidiagonal (double precision),6,Hard
+sbdsqr,src/lapack/computational/sbdsqr.c,LAPACK,Computational: SVD,QUEUED,0,0,0,,,,Bidiagonal SVD (single precision),6,Hard
+dbdsqr,src/lapack/computational/dbdsqr.c,LAPACK,Computational: SVD,QUEUED,0,0,0,,,,Bidiagonal SVD (double precision),6,Hard
+slange,src/lapack/auxiliary/slange.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,General matrix norm (single precision),7,Easy
+dlange,src/lapack/auxiliary/dlange.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,General matrix norm (double precision),7,Easy
+clange,src/lapack/auxiliary/clange.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,General matrix norm (complex single),7,Easy
+zlange,src/lapack/auxiliary/zlange.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,General matrix norm (complex double),7,Easy
+slansy,src/lapack/auxiliary/slansy.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,Symmetric matrix norm (single precision),7,Easy
+dlansy,src/lapack/auxiliary/dlansy.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,Symmetric matrix norm (double precision),7,Easy
+clansy,src/lapack/auxiliary/clansy.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,Symmetric matrix norm (complex single),7,Easy
+zlansy,src/lapack/auxiliary/zlansy.c,LAPACK,Auxiliary: Norms,QUEUED,0,0,0,,,,Symmetric matrix norm (complex double),7,Easy
+slascl,src/lapack/auxiliary/slascl.c,LAPACK,Auxiliary: Scaling,QUEUED,0,0,0,,,,Scale matrix (single precision),7,Easy
+dlascl,src/lapack/auxiliary/dlascl.c,LAPACK,Auxiliary: Scaling,QUEUED,0,0,0,,,,Scale matrix (double precision),7,Easy
+clascl,src/lapack/auxiliary/clascl.c,LAPACK,Auxiliary: Scaling,QUEUED,0,0,0,,,,Scale matrix (complex single),7,Easy
+zlascl,src/lapack/auxiliary/zlascl.c,LAPACK,Auxiliary: Scaling,QUEUED,0,0,0,,,,Scale matrix (complex double),7,Easy
+fb_gemm_unified,src/unified/fb_gemm_unified.c,Unified,GEMM,QUEUED,0,0,0,,,,Unified GEMM implementation (all precisions and batching),8,Hard
+fb_normalize_unified,src/unified/fb_normalize_unified.c,Unified,Normalization,QUEUED,0,0,0,,,,Unified normalization (batch/layer/instance/group norms),8,Hard
+fb_reduce_unified,src/unified/fb_reduce_unified.c,Unified,Reduction,QUEUED,0,0,0,,,,Unified reduction (sum/min/max/mean across dimensions),8,Hard

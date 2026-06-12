@@ -1,0 +1,226 @@
+-- Auto-detected vcpkg: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg
+-- [WINDOWS TOOLCHAIN] Added x64 INCLUDE paths for clang-cl
+-- [WINDOWS TOOLCHAIN] Added x64 LIB paths for lld-link
+-- The C compiler identification is Clang 22.1.0 with MSVC-like command-line
+-- The CXX compiler identification is Clang 22.1.0 with MSVC-like command-line
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files/LLVM/bin/clang-cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files/LLVM/bin/clang-cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- cargo and git found ΓÇö OxiBLAS from-source build ON by default
+-- Building backends with 32 parallel jobs
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: 16 core AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   AMD ROCm/HIP: Present
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+-- Performing Test COMPILER_FSYCL_SUPPORT
+-- Performing Test COMPILER_FSYCL_SUPPORT - Failed
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:
+--   Γ£ô cuBLAS: 13.0.88 (found)
+  Γ£ù AMD rocBLAS: Not found
+  Γ£ù CLBlast: Not found
+
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- Γ£à NVIDIA GPU with CUDA Toolkit 13.0.88
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Γä╣∩╕Å  Some recommended backends are missing
+--    You can install them later and reconfigure
+--    Interactive prompts are suppressed for this non-interactive configure run
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- Building OpenBLAS from source with threading support...
+-- OpenBLAS will be built with threading support enabled
+--   Build will occur during 'cmake --build'
+-- cpuinfo not found, will fetch from source
+-- Found OpenCL: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include
+-- ΓÜá CLBlast not found (install via: vcpkg install clblast)
+--   CLBlast support will be disabled
+-- Γ£ô CUDA compiler (nvcc) found: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/nvcc.exe
+--   CUDA language remains disabled with clang-cl on Windows; cuBLAS links against CUDAToolkit::cublas directly
+-- Γ£ô CUDA Toolkit 13.0.88 detected
+--   cuBLAS plugin will be enabled
+-- Found rocBLAS:
+--   ROCm Root: C:/Program Files/AMD/ROCm/6.4
+--   HIP Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocBLAS Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocSOLVER Include: C:/Program Files/AMD/ROCm/6.4/include
+--   Libraries: C:/Program Files/AMD/ROCm/6.4/lib/rocblas.lib;C:/Program Files/AMD/ROCm/6.4/lib/rocsolver.lib;C:/Program Files/AMD/ROCm/6.4/lib/hipblas.lib
+-- Γ£ô ROCm  detected at C:/Program Files/AMD/ROCm/6.4
+--   rocBLAS plugin will be enabled
+--   Found hipcc: C:/Program Files/AMD/ROCm/6.4/bin/hipcc.exe
+--   HIP source files will be compiled using custom commands
+-- 
+-- GPU Backend Configuration:
+--   NVIDIA cuBLAS:  ON
+--   AMD rocBLAS:    ON
+--   Intel oneMKL:   OFF
+--   Apple Metal:    OFF
+-- 
+--   Intel OpenMP runtime: C:/Program Files (x86)/Intel/oneAPI/2025.3/lib/libiomp5md.lib
+-- Found Intel MKL:
+--   Include: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include
+--   Libraries: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_lp64.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_thread.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_core.lib;C:/Program Files (x86)/Intel/oneAPI/2025.3/lib/libiomp5md.lib
+--   Interface: mkl_intel_lp64 (8-byte pointers)
+--   Threading: mkl_intel_thread
+--   Note: You may also need to link: iomp5md (OpenMP runtime)
+-- Γ£ô Intel MKL  detected
+--   MKL CPU plugin will be enabled
+-- Found OpenBLAS:
+--   Include: C:/libraries/OpenBLAS-0.3.30-x64/include
+--   Library: C:/libraries/OpenBLAS-0.3.30-x64/lib/libopenblas.lib
+--   LAPACK: Included in OpenBLAS
+-- Γ£ô OpenBLAS  detected
+--   OpenBLAS plugin will be enabled
+-- Γ£ù OxiBLAS not found - OxiBLAS plugin disabled
+--   Build oxiblas-ffi: cargo build --release -p oxiblas-ffi
+-- Found BLIS:
+--   Include: C:/BLIS/include
+--   Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-dll.lib
+--   Note: BLIS provides BLAS only, LAPACK may be needed separately
+-- Γ£ô BLIS  detected
+--   BLIS plugin will be enabled
+-- Found AOCL:
+--   BLIS Include: C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64
+--   libFLAME Include: C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64
+--   BLIS Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-MT-dll.lib
+--   libFLAME: Not found (LAPACK operations unavailable)
+-- Γ£ô AMD AOCL  detected
+--   AOCL plugin will be enabled
+-- 
+-- CPU Backend Configuration:
+--   Intel MKL:      ON
+--   OpenBLAS:       ON
+--   OxiBLAS:        OFF (EXPERIMENTAL)
+--   BLIS:           ON
+--   AMD AOCL:       ON
+--   Accelerate:     OFF
+-- 
+--   HIP detection will compile using clang directly: C:/Program Files/AMD/ROCm/6.4/bin/clang.exe
+-- Adding Intel MKL CPU backend source
+-- Adding BLIS CPU backend source
+-- Adding OpenBLAS CPU backend source
+-- Adding AMD AOCL CPU backend source
+-- rocBLAS backend included (dynamic loading, deferred to runtime availability)
+-- Reference DLL (for test copy): C:/Users/cires/OneDrive/Documents/projects/faster-blaster/../faster-blaster-reference/build-extended/libfaster_blaster_reference.dll
+-- Linking CUDA libraries for cuBLAS plugin with GPU detection
+-- CUDA include dirs: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include;C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl
+--   Linked HIP runtime: C:/Program Files/AMD/ROCm/6.4/lib/amdhip64.lib
+-- ROCm HIP support enabled with HIP compiler
+-- Linking Intel MKL CPU libraries
+-- Linking OpenBLAS libraries
+-- Linking BLIS libraries
+-- Linking AMD AOCL libraries
+-- Linking OpenCL: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/lib/x64/OpenCL.lib
+-- Device Memory Manager simple test enabled
+-- Smart Wrappers GPU test enabled
+-- Phase 1 GPU Operations test enabled
+-- Comprehensive correctness test enabled
+-- Reference BLAS Level 1 expanded test enabled
+-- Judge module tests enabled
+-- Judge end-to-end runner test enabled
+-- Reference loader audit test enabled
+-- Reference loader alias regression test enabled
+-- GESV convention thunk test enabled
+-- LU convention thunk test enabled
+-- Cholesky convention thunk test enabled
+-- SYSV/HESV convention thunk test enabled
+-- QR-like convention thunk test enabled
+-- Explicit Q-generator convention thunk test enabled
+-- Reflector-application convention thunk test enabled
+-- Bidiagonal generator/application convention thunk test enabled
+-- Hessenberg reflector-application convention thunk test enabled
+-- Hessenberg generator convention thunk test enabled
+-- Tridiagonal-reduction generator convention thunk test enabled
+-- Unblocked Q-generator convention thunk test enabled
+-- Unblocked matrix+tau factorization convention thunk test enabled
+-- Bidiagonal reduction convention thunk test enabled
+-- Condition-estimation convention thunk test enabled
+-- Matrix equilibration convention thunk test enabled
+-- Eigenvalue convention thunk test enabled
+-- Singular-value convention thunk test enabled
+-- Divide-and-conquer SVD convention thunk test enabled
+-- Symmetric/Hermitian eigenvalue convention thunk test enabled
+-- Symmetric/Hermitian EVD convention thunk test enabled
+-- Generalized symmetric/Hermitian eigenproblem convention thunk test enabled
+-- Least-squares driver convention thunk test enabled
+-- General band matrix-vector convention thunk test enabled
+-- RZ apply convention thunk test enabled
+-- Positive band equilibration convention thunk test enabled
+-- General band equilibration convention thunk test enabled
+-- General band factorization convention thunk test enabled
+-- General band factored solve convention thunk test enabled
+-- General band direct solve convention thunk test enabled
+-- Positive band condition-estimation convention thunk test enabled
+-- General band condition-estimation convention thunk test enabled
+-- Positive band solve convention thunk test enabled
+-- Positive band expert-driver convention thunk test enabled
+-- General band expert-driver convention thunk test enabled
+-- Positive band factor/factored-solve convention thunk test enabled
+-- Positive band refinement convention thunk test enabled
+-- LAPACK convention thunk policy test enabled
+-- Judge GELSD complex regression test enabled
+-- Judge GEMM3M regression test enabled
+-- Backend loader integration test enabled
+-- CLBlast execution test enabled
+-- AOCL tests enabled
+-- BLIS tests enabled
+-- MKL CPU tests enabled
+-- OpenBLAS CPU tests enabled
+-- Ranked dispatch table tests enabled
+-- Constraint-based selection tests enabled
+-- Operation sequence executor tests enabled
+-- 
+-- Backend Tests Configuration:
+--   cuBLAS: ON
+--   rocBLAS: ON
+--   hipBLAS: ON
+--   oneMKL: OFF
+--   MKL (CPU): ON
+--   OpenBLAS: ON
+--   AOCL (BLIS+libFLAME): ON
+--   BLIS: ON
+-- 
+-- 
+-- === Faster-BLASTER Configuration Summary ===
+-- Version: 0.1.0
+-- Build type: Debug
+-- Shared libraries: ON
+-- 
+-- Optional Features:
+--   Tests: ON
+--   Benchmarks: OFF
+--   Examples: OFF
+--   Statistics: ON
+-- 
+-- Backend Support:
+--   OpenBLAS: ON
+--   BLIS: ON
+--   Intel MKL: ON
+--   NVIDIA cuBLAS: ON
+--   AMD rocBLAS: ON
+--   Apple Accelerate: OFF
+-- ===========================================
+-- 
+-- Configuring done (224.4s)
+-- Generating done (0.4s)
+-- Build files have been written to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang-cmake-parsecheck2

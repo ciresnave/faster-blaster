@@ -1,0 +1,3 @@
+Warning: Host ptr 00000080000FF800 size mismatch (cached: 20, requested: 16)
+Warning: Host ptr 00000080000FF800 size mismatch (cached: 20, requested: 16)
+Warning: Host ptr 00000080000FF800 size mismatch (cached: 20, requested: 16)

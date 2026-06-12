@@ -1,0 +1,87 @@
+[1/22] Building CUDA object tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj
+FAILED: [code=1] tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj 
+C:\PROGRA~1\NVIDIA~2\CUDA\v13.0\bin\nvcc.exe -forward-unknown-to-host-compiler -DFB_ENABLE_OPENCL -D_CRT_SECURE_NO_WARNINGS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -D_WINDOWS -Xcompiler=" /GR /EHsc" -Xcompiler=" -Zi -Ob0 -Od /RTC1" -std=c++20 -Xcompiler=-MDd -MD -MT tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -MF tests\CMakeFiles\cublas_trait.dir\__\src\backends\gpu\cublas_trait_impl.c.obj.d -x cu -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/cublas_trait_impl.c -o tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -Xcompiler=-Fdtests\CMakeFiles\cublas_trait.dir\cublas_trait.pdb,-FS
+nvcc fatal   : Cannot find compiler 'cl.exe' in PATH
+[2/22] Building C object tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj
+[3/22] Linking C shared library faster-blaster.dll
+FAILED: [code=1] faster-blaster.dll faster-blaster.lib 
+C:\WINDOWS\system32\cmd.exe /C ""C:\Program Files\CMake\bin\cmake.exe" -E __create_def C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\CMakeFiles\faster-blaster.dir\.\exports.def C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\CMakeFiles\faster-blaster.dir\.\exports.def.objs --nm="C:\Program Files\LLVM\bin\llvm-nm.exe" && C:\PROGRA~1\LLVM\bin\clang.exe -nostartfiles -nostdlib -O0 -g -Xclang -gcodeview -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd  -shared /DELAYLOAD:cudart64_13.dll /DELAYLOAD:cudart64_12.dll /DELAYLOAD:cudart64_11.dll /DELAYLOAD:cublas64_13.dll /DELAYLOAD:cublas64_12.dll /DELAYLOAD:cublas64_11.dll /DELAYLOAD:cusolver64_13.dll /DELAYLOAD:cusolver64_12.dll /DELAYLOAD:cusolver64_11.dll /DELAYLOAD:nvml.dll /DELAYLOAD:amdhip64_6.dll /DELAYLOAD:amdhip64_5.dll /DELAYLOAD:rocblas.dll -fuse-ld=lld-link -Xlinker /DEF:CMakeFiles\faster-blaster.dir\.\exports.def -o faster-blaster.dll  -Xlinker /MANIFEST:EMBED -Xlinker /implib:faster-blaster.lib -Xlinker /pdb:faster-blaster.pdb -Xlinker /version:0.0 @CMakeFiles\faster-blaster.rsp  && C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang && "C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file C:/libraries/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/faster-blaster.dll -installedDir C:/libraries/vcpkg/installed/x64-windows/debug/bin -OutVariable out""
+clang: error: no such file or directory: '/DELAYLOAD:cudart64_13.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cudart64_12.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cudart64_11.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cublas64_13.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cublas64_12.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cublas64_11.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cusolver64_13.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cusolver64_12.dll'
+clang: error: no such file or directory: '/DELAYLOAD:cusolver64_11.dll'
+clang: error: no such file or directory: '/DELAYLOAD:nvml.dll'
+clang: error: no such file or directory: '/DELAYLOAD:amdhip64_6.dll'
+clang: error: no such file or directory: '/DELAYLOAD:amdhip64_5.dll'
+clang: error: no such file or directory: '/DELAYLOAD:rocblas.dll'
+clang: error: no such file or directory: 'delayimp.lib'
+[4/22] Performing configure step for 'openblas_external'
+FAILED: [code=1] external/openblas/src/openblas_external-stamp/openblas_external-configure C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-stamp/openblas_external-configure 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external-build && "C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/install -DBUILD_SHARED_LIBS=ON -DUSE_THREAD=1 -DUSE_OPENMP=1 -DDYNAMIC_ARCH=ON -DBUILD_TESTING=OFF -GNinja -S C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external -B C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-stamp/openblas_external-configure"
+CMake Warning at CMakeLists.txt:122 (message):
+  CMake support is experimental.  It does not yet support all build options
+  and may not produce the same Makefiles that OpenBLAS ships with.
+
+
+-- GEMM multithread threshold set to 4.
+-- Disabling Advanced Vector Extensions 512 (AVX512).
+-- Multi-threading enabled with 32 threads.
+-- No Fortran compiler found, can build only BLAS and f2c-converted LAPACK
+-- MSVC
+CMake Error at cmake/prebuild.cmake:1492 (MESSAGE):
+  Compiling getarch failed Change Dir:
+  'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build/CMakeFiles/CMakeTmp'
+
+
+
+  Run Build Command(s): C:/bin/ninja.exe -v cmTC_b6c5f
+
+  [1/2]
+  C:\PROGRA~2\MICROS~2\2019\BUILDT~1\VC\Tools\MSVC\1429~1.301\bin\Hostx64\x64\cl.exe
+  /nologo -DFORCE_GENERIC -D_MBCS /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd
+  -march=native -DGEMM_MULTITHREAD_THRESHOLD=4 -DNO_AVX512 /Zi /Ob0 /Od /RTC1
+  -DNO_PARALLEL_MAKE=0
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build"
+  /showIncludes /FoCMakeFiles\cmTC_b6c5f.dir\getarch.c.obj
+  /FdCMakeFiles\cmTC_b6c5f.dir\ /FS -c
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c
+
+  FAILED: [code=2] CMakeFiles/cmTC_b6c5f.dir/getarch.c.obj 
+
+  
+  C:\PROGRA~2\MICROS~2\2019\BUILDT~1\VC\Tools\MSVC\1429~1.301\bin\Hostx64\x64\cl.exe
+  /nologo -DFORCE_GENERIC -D_MBCS /DWIN32 /D_WINDOWS /Zi /Ob0 /Od /RTC1 -MDd
+  -march=native -DGEMM_MULTITHREAD_THRESHOLD=4 -DNO_AVX512 /Zi /Ob0 /Od /RTC1
+  -DNO_PARALLEL_MAKE=0
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build/getarch_build"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external"
+  -I"C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/external/openblas/src/openblas_external-build"
+  /showIncludes /FoCMakeFiles\cmTC_b6c5f.dir\getarch.c.obj
+  /FdCMakeFiles\cmTC_b6c5f.dir\ /FS -c
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c
+
+  cl : Command line warning D9002 : ignoring unknown option '-march=native'
+
+  
+  C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\external\openblas\src\openblas_external\getarch.c(80):
+  fatal error C1083: Cannot open include file: 'stdio.h': No such file or
+  directory
+
+  ninja: build stopped: subcommand failed.
+
+
+
+Call Stack (most recent call first):
+  cmake/system.cmake:177 (include)
+  CMakeLists.txt:125 (include)
+
+
+-- Configuring incomplete, errors occurred!
+ninja: build stopped: subcommand failed.

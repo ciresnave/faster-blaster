@@ -1,0 +1,398 @@
+================================================================================
+AUTOMATED BLAS OPERATION ADDITION TOOL
+================================================================================
+
+Adding 14 operations to all backends...
+
+
+================================================================================
+BACKEND: AOCL
+================================================================================
+
+--- TYPEDEFS (add after existing cblas_*_t typedefs, around line 107) ---
+
+/* Level 2 BLAS typedefs */
+typedef void (*cblas_dger_t)(CBLAS_LAYOUT, const int, const int, const double, const double*, const int, const double*, const int, const double*, const int);
+typedef void (*cblas_dsymv_t)(CBLAS_LAYOUT, CBLAS_UPLO, const int, const double, const double*, const int, const double*, const int, const double, const double*, const int);
+typedef void (*cblas_dtrmv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const double*, const int, const double*, const int);
+typedef void (*cblas_dtrsv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const double*, const int, const double*, const int);
+typedef void (*cblas_sger_t)(CBLAS_LAYOUT, const int, const int, const float, const float*, const int, const float*, const int, const float*, const int);
+typedef void (*cblas_ssymv_t)(CBLAS_LAYOUT, CBLAS_UPLO, const int, const float, const float*, const int, const float*, const int, const float, const float*, const int);
+typedef void (*cblas_strmv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const float*, const int, const float*, const int);
+typedef void (*cblas_strsv_t)(CBLAS_LAYOUT, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const float*, const int, const float*, const int);
+
+/* Level 3 BLAS typedefs */
+typedef void (*cblas_dsymm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, const int, const int, const double, const double*, const int, const double*, const int, const double, double*, const int);
+typedef void (*cblas_dtrmm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const int, const double, const double*, const int, const double*, const int);
+typedef void (*cblas_dtrsm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const int, const double, const double*, const int, const double*, const int);
+typedef void (*cblas_ssymm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, const int, const int, const float, const float*, const int, const float*, const int, const float, float*, const int);
+typedef void (*cblas_strmm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const int, const float, const float*, const int, const float*, const int);
+typedef void (*cblas_strsm_t)(CBLAS_LAYOUT, CBLAS_SIDE, CBLAS_UPLO, CBLAS_TRANSPOSE, CBLAS_DIAG, const int, const int, const float, const float*, const int, const float*, const int);
+
+--- STRUCT FIELDS (add to g_aocl struct, around line 153) ---
+
+    /* Level 2 BLAS */
+    cblas_dger_t dger;
+    cblas_dsymv_t dsymv;
+    cblas_dtrmv_t dtrmv;
+    cblas_dtrsv_t dtrsv;
+    cblas_sger_t sger;
+    cblas_ssymv_t ssymv;
+    cblas_strmv_t strmv;
+    cblas_strsv_t strsv;
+
+    /* Level 3 BLAS */
+    cblas_dsymm_t dsymm;
+    cblas_dtrmm_t dtrmm;
+    cblas_dtrsm_t dtrsm;
+    cblas_ssymm_t ssymm;
+    cblas_strmm_t strmm;
+    cblas_strsm_t strsm;
+
+--- FUNCTION LOADERS (add in load_aocl_library, around line 265) ---
+
+    /* Level 2 BLAS */
+    g_aocl.dger = (cblas_dger_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dger");
+    g_aocl.dsymv = (cblas_dsymv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dsymv");
+    g_aocl.dtrmv = (cblas_dtrmv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtrmv");
+    g_aocl.dtrsv = (cblas_dtrsv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtrsv");
+    g_aocl.sger = (cblas_sger_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_sger");
+    g_aocl.ssymv = (cblas_ssymv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_ssymv");
+    g_aocl.strmv = (cblas_strmv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_strmv");
+    g_aocl.strsv = (cblas_strsv_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_strsv");
+
+    /* Level 3 BLAS */
+    g_aocl.dsymm = (cblas_dsymm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dsymm");
+    g_aocl.dtrmm = (cblas_dtrmm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtrmm");
+    g_aocl.dtrsm = (cblas_dtrsm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_dtrsm");
+    g_aocl.ssymm = (cblas_ssymm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_ssymm");
+    g_aocl.strmm = (cblas_strmm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_strmm");
+    g_aocl.strsm = (cblas_strsm_t)FB_GET_PROC_ADDRESS(g_aocl.handle, "cblas_strsm");
+
+--- WRAPPER FUNCTIONS (add after aocl_dgemm, around line 798) ---
+
+/* ============================================================================
+ * BLAS Level 2 Operations - NEW
+ * ========================================================================== */
+
+/* General rank-1 update: A = alpha*x*y' + A */
+static void aocl_dger(const fb_layout_t layout,
+                       const int64_t m,
+                       const int64_t n,
+                       const double alpha,
+                       const double* x,
+                       const int64_t incx,
+                       const double* y,
+                       const int64_t incy,
+                       const double* A,
+                       const int64_t lda) {
+    if (g_aocl.dger) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        g_aocl.dger(cblas_layout, (int)m, (int)n, alpha, x, (int)incx, y, (int)incy, A, (int)lda);
+    }
+}
+
+/* Symmetric matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_dsymv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx,
+                       const double beta,
+                       const double* y,
+                       const int64_t incy) {
+    if (g_aocl.dsymv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsymv(cblas_layout, cblas_uplo, (int)n, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Triangular matrix-vector multiply: x = A*x */
+static void aocl_dtrmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtrmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtrmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* Triangular system solve: A*x = b */
+static void aocl_dtrsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const double* A,
+                       const int64_t lda,
+                       const double* x,
+                       const int64_t incx) {
+    if (g_aocl.dtrsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtrsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* General rank-1 update: A = alpha*x*y' + A */
+static void aocl_sger(const fb_layout_t layout,
+                       const int64_t m,
+                       const int64_t n,
+                       const float alpha,
+                       const float* x,
+                       const int64_t incx,
+                       const float* y,
+                       const int64_t incy,
+                       const float* A,
+                       const int64_t lda) {
+    if (g_aocl.sger) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        g_aocl.sger(cblas_layout, (int)m, (int)n, alpha, x, (int)incx, y, (int)incy, A, (int)lda);
+    }
+}
+
+/* Symmetric matrix-vector multiply: y = alpha*A*x + beta*y */
+static void aocl_ssymv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const int64_t n,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx,
+                       const float beta,
+                       const float* y,
+                       const int64_t incy) {
+    if (g_aocl.ssymv) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssymv(cblas_layout, cblas_uplo, (int)n, alpha, A, (int)lda, x, (int)incx, beta, y, (int)incy);
+    }
+}
+
+/* Triangular matrix-vector multiply: x = A*x */
+static void aocl_strmv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.strmv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.strmv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, A, (int)lda, x, (int)incx);
+    }
+}
+
+/* Triangular system solve: A*x = b */
+static void aocl_strsv(const fb_layout_t layout,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t n,
+                       const float* A,
+                       const int64_t lda,
+                       const float* x,
+                       const int64_t incx) {
+    if (g_aocl.strsv) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.strsv(cblas_layout, cblas_uplo, cblas_trans, cblas_diag, (int)n, A, (int)lda, x, (int)incx);
+    }
+}
+
+
+/* ============================================================================
+ * BLAS Level 3 Operations - NEW
+ * ========================================================================== */
+
+/* Symmetric matrix-matrix multiply: C = alpha*A*B + beta*C */
+static void aocl_dsymm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const int64_t m,
+                       const int64_t n,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* B,
+                       const int64_t ldb,
+                       const double beta,
+                       double* C,
+                       const int64_t ldc) {
+    if (g_aocl.dsymm) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dsymm(cblas_layout, cblas_side, cblas_uplo, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb, beta, C, (int)ldc);
+    }
+}
+
+/* Triangular matrix-matrix multiply: B = alpha*A*B */
+static void aocl_dtrmm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t m,
+                       const int64_t n,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* B,
+                       const int64_t ldb) {
+    if (g_aocl.dtrmm) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtrmm(cblas_layout, cblas_side, cblas_uplo, cblas_trans, cblas_diag, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb);
+    }
+}
+
+/* Triangular system solve with multiple RHS: A*X = alpha*B */
+static void aocl_dtrsm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t m,
+                       const int64_t n,
+                       const double alpha,
+                       const double* A,
+                       const int64_t lda,
+                       const double* B,
+                       const int64_t ldb) {
+    if (g_aocl.dtrsm) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.dtrsm(cblas_layout, cblas_side, cblas_uplo, cblas_trans, cblas_diag, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb);
+    }
+}
+
+/* Symmetric matrix-matrix multiply: C = alpha*A*B + beta*C */
+static void aocl_ssymm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const int64_t m,
+                       const int64_t n,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* B,
+                       const int64_t ldb,
+                       const float beta,
+                       float* C,
+                       const int64_t ldc) {
+    if (g_aocl.ssymm) {
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.ssymm(cblas_layout, cblas_side, cblas_uplo, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb, beta, C, (int)ldc);
+    }
+}
+
+/* Triangular matrix-matrix multiply: B = alpha*A*B */
+static void aocl_strmm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t m,
+                       const int64_t n,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* B,
+                       const int64_t ldb) {
+    if (g_aocl.strmm) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.strmm(cblas_layout, cblas_side, cblas_uplo, cblas_trans, cblas_diag, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb);
+    }
+}
+
+/* Triangular system solve with multiple RHS: A*X = alpha*B */
+static void aocl_strsm(const fb_layout_t layout,
+                       const fb_side_t side,
+                       const fb_uplo_t uplo,
+                       const fb_transpose_t trans,
+                       const fb_diag_t diag,
+                       const int64_t m,
+                       const int64_t n,
+                       const float alpha,
+                       const float* A,
+                       const int64_t lda,
+                       const float* B,
+                       const int64_t ldb) {
+    if (g_aocl.strsm) {
+        CBLAS_DIAG cblas_diag = (diag == FB_NON_UNIT) ? CblasNonUnit : CblasUnit;
+        CBLAS_LAYOUT cblas_layout = (layout == FB_LAYOUT_ROW_MAJOR) ? CblasRowMajor : CblasColMajor;
+        CBLAS_SIDE cblas_side = (side == FB_LEFT) ? CblasLeft : CblasRight;
+        CBLAS_TRANSPOSE cblas_trans = (trans == FB_NO_TRANS) ? CblasNoTrans : (trans == FB_TRANS) ? CblasTrans : CblasConjTrans;
+        CBLAS_UPLO cblas_uplo = (uplo == FB_UPPER) ? CblasUpper : CblasLower;
+        g_aocl.strsm(cblas_layout, cblas_side, cblas_uplo, cblas_trans, cblas_diag, (int)m, (int)n, alpha, A, (int)lda, B, (int)ldb);
+    }
+}
+
+
+--- VTABLE ENTRIES (add in g_aocl_vtable, after .dgemm line) ---
+    .dger = aocl_dger,
+    .dsymv = aocl_dsymv,
+    .dtrmv = aocl_dtrmv,
+    .dtrsv = aocl_dtrsv,
+    .sger = aocl_sger,
+    .ssymv = aocl_ssymv,
+    .strmv = aocl_strmv,
+    .strsv = aocl_strsv,
+    .dsymm = aocl_dsymm,
+    .dtrmm = aocl_dtrmm,
+    .dtrsm = aocl_dtrsm,
+    .ssymm = aocl_ssymm,
+    .strmm = aocl_strmm,
+    .strsm = aocl_strsm,
+
+
+================================================================================
+GENERATION COMPLETE
+================================================================================
+
+Generated 14 operations
+
+Next steps:
+1. Copy TYPEDEFS after existing cblas_*_t typedefs (line ~107)
+2. Copy STRUCT FIELDS to g_aocl struct (line ~153)
+3. Copy FUNCTION LOADERS to load_aocl_library() (line ~265)
+4. Copy WRAPPER FUNCTIONS after aocl_dgemm (line ~798)
+5. Copy VTABLE ENTRIES to g_aocl_vtable (line ~1830)
+6. Rebuild and test
+7. Repeat for other backends (cuBLAS, CLBlast, oneMKL)

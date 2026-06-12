@@ -1,0 +1,17 @@
+
+zgelsd basic
+  zgelsd: negative m is rejected
+  zgelsd: negative n is rejected
+  zgelsd: short lda is rejected
+  zgelsd: short ldb is rejected
+  zgelsd: short lwork is rejected
+  zgelsd: workspace query reports positive sizes
+  zgelsd: zero-size quick return preserves B
+  zgelsd: exact 2x2 solve reports rank and singular values
+  zgelsd: structured 16x16 multi-rhs exact solve preserves the known solution
+
+zgelsd Results:
+  Total:  557
+  Passed: 44
+  Failed: 513
+  Success Rate: 7.9%

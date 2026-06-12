@@ -1,0 +1,39 @@
+[1/18] Performing update step for 'openblas-backend'
+-- Already at requested tag: v0.3.30
+[2/18] No patch step for 'openblas-backend'
+[3/18] No configure step for 'openblas-backend'
+[4/18] Performing update step for 'clblast-backend'
+-- Fetching latest from the remote origin
+[5/18] No patch step for 'clblast-backend'
+[6/18] Performing update step for 'blis-backend'
+-- Fetching latest from the remote origin
+[7/18] No patch step for 'blis-backend'
+[8/18] Performing configure step for 'clblast-backend'
+[9/18] Performing configure step for 'blis-backend'
+FAILED: [code=1] blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\blis-src && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-Debug.cmake:49 (message):
+  Command failed: 127
+
+   'wsl' 'bash' '-c' 'cd '/mnt/c/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-src' && ./configure --prefix='/mnt/c/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/blis' --enable-cblas --enable-threading=openmp --enable-shared --enable-static zen4'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/blis-backend-prefix/src/blis-backend-stamp/blis-backend-configure-*.log
+
+
+[10/18] Performing build step for 'clblast-backend'
+FAILED: [code=1] clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\clblast-build && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build-Debug.cmake:49 (message):
+  Command failed: 1
+
+   'C:/Program Files/CMake/bin/cmake.exe' '--build' '.' '--config' 'Release' '-j32'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/clblast-backend-prefix/src/clblast-backend-stamp/clblast-backend-build-*.log
+
+
+[11/18] Performing build step for 'openblas-backend'
+ninja: build stopped: subcommand failed.

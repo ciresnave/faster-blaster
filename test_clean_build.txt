@@ -1,0 +1,1148 @@
+[DEBUG] Calling initialize_backend_instance for plugin 'aocl-blis'
+[DEBUG] About to call plugin->get_vtable(000001B7D7900E80)
+[DEBUG] plugin->get_vtable returned 00007FFA80FB1AE0
+[DEBUG] Returning 0 from initialize_backend_instance
+[DEBUG] initialize_backend_instance succeeded, incrementing num_instances from 0 to 1
+[DEBUG] Successfully incremented num_instances
+[DEBUG] Calling initialize_backend_instance for plugin 'openblas'
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  COMPREHENSIVE CORRECTNESS VALIDATION
+  Testing ALL operations on ALL backends/devices
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+=============================================================
+ faster-blaster: Hybrid CPU/GPU Dispatch System
+ Version: 0.1.0-alpha
+=============================================================
+
+[1/5] Registering backend plugins...
+[INFO] Plugin registration complete
+[2/5] Detecting compute devices...
+Detecting compute devices...
+  [0] CPU: AMD Ryzen 9 7940HX with Radeon Graphics         (16 cores, 1226 GFLOPS)
+  Found 1 CUDA GPU(s)
+    [1] GPU: NVIDIA GeForce RTX 4070 Laptop GPU (7396 GFLOPS, 8187 MB)
+  Found 1 ROCm GPU(s)
+[ERROR] Failed to load plugin for device 0
+[DEBUG] initialize_backend_instance failed for plugin 'openblas'
+[DEBUG] Finished plugin loop, searching for best instance for device 00007FFA80FAB5E0
+[DEBUG] Checking instance 0 (device=00007FFA80FAB5E0, initialized=1)
+[DEBUG] Found matching instance at index 0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+    [2] GPU: AMD Radeon(TM) 610M (282 GFLOPS, 24784 MB)
+[OpenCL] Detection starting...
+[OpenCL] clGetPlatformIDs returned 0, num_platforms=3
+[OpenCL] Platform 0: NVIDIA CUDA
+[OpenCL]   clGetDeviceIDs returned 0, num_devices=1
+[OpenCL] Platform 1: AMD Accelerated Parallel Processing
+[OpenCL]   clGetDeviceIDs returned 0, num_devices=1
+[OpenCL] Platform 2: Intel(R) OpenCL
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[OpenCL]   clGetDeviceIDs returned -1, num_devices=0
+  Found 2 OpenCL GPU(s)
+    Skipping duplicate GPU: NVIDIA GeForce RTX 4070 Laptop GPU (PCI 0000:01:00.0 already registered as device 1)
+[DEBUG] get_vtable: plugin_name=aocl-blis
+    Skipping duplicate GPU: AMD Radeon(TM) 610M (PCI 0000:06:00.0 already registered as device 2)
+Device registry initialized: 3 device(s) detected
+[3/5] Initializing compute manager...
+Initializing compute manager...
+Compute manager initialized with 3 device(s)
+Default dispatch strategy: FASTEST
+[4/5] Initializing backend loader...
+[INFO] Backend instance manager initialized
+[5/5] System ready!
+
+
+=== Detected Compute Devices ===
+[0] CPU: AMD Ryzen 9 7940HX with Radeon Graphics        
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+    Performance: 1226 GFLOPS (FP32), 613 GFLOPS (FP64)
+    Memory: 8.00 GB, Bandwidth: 50.0 GB/s
+    Capabilities: FP64
+    Cores: 16 physical, 32 logical
+    SIMD: 512-bit (AVX-512)
+[1] GPU: NVIDIA GeForce RTX 4070 Laptop GPU
+    Performance: 7396 GFLOPS (FP32), 231 GFLOPS (FP64)
+    Memory: 8.00 GB, Bandwidth: 256.0 GB/s
+    Capabilities: FP64 FP16 BF16 TensorCores
+    Compute Capability: 8.9
+    Multiprocessors: 36
+[2] GPU: AMD Radeon(TM) 610M
+    Performance: 282 GFLOPS (FP32), 141 GFLOPS (FP64)
+    Memory: 24.20 GB, Bandwidth: 0.0 GB/s
+    Capabilities: FP64 FP16 BF16
+    Compute Capability: 0.0
+    Multiprocessors: 1
+================================
+
+
+[SUCCESS] faster-blaster initialized successfully
+
+Detected 3 device(s)
+
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+Testing Device 0: AMD Ryzen 9 7940HX with Radeon Graphics        
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+[INFO] Pinned execution to device 0: AMD Ryzen 9 7940HX with Radeon Graphics        
+[INFO] Loading backend for device 0 (AMD Ryzen 9 7940HX with Radeon Graphics        )
+[DEBUG] Probed aocl-blis: score=95, reason=Found AOCL BLIS with CBLAS interface (AMD CPU detected)
+[DEBUG] Initializing best plugin: aocl-blis (score=95)
+[AOCL] Init called
+[AOCL] Loading library...
+[AOCL] Loaded MT version from: C:\Program Files\AMD\AOCL-Windows\amd-blis\lib\LP64\AOCL-LibBlis-Win-MT-dll.dll
+[AOCL] Library load result: 00007FFA111B0000
+[AOCL] Allocating context...
+[AOCL] Context allocated at 000001B7D7900E80
+[AOCL] Setting lib_handle...
+[AOCL] Loading CBLAS functions...
+[AOCL] Checking critical functions...
+[AOCL] Populating vtable...
+[DEBUG] Init returned: 0
+[DEBUG] Plugin initialized successfully
+[INFO] Successfully loaded backend: aocl-blis (version 4.2.1)
+[INFO] Loading backend for device 0 (AMD Ryzen 9 7940HX with Radeon Graphics        )
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] get_vtable called with instance=000001B7D786D410
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F90BF0
+[DEBUG] get_vtable: plugin_name=aocl-blis
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB1AE0
+[DEBUG] Calling initialize_backend_instance for plugin 'cublas'
+[DEBUG] About to call plugin->get_vtable(000001B7E90B1CB0)
+[DEBUG] plugin->get_vtable returned 00007FFA80FB4AF0
+[DEBUG] Returning 0 from initialize_backend_instance
+[DEBUG] initialize_backend_instance succeeded, incrementing num_instances from 1 to 2
+[DEBUG] Successfully incremented num_instances
+[DEBUG] Calling initialize_backend_instance for plugin 'clblast'
+[CLBlast] vtable->mem_free = 00007FFA80F661C0
+[CLBlast] vtable->stream_destroy = 00007FFA80F663B0
+[CLBlast] register_instance called: vtable=000001B7FB622900, handle=000001B7E922ABD0
+[CLBlast] Registered at slot 0
+[CLBlast] Instance initialized: vtable=000001B7FB622900, backend_handle=000001B7E922ABD0
+[DEBUG] About to call plugin->get_vtable(000001B7E933F1D0)
+[DEBUG] plugin->get_vtable returned 000001B7FB622900
+[DEBUG] Returning 0 from initialize_backend_instance
+[DEBUG] initialize_backend_instance succeeded, incrementing num_instances from 2 to 3
+[DEBUG] Successfully incremented num_instances
+[DEBUG] Finished plugin loop, searching for best instance for device 00007FFA80FAB7C0
+[DEBUG] Checking instance 0 (device=00007FFA80FAB5E0, initialized=1)
+[DEBUG] Checking instance 1 (device=00007FFA80FAB7C0, initialized=1)
+[DEBUG] Found matching instance at index 1
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] get_vtable called with instance=000001B7D786D448
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F919D0
+[DEBUG] get_vtable: plugin_name=cublas
+[DEBUG] get_vtable: Returning vtable=00007FFA80FB4AF0
+[DEBUG] Calling initialize_backend_instance for plugin 'rocblas'
+[ERROR] Failed to load plugin for device 2
+[DEBUG] initialize_backend_instance failed for plugin 'rocblas'
+[DEBUG] Calling initialize_backend_instance for plugin 'clblast'
+[CLBlast] vtable->mem_free = 00007FFA80F661C0
+[CLBlast] vtable->stream_destroy = 00007FFA80F663B0
+[CLBlast] register_instance called: vtable=000001B7FBFEE7C0, handle=000001B7E922BBC0
+[CLBlast] Registered at slot 1
+[CLBlast] Instance initialized: vtable=000001B7FBFEE7C0, backend_handle=000001B7E922BBC0
+[DEBUG] About to call plugin->get_vtable(000001B7E9342710)
+[DEBUG] plugin->get_vtable returned 000001B7FBFEE7C0
+[DEBUG] Returning 0 from initialize_backend_instance
+[DEBUG] initialize_backend_instance succeeded, incrementing num_instances from 3 to 4
+[DEBUG] Successfully incremented num_instances
+[DEBUG] Calling initialize_backend_instance for plugin 'clblas'
+[ERROR] Failed to load plugin for device 2
+[DEBUG] initialize_backend_instance failed for plugin 'clblas'
+[DEBUG] Finished plugin loop, searching for best instance for device 00007FFA80FAB9A0
+[DEBUG] Checking instance 0 (device=00007FFA80FAB5E0, initialized=1)
+[DEBUG] Checking instance 1 (device=00007FFA80FAB7C0, initialized=1)
+[DEBUG] Checking instance 2 (device=00007FFA80FAB7C0, initialized=1)
+[DEBUG] Checking instance 3 (device=00007FFA80FAB9A0, initialized=1)
+[DEBUG] Found matching instance at index 3
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[CLBlast] saxpy: About to call CLBlast with n=64, alpha=2.500000
+[CLBlast] saxpy: x_device=000001B7EA621000, y_device=000001B7EA621520
+[CLBlast] saxpy: fb_clblast_trait.saxpy=00007FFA80F5A820
+[CLBlast] saxpy: backend_handle=000001B7E922BBC0
+[CLBlast] saxpy: CLBlast call returned
+[CLBlast] saxpy: clFinish completed
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[CLBlast] saxpy: About to call CLBlast with n=256, alpha=2.500000
+[CLBlast] saxpy: x_device=000001B7EA6200A0, y_device=000001B7EA621000
+[CLBlast] saxpy: fb_clblast_trait.saxpy=00007FFA80F5A820
+[CLBlast] saxpy: backend_handle=000001B7E922BBC0
+[CLBlast] saxpy: CLBlast call returned
+[CLBlast] saxpy: clFinish completed
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[CLBlast] saxpy: About to call CLBlast with n=1024, alpha=2.500000
+[CLBlast] saxpy: x_device=000001B7EA621A40, y_device=000001B7EA61F3D0
+[CLBlast] saxpy: fb_clblast_trait.saxpy=00007FFA80F5A820
+[CLBlast] saxpy: backend_handle=000001B7E922BBC0
+[CLBlast] saxpy: CLBlast call returned
+[CLBlast] saxpy: clFinish completed
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[CLBlast] Found handle for vtable=000001B7FBFEE7C0 at slot 1, handle=000001B7E922BBC0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable called with instance=000001B7D786D4B8
+[DEBUG] get_vtable: instance OK, plugin=00007FFA80F93280
+[DEBUG] get_vtable: plugin_name=clblast
+[DEBUG] get_vtable: About to call clblast_set_active_instance
+[CLBlast] set_active_instance: vtable=000001B7FBFEE7C0
+[DEBUG] get_vtable: Returned from clblast_set_active_instance
+[DEBUG] get_vtable: Returning vtable=000001B7FBFEE7C0
+[DEBUG] Probed openblas: score=0, reason=OpenBLAS library not found in search paths
+
+  Backend: aocl-blis (v4.2.1)
+  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    Level 1 BLAS (Vector-Vector):
+    Level 2 BLAS (Matrix-Vector):
+    Level 3 BLAS (Matrix-Matrix):
+    PHASE2: Symmetric Rank Updates:
+    PHASE2: Band Matrix Operations:
+
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+Testing Device 1: NVIDIA GeForce RTX 4070 Laptop GPU
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+[INFO] Pinned execution to device 1: NVIDIA GeForce RTX 4070 Laptop GPU
+[INFO] Loading backend for device 1 (NVIDIA GeForce RTX 4070 Laptop GPU)
+[DEBUG] Probed cublas: score=95, reason=Found NVIDIA GPU with CUDA runtime
+[DEBUG] Initializing best plugin: cublas (score=95)
+[DEBUG] Init returned: 0
+[DEBUG] Plugin initialized successfully
+[INFO] Successfully loaded backend: cublas (version 12.0)
+[INFO] Loading backend for device 1 (NVIDIA GeForce RTX 4070 Laptop GPU)
+[DEBUG] Probed clblast: score=85, reason=Found OpenCL GPU with CLBlast library
+[DEBUG] Initializing best plugin: clblast (score=85)
+[DEBUG] Init returned: 0
+[DEBUG] Plugin initialized successfully
+[INFO] Successfully loaded backend: clblast (version 1.6.0)
+
+  Backend: cublas (v12.0)
+  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    Level 1 BLAS (Vector-Vector):
+    Level 2 BLAS (Matrix-Vector):
+    Level 3 BLAS (Matrix-Matrix):
+    PHASE2: Symmetric Rank Updates:
+    PHASE2: Band Matrix Operations:
+
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+Testing Device 2: AMD Radeon(TM) 610M
+ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü
+[INFO] Pinned execution to device 2: AMD Radeon(TM) 610M
+[INFO] Loading backend for device 2 (AMD Radeon(TM) 610M)
+[INFO] Loading backend for device 2 (AMD Radeon(TM) 610M)
+[DEBUG] Probed clblast: score=85, reason=Found OpenCL GPU with CLBlast library
+[DEBUG] Initializing best plugin: clblast (score=85)
+[DEBUG] Init returned: 0
+[DEBUG] Plugin initialized successfully
+[INFO] Successfully loaded backend: clblast (version 1.6.0)
+[INFO] Loading backend for device 2 (AMD Radeon(TM) 610M)
+[DEBUG] Probed clblas: score=0, reason=OpenCL GPU detected but clBLAS library not found
+
+  Backend: clblast (v1.6.0)
+  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    Level 1 BLAS (Vector-Vector):
+    Level 2 BLAS (Matrix-Vector):
+    Level 3 BLAS (Matrix-Matrix):
+    PHASE2: Symmetric Rank Updates:
+    PHASE2: Band Matrix Operations:
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  COMPREHENSIVE CORRECTNESS TEST RESULTS
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+  Total Tests: 174
+  Γ£ô Passed:    35
+  Γ£ù Failed:    2
+  ΓÜá Skipped:   137
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  FAILED TESTS:
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+  Γ£ù sgemv [FP32] on clblast
+    Device: AMD Radeon(TM) 610M (ID: 2)
+    Size: 65536
+[CLBlast] Unregistered instance: vtable=000001B7FB622900 at slot 0
+[CLBlast] Unregistered instance: vtable=000001B7FBFEE7C0 at slot 1
+    Max Error: 1.335144e-05
+    Reason: Numerical error exceeds tolerance
+
+  Γ£ù sgemv [FP32] on clblast
+    Device: AMD Radeon(TM) 610M (ID: 2)
+    Size: 16384
+    Max Error: 1.144409e-05
+    Reason: Numerical error exceeds tolerance
+
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+  Γ£ùΓ£ùΓ£ù SOME TESTS FAILED Γ£ùΓ£ùΓ£ù
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+
+  Results saved to: correctness_test_results.json
+[INFO] Shutting down backend for device 0
+[INFO] Shutting down backend for device 1
+[INFO] Shutting down backend for device 1
+[INFO] Shutting down backend for device 2
+[INFO] Backend instance manager shutdown complete
+Shutting down compute manager...
+Shutting down device registry...

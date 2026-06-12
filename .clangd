@@ -1,0 +1,17 @@
+---
+# Exclude generated macro-heavy thunk files from clangd indexing.
+# These files are included by conv_thunks.c, not compiled independently.
+# Parsing their full macro expansions consumes hundreds of MB of clangd heap.
+If:
+  PathMatch: src/core/conv_thunks_parts/.*\.inc
+CompileFlags:
+  Add: [-ferror-limit=0]
+Diagnostics:
+  Suppress: "*"
+
+---
+# Exclude generated backend wrapper headers for the same reason.
+If:
+  PathMatch: backends/generated/.*\.h
+Diagnostics:
+  Suppress: "*"

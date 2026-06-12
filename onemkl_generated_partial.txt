@@ -1,0 +1,559 @@
+=== LEVEL 1 BLAS ===
+/* ============================================================================
+ * BLAS Level 1 Operations - Copy/Swap/Dot/Nrm2/Asum/Iamax
+ * ========================================================================== */
+
+static void onemkl_scopy_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::copy(*queue, n, static_cast<const float*>(x), incx, static_cast<float*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL scopy error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dcopy_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::copy(*queue, n, static_cast<const double*>(x), incx, static_cast<double*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dcopy error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ccopy_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::copy(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<std::complex<float>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ccopy error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zcopy_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::copy(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<std::complex<double>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zcopy error: %s\n", e.what());
+    }
+}
+
+static void onemkl_sswap_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::swap(*queue, n, static_cast<float*>(x), incx, static_cast<float*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL sswap error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dswap_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::swap(*queue, n, static_cast<double*>(x), incx, static_cast<double*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dswap error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cswap_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::swap(*queue, n, static_cast<std::complex<float>*>(x), incx, static_cast<std::complex<float>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cswap error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zswap_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::swap(*queue, n, static_cast<std::complex<double>*>(x), incx, static_cast<std::complex<double>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zswap error: %s\n", e.what());
+    }
+}
+
+static void onemkl_sdot_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dot(*queue, n, static_cast<const float*>(x), incx, static_cast<const float*>(y), incy, static_cast<float*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL sdot error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ddot_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dot(*queue, n, static_cast<const double*>(x), incx, static_cast<const double*>(y), incy, static_cast<double*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ddot error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cdotu_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dotu(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<const std::complex<float>*>(y), incy, static_cast<std::complex<float>*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cdotu error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zdotu_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dotu(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<const std::complex<double>*>(y), incy, static_cast<std::complex<double>*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zdotu error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cdotc_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dotc(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<const std::complex<float>*>(y), incy, static_cast<std::complex<float>*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cdotc error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zdotc_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::dotc(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<const std::complex<double>*>(y), incy, static_cast<std::complex<double>*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zdotc error: %s\n", e.what());
+    }
+}
+
+static void onemkl_snrm2_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::nrm2(*queue, n, static_cast<const float*>(x), incx, static_cast<float*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL snrm2 error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dnrm2_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::nrm2(*queue, n, static_cast<const double*>(x), incx, static_cast<double*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dnrm2 error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cnrm2_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::nrm2(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<float*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cnrm2 error: %s\n", e.what());
+    }
+}
+
+static void onemkl_znrm2_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::nrm2(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<double*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL znrm2 error: %s\n", e.what());
+    }
+}
+
+static void onemkl_sasum_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::asum(*queue, n, static_cast<const float*>(x), incx, static_cast<float*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL sasum error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dasum_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::asum(*queue, n, static_cast<const double*>(x), incx, static_cast<double*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dasum error: %s\n", e.what());
+    }
+}
+
+static void onemkl_casum_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::asum(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<float*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL casum error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zasum_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::asum(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<double*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zasum error: %s\n", e.what());
+    }
+}
+
+static void onemkl_siamax_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::iamax(*queue, n, static_cast<const float*>(x), incx, static_cast<int64_t*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL siamax error: %s\n", e.what());
+    }
+}
+
+static void onemkl_diamax_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::iamax(*queue, n, static_cast<const double*>(x), incx, static_cast<int64_t*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL diamax error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ciamax_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::iamax(*queue, n, static_cast<const std::complex<float>*>(x), incx, static_cast<int64_t*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ciamax error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ziamax_impl(void* handle, fb_gpu_stream_t stream, int n, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t result) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::iamax(*queue, n, static_cast<const std::complex<double>*>(x), incx, static_cast<int64_t*>(result));
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ziamax error: %s\n", e.what());
+    }
+}
+
+
+=== LEVEL 2 BLAS ===
+/* ============================================================================
+ * BLAS Level 2 Operations - More Matrix-Vector Operations
+ * ========================================================================== */
+
+static void onemkl_dgemv_impl(void* handle, fb_gpu_stream_t stream, char trans, int m, int n, double alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx, double beta, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemv(*queue, convert_transpose(trans), m, n, static_cast<const double*>(&alpha), static_cast<const double*>(a), lda, static_cast<const double*>(x), incx, static_cast<const double*>(&beta), static_cast<double*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dgemv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cgemv_impl(void* handle, fb_gpu_stream_t stream, char trans, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx, const void* beta, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemv(*queue, convert_transpose(trans), m, n, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(a), lda, static_cast<const std::complex<float>*>(x), incx, *static_cast<const std::complex<float>*>(beta), static_cast<std::complex<float>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cgemv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zgemv_impl(void* handle, fb_gpu_stream_t stream, char trans, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx, const void* beta, fb_gpu_ptr_t y, int incy) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemv(*queue, convert_transpose(trans), m, n, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(a), lda, static_cast<const std::complex<double>*>(x), incx, *static_cast<const std::complex<double>*>(beta), static_cast<std::complex<double>*>(y), incy);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zgemv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_strmv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const float*>(a), lda, static_cast<float*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL strmv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dtrmv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const double*>(a), lda, static_cast<double*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dtrmv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ctrmv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const std::complex<float>*>(a), lda, static_cast<std::complex<float>*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ctrmv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ztrmv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const std::complex<double>*>(a), lda, static_cast<std::complex<double>*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ztrmv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_strsv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const float*>(a), lda, static_cast<float*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL strsv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dtrsv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const double*>(a), lda, static_cast<double*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dtrsv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ctrsv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const std::complex<float>*>(a), lda, static_cast<std::complex<float>*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ctrsv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ztrsv_impl(void* handle, fb_gpu_stream_t stream, char uplo, char trans, char diag, int n, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsv(*queue, convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), n, static_cast<const std::complex<double>*>(a), lda, static_cast<std::complex<double>*>(x), incx);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ztrsv error: %s\n", e.what());
+    }
+}
+
+static void onemkl_sger_impl(void* handle, fb_gpu_stream_t stream, int m, int n, float alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::ger(*queue, m, n, alpha, static_cast<const float*>(x), incx, static_cast<const float*>(y), incy, static_cast<float*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL sger error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dger_impl(void* handle, fb_gpu_stream_t stream, int m, int n, double alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::ger(*queue, m, n, alpha, static_cast<const double*>(x), incx, static_cast<const double*>(y), incy, static_cast<double*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dger error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cgeru_impl(void* handle, fb_gpu_stream_t stream, int m, int n, const void* alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::geru(*queue, m, n, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(x), incx, static_cast<const std::complex<float>*>(y), incy, static_cast<std::complex<float>*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cgeru error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zgeru_impl(void* handle, fb_gpu_stream_t stream, int m, int n, const void* alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::geru(*queue, m, n, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(x), incx, static_cast<const std::complex<double>*>(y), incy, static_cast<std::complex<double>*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zgeru error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cgerc_impl(void* handle, fb_gpu_stream_t stream, int m, int n, const void* alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gerc(*queue, m, n, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(x), incx, static_cast<const std::complex<float>*>(y), incy, static_cast<std::complex<float>*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cgerc error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zgerc_impl(void* handle, fb_gpu_stream_t stream, int m, int n, const void* alpha, fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy, fb_gpu_ptr_t a, int lda) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gerc(*queue, m, n, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(x), incx, static_cast<const std::complex<double>*>(y), incy, static_cast<std::complex<double>*>(a), lda);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zgerc error: %s\n", e.what());
+    }
+}
+
+
+=== LEVEL 3 BLAS ===
+/* ============================================================================
+ * BLAS Level 3 Operations - More Matrix-Matrix Operations
+ * ========================================================================== */
+
+static void onemkl_dgemm_impl(void* handle, fb_gpu_stream_t stream, char transa, char transb, int m, int n, int k, double alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb, double beta, fb_gpu_ptr_t c, int ldc) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemm(*queue, convert_transpose(transa), convert_transpose(transb), m, n, k, static_cast<const double*>(&alpha), static_cast<const double*>(a), lda, static_cast<const double*>(b), ldb, static_cast<const double*>(&beta), static_cast<double*>(c), ldc);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dgemm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_cgemm_impl(void* handle, fb_gpu_stream_t stream, char transa, char transb, int m, int n, int k, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb, const void* beta, fb_gpu_ptr_t c, int ldc) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemm(*queue, convert_transpose(transa), convert_transpose(transb), m, n, k, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(a), lda, static_cast<const std::complex<float>*>(b), ldb, *static_cast<const std::complex<float>*>(beta), static_cast<std::complex<float>*>(c), ldc);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL cgemm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_zgemm_impl(void* handle, fb_gpu_stream_t stream, char transa, char transb, int m, int n, int k, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb, const void* beta, fb_gpu_ptr_t c, int ldc) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::gemm(*queue, convert_transpose(transa), convert_transpose(transb), m, n, k, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(a), lda, static_cast<const std::complex<double>*>(b), ldb, *static_cast<const std::complex<double>*>(beta), static_cast<std::complex<double>*>(c), ldc);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL zgemm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_strmm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, float alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, static_cast<const float*>(&alpha), static_cast<const float*>(a), lda, static_cast<float*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL strmm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dtrmm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, double alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, static_cast<const double*>(&alpha), static_cast<const double*>(a), lda, static_cast<double*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dtrmm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ctrmm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(a), lda, static_cast<std::complex<float>*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ctrmm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ztrmm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trmm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(a), lda, static_cast<std::complex<double>*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ztrmm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_strsm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, float alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, static_cast<const float*>(&alpha), static_cast<const float*>(a), lda, static_cast<float*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL strsm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_dtrsm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, double alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, static_cast<const double*>(&alpha), static_cast<const double*>(a), lda, static_cast<double*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL dtrsm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ctrsm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, *static_cast<const std::complex<float>*>(alpha), static_cast<const std::complex<float>*>(a), lda, static_cast<std::complex<float>*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ctrsm error: %s\n", e.what());
+    }
+}
+
+static void onemkl_ztrsm_impl(void* handle, fb_gpu_stream_t stream, char side, char uplo, char trans, char diag, int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    onemkl_context_t* ctx = static_cast<onemkl_context_t*>(handle);
+    sycl::queue* queue = stream ? static_cast<sycl::queue*>(stream) : ctx->sycl_queue;
+    try {
+        oneapi::mkl::blas::trsm(*queue, convert_side(side), convert_uplo(uplo), convert_transpose(trans), convert_diag(diag), m, n, *static_cast<const std::complex<double>*>(alpha), static_cast<const std::complex<double>*>(a), lda, static_cast<std::complex<double>*>(b), ldb);
+    } catch (const oneapi::mkl::exception& e) {
+        fprintf(stderr, "oneMKL ztrsm error: %s\n", e.what());
+    }
+}
+
+
+Total operations generated: 54

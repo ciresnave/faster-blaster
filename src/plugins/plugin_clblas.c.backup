@@ -1,0 +1,224 @@
+/**
+ * @file plugin_clblas.c
+ * @brief clBLAS OpenCL BLAS Plugin
+ * 
+ * clBLAS is AMD's OpenCL BLAS library providing a complete set of BLAS 1, 2, 3 routines.
+ * While in maintenance mode, it remains functional and supports:
+ * - AMD GPUs (via OpenCL, including integrated GPUs)
+ * - NVIDIA GPUs (via OpenCL)
+ * - Intel GPUs
+ * - CPU fallback
+ * 
+ * Homepage: https://github.com/clMathLibraries/clBLAS
+ */
+
+#include "faster-blaster/backend_plugin.h"
+#include <stdlib.h>
+#include <string.h>
+
+/* clBLAS availability check */
+#if defined(FB_ENABLE_OPENCL)
+#define CLBLAS_AVAILABLE 1
+#else
+#define CLBLAS_AVAILABLE 0
+#endif
+
+#if CLBLAS_AVAILABLE
+#include <CL/cl.h>
+
+/* clBLAS enums */
+typedef enum clblasOrder_ {
+    clblasRowMajor = 0,
+    clblasColumnMajor = 1
+} clblasOrder;
+
+typedef enum clblasTranspose_ {
+    clblasNoTrans = 0,
+    clblasTrans = 1,
+    clblasConjTrans = 2
+} clblasTranspose;
+
+/* clBLAS function pointers */
+typedef cl_int (*clblasSetup_t)(void);
+typedef void (*clblasTeardown_t)(void);
+
+typedef cl_int (*clblasSgemm_t)(clblasOrder order, clblasTranspose transA, clblasTranspose transB,
+                                 size_t M, size_t N, size_t K,
+                                 cl_float alpha, const cl_mem A, size_t offA, size_t lda,
+                                 const cl_mem B, size_t offB, size_t ldb,
+                                 cl_float beta, cl_mem C, size_t offC, size_t ldc,
+                                 cl_uint numCommandQueues, cl_command_queue* commandQueues,
+                                 cl_uint numEventsInWaitList, const cl_event* eventWaitList, cl_event* events);
+
+typedef cl_int (*clblasDgemm_t)(clblasOrder order, clblasTranspose transA, clblasTranspose transB,
+                                 size_t M, size_t N, size_t K,
+                                 cl_double alpha, const cl_mem A, size_t offA, size_t lda,
+                                 const cl_mem B, size_t offB, size_t ldb,
+                                 cl_double beta, cl_mem C, size_t offC, size_t ldc,
+                                 cl_uint numCommandQueues, cl_command_queue* commandQueues,
+                                 cl_uint numEventsInWaitList, const cl_event* eventWaitList, cl_event* events);
+
+typedef struct {
+    fb_lib_handle_t lib_handle;
+    cl_context context;
+    cl_command_queue queue;
+    
+    /* Function pointers */
+    clblasSetup_t setup;
+    clblasTeardown_t teardown;
+    clblasSgemm_t sgemm;
+    clblasDgemm_t dgemm;
+    /* Add more function pointers as needed */
+} clblas_plugin_context_t;
+
+#endif /* CLBLAS_AVAILABLE */
+
+static fb_plugin_probe_result_t clblas_probe(const fb_device_info_t* device, const char** search_paths) {
+    fb_plugin_probe_result_t result = {0};
+    
+#if !CLBLAS_AVAILABLE
+    result.score = 0;
+    result.reason = "clBLAS support not compiled in (OpenCL disabled)";
+    return result;
+#else
+    
+    /* Only probe for OpenCL-capable GPU devices */
+    if (device->type != FB_DEVICE_GPU || !device->compute.has_opencl) {
+        result.score = 0;
+        result.reason = "Device does not support OpenCL";
+        return result;
+    }
+    
+    /* Try to find clBLAS library */
+    const char* lib_names[] = {
+#ifdef _WIN32
+        "clBLAS.dll",
+#elif defined(__APPLE__)
+        "libclBLAS.dylib",
+#else
+        "libclBLAS.so",
+        "libclBLAS.so.2",
+#endif
+        NULL
+    };
+    
+    const char* default_paths[] = {
+#ifdef _WIN32
+        "C:\\Program Files\\clBLAS\\bin",
+        "C:\\Program Files (x86)\\clBLAS\\bin",
+#elif defined(__APPLE__)
+        "/usr/local/lib",
+        "/opt/homebrew/lib",
+#else
+        "/usr/local/lib",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib",
+#endif
+        NULL
+    };
+    
+    fb_lib_handle_t test_handle = fb_plugin_load_library(lib_names,
+                                                          search_paths ? search_paths : default_paths);
+    
+    if (test_handle) {
+        /* OpenCL GPU detected and clBLAS available */
+        result.score = 80; /* Slightly lower than CLBlast (maintenance mode) */
+        result.library_path = NULL;
+        result.reason = "Found OpenCL GPU with clBLAS library";
+        
+        fb_plugin_unload_library(test_handle);
+    } else {
+        result.score = 0;
+        result.reason = "OpenCL GPU detected but clBLAS library not found";
+    }
+    
+    return result;
+#endif
+}
+
+static int clblas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) {
+    if (!ctx_out) {
+        return -1;
+    }
+    
+#if !CLBLAS_AVAILABLE
+    return -1; /* Not available */
+#else
+    
+    clblas_plugin_context_t* ctx = (clblas_plugin_context_t*)calloc(1, sizeof(clblas_plugin_context_t));
+    if (!ctx) {
+        return -2;
+    }
+    
+    ctx->lib_handle = lib_handle;
+    
+    /* Load clBLAS function pointers */
+    ctx->setup = (clblasSetup_t)fb_plugin_get_symbol(lib_handle, "clblasSetup");
+    ctx->teardown = (clblasTeardown_t)fb_plugin_get_symbol(lib_handle, "clblasTeardown");
+    ctx->sgemm = (clblasSgemm_t)fb_plugin_get_symbol(lib_handle, "clblasSgemm");
+    ctx->dgemm = (clblasDgemm_t)fb_plugin_get_symbol(lib_handle, "clblasDgemm");
+    
+    if (!ctx->setup || !ctx->teardown || !ctx->sgemm || !ctx->dgemm) {
+        free(ctx);
+        return -3; /* Failed to load required symbols */
+    }
+    
+    /* Initialize clBLAS */
+    cl_int err = ctx->setup();
+    if (err != CL_SUCCESS) {
+        free(ctx);
+        return -4; /* clblasSetup failed */
+    }
+    
+    /* TODO: Initialize OpenCL context and queue for the target device */
+    
+    *ctx_out = (fb_plugin_context_t*)ctx;
+    return 0;
+#endif
+}
+
+static void clblas_shutdown(fb_plugin_context_t* ctx) {
+#if CLBLAS_AVAILABLE
+    if (ctx) {
+        clblas_plugin_context_t* clblas_ctx = (clblas_plugin_context_t*)ctx;
+        
+        /* Teardown clBLAS */
+        if (clblas_ctx->teardown) {
+            clblas_ctx->teardown();
+        }
+        
+        /* Release OpenCL resources */
+        if (clblas_ctx->queue) {
+            clReleaseCommandQueue(clblas_ctx->queue);
+        }
+        if (clblas_ctx->context) {
+            clReleaseContext(clblas_ctx->context);
+        }
+        
+        free(ctx);
+    }
+#endif
+}
+
+static const fb_backend_vtable_t* clblas_get_backend(fb_plugin_context_t* ctx) {
+    /* TODO: Return clBLAS backend vtable (to be implemented) */
+    (void)ctx;
+    return NULL; /* Stub for now */
+}
+
+/* Plugin descriptor */
+static const fb_plugin_descriptor_t clblas_plugin = {
+    .name = "clblas",
+    .version = "2.12",
+    .vendor = "AMD (clMath)",
+    .capabilities = FB_CAPABILITY_FP64 | FB_CAPABILITY_FP32,
+    .type = FB_PLUGIN_GPU,
+    .probe = clblas_probe,
+    .init = clblas_init,
+    .shutdown = clblas_shutdown,
+    .get_backend = clblas_get_backend
+};
+
+void fb_register_clblas_plugin(void) {
+    fb_register_plugin(&clblas_plugin);
+}

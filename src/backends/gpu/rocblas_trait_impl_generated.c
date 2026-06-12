@@ -1,0 +1,3625 @@
+/**
+ * @file rocblas_trait_impl.c
+ * @brief AMD rocBLAS implementation of GPU backend trait
+ * 
+ * Provides rocBLAS-specific implementation of the unified GPU backend trait interface.
+ * This allows transparent use of NVIDIA GPUs alongside AMD or Intel GPUs.
+ */
+
+#include "faster-blaster/gpu_backend_trait.h"
+#include <hip/hip_runtime.h>
+#include <rocblas/rocblas.h>
+#include <rocsolver/rocsolver.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* ============================================================================
+ * rocBLAS-specific Context
+ * ========================================================================== */
+
+typedef struct {
+    rocblas_handle rocblas_handle;
+    int device_id;
+} rocblas_context_t;
+    // Allocate context
+    rocblas_context_t* ctx = (rocblas_context_t*)malloc(sizeof(rocblas_context_t));
+    if (!ctx) {
+        return -1;
+    }
+    ctx->device_id = device_id;
+    
+    // Create rocBLAS handle
+    rocblas_status = rocblas_create_handle(&ctx->blas_handle);
+    if (rocblas_status != rocblas_status_success) {
+        fprintf(stderr, "rocBLAS: Failed to create handle: %d\n", rocblas_status);
+        free(ctx);
+        return -1;
+    }
+    
+    // Create cuSOLVER handle
+    cusolver_status = rocblas_create_handle(&ctx->solver_handle);
+    if (cusolver_status != rocblas_status_success) {
+        fprintf(stderr, "cuSOLVER: Failed to create handle: %d\n", cusolver_status);
+        rocblas_destroy_handle(ctx->blas_handle);
+        free(ctx);
+        return -1;
+    }
+    
+    *backend_handle = ctx;
+    return 0;
+}
+
+static void rocblas_shutdown(void* backend_handle) {
+    if (!backend_handle) {
+        return;
+    }
+    
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    
+    if (ctx->blas_handle) {
+        rocblas_destroy_handle(ctx->blas_handle);
+    }
+    if (ctx->solver_handle) {
+        rocblas_destroy_handle(ctx->solver_handle);
+    }
+    
+    free(ctx);
+}
+
+static int rocblas_get_device_properties(void* backend_handle, int device_id,
+                                         char* name, size_t name_len,
+                                         size_t* total_memory) {
+    hipError_t err;
+    struct hipDeviceProp_t prop;
+    
+    err = hipGetDeviceProperties(&prop, device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    if (name && name_len > 0) {
+        strncpy(name, prop.name, name_len - 1);
+        name[name_len - 1] = '\0';
+    }
+    
+    if (total_memory) {
+        *total_memory = prop.totalGlobalMem;
+    }
+    
+    return 0;
+}
+
+/* ============================================================================
+ * Memory Management
+ * ========================================================================== */
+
+static int rocblas_malloc(void* backend_handle, fb_gpu_ptr_t* ptr, size_t size) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    err = hipMalloc(ptr, size);
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipMalloc failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+static void rocblas_free(void* backend_handle, fb_gpu_ptr_t ptr) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    
+    hipSetDevice(ctx->device_id);
+    hipFree(ptr);
+}
+
+static int rocblas_memcpy_h2d(void* backend_handle, fb_gpu_ptr_t dst,
+                              const void* src, size_t size) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    err = hipMemcpy(dst, src, size, hipMemcpyHostToDevice);
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipMemcpy H2D failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int rocblas_memcpy_d2h(void* backend_handle, void* dst,
+                              fb_gpu_ptr_t src, size_t size) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    err = hipMemcpy(dst, src, size, hipMemcpyDeviceToHost);
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipMemcpy D2H failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+static int rocblas_memcpy_d2d(void* backend_handle, fb_gpu_ptr_t dst,
+                              fb_gpu_ptr_t src, size_t size) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    err = hipMemcpy(dst, src, size, hipMemcpyDeviceToDevice);
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipMemcpy D2D failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/* ============================================================================
+ * Stream/Queue Management
+ * ========================================================================== */
+
+static int rocblas_stream_create(void* backend_handle, fb_gpu_stream_t* stream) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    err = hipStreamCreate((hipStream_t*)stream);
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipStreamCreate failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+static void rocblas_stream_destroy(void* backend_handle, fb_gpu_stream_t stream) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    
+    hipSetDevice(ctx->device_id);
+    hipStreamDestroy((hipStream_t)stream);
+}
+
+static int rocblas_stream_synchronize(void* backend_handle, fb_gpu_stream_t stream) {
+    rocblas_context_t* ctx = (rocblas_context_t*)backend_handle;
+    hipError_t err;
+    
+    err = hipSetDevice(ctx->device_id);
+    if (err != hipSuccess) {
+        return -1;
+    }
+    
+    if (stream) {
+        err = hipStreamSynchronize((hipStream_t)stream);
+    } else {
+        err = hipDeviceSynchronize();
+    }
+    
+    if (err != hipSuccess) {
+        fprintf(stderr, "rocBLAS: hipStreamSynchronize failed: %s\n", hipGetErrorString(err));
+        return -1;
+    }
+    
+    return 0;
+}
+
+/* ============================================================================
+ * Enum Conversion Helpers
+ * ========================================================================== */
+
+static int rocblas_convert_transpose(char trans) {
+    switch (trans) {
+        case 'N': case 'n': return ROCBLAS_OP_N;
+        case 'T': case 't': return rocblas_operation_transpose;
+        case 'C': case 'c': return rocblas_operation_conjugate_transpose;
+        default:
+            fprintf(stderr, "rocBLAS: Invalid transpose flag '%c'\n", trans);
+            return ROCBLAS_OP_N;
+    }
+}
+
+static int rocblas_convert_uplo(char uplo) {
+    switch (uplo) {
+        case 'U': case 'u': return ROCBLAS_FILL_MODE_UPPER;
+        case 'L': case 'l': return ROCBLAS_FILL_MODE_LOWER;
+        default:
+            fprintf(stderr, "rocBLAS: Invalid uplo flag '%c'\n", uplo);
+            return ROCBLAS_FILL_MODE_UPPER;
+    }
+}
+
+static int rocblas_convert_diag(char diag) {
+    switch (diag) {
+        case 'N': case 'n': return ROCBLAS_DIAG_NON_UNIT;
+        case 'U': case 'u': return ROCBLAS_DIAG_UNIT;
+        default:
+            fprintf(stderr, "rocBLAS: Invalid diag flag '%c'\n", diag);
+            return ROCBLAS_DIAG_NON_UNIT;
+    }
+}
+
+static int rocblas_convert_side(char side) {
+    switch (side) {
+        case 'L': case 'l': return ROCBLAS_SIDE_LEFT;
+        case 'R': case 'r': return ROCBLAS_SIDE_RIGHT;
+        default:
+            fprintf(stderr, "rocBLAS: Invalid side flag '%c'\n", side);
+            return ROCBLAS_SIDE_LEFT;
+    }
+}
+
+/* ============================================================================
+ * BLAS Level 1 Operations - Real (Single/Double Precision)
+ * ========================================================================== */
+
+static void rocblas_saxpy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, float alpha, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_saxpy(ctx->blas_handle, n, &alpha, (const float*)x, incx, (float*)y, incy);
+}
+
+static void rocblas_daxpy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, double alpha, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_daxpy(ctx->blas_handle, n, &alpha, (const double*)x, incx, (double*)y, incy);
+}
+
+static void rocblas_sscal_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, float alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sscal(ctx->blas_handle, n, &alpha, (float*)x, incx);
+}
+
+static void rocblas_dscal_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, double alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dscal(ctx->blas_handle, n, &alpha, (double*)x, incx);
+}
+
+static void rocblas_scopy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_scopy(ctx->blas_handle, n, (const float*)x, incx, (float*)y, incy);
+}
+
+static void rocblas_dcopy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dcopy(ctx->blas_handle, n, (const double*)x, incx, (double*)y, incy);
+}
+
+static void rocblas_sswap_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sswap(ctx->blas_handle, n, (float*)x, incx, (float*)y, incy);
+}
+
+static void rocblas_dswap_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dswap(ctx->blas_handle, n, (double*)x, incx, (double*)y, incy);
+}
+
+static float rocblas_sdot_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    float result = 0.0f;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sdot(ctx->blas_handle, n, (const float*)x, incx, (const float*)y, incy, &result);
+    return result;
+}
+
+static double rocblas_ddot_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, fb_gpu_ptr_t x, int incx,
+                                fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    double result = 0.0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ddot(ctx->blas_handle, n, (const double*)x, incx, (const double*)y, incy, &result);
+    return result;
+}
+
+static float rocblas_snrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    float result = 0.0f;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_snrm2(ctx->blas_handle, n, (const float*)x, incx, &result);
+    return result;
+}
+
+static double rocblas_dnrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                 int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    double result = 0.0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dnrm2(ctx->blas_handle, n, (const double*)x, incx, &result);
+    return result;
+}
+
+static float rocblas_sasum_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    float result = 0.0f;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sasum(ctx->blas_handle, n, (const float*)x, incx, &result);
+    return result;
+}
+
+static double rocblas_dasum_impl(void* handle, fb_gpu_stream_t stream,
+                                 int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    double result = 0.0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dasum(ctx->blas_handle, n, (const double*)x, incx, &result);
+    return result;
+}
+
+static int rocblas_isamax_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int result = 0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_isamax(ctx->blas_handle, n, (const float*)x, incx, &result);
+    return result - 1; // cuBLAS returns 1-based index, convert to 0-based
+}
+
+static int rocblas_idamax_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int result = 0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_idamax(ctx->blas_handle, n, (const double*)x, incx, &result);
+    return result - 1; // cuBLAS returns 1-based index, convert to 0-based
+}
+
+/* ============================================================================
+ * BLAS Level 1 Operations - Complex
+ * ========================================================================== */
+
+static void rocblas_caxpy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, const void* alpha, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_caxpy(ctx->blas_handle, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zaxpy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, const void* alpha, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zaxpy(ctx->blas_handle, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_cscal_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, const void* alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cscal(ctx->blas_handle, n, (const rocblas_float_complex*)alpha, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_zscal_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, const void* alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zscal(ctx->blas_handle, n, (const rocblas_double_complex*)alpha, (rocblas_double_complex*)x, incx);
+}
+
+static void rocblas_csscal_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, float alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csscal(ctx->blas_handle, n, &alpha, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_zdscal_impl(void* handle, fb_gpu_stream_t stream,
+                                int n, double alpha, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zdscal(ctx->blas_handle, n, &alpha, (rocblas_double_complex*)x, incx);
+}
+
+static void rocblas_ccopy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ccopy(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zcopy_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zcopy(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_cswap_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cswap(ctx->blas_handle, n, (rocblas_float_complex*)x, incx, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zswap_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zswap(ctx->blas_handle, n, (rocblas_double_complex*)x, incx, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_cdotu_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy, void* result) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cdotu(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)y, incy, (rocblas_float_complex*)result);
+}
+
+static void rocblas_zdotu_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy, void* result) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zdotu(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)y, incy, (rocblas_double_complex*)result);
+}
+
+static void rocblas_cdotc_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy, void* result) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cdotc(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)y, incy, (rocblas_float_complex*)result);
+}
+
+static void rocblas_zdotc_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx,
+                               fb_gpu_ptr_t y, int incy, void* result) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zdotc(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)y, incy, (rocblas_double_complex*)result);
+}
+
+static float rocblas_scnrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                 int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    float result = 0.0f;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_scnrm2(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx, &result);
+    return result;
+}
+
+static double rocblas_dznrm2_impl(void* handle, fb_gpu_stream_t stream,
+                                  int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    double result = 0.0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dznrm2(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx, &result);
+    return result;
+}
+
+static float rocblas_scasum_impl(void* handle, fb_gpu_stream_t stream,
+                                 int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    float result = 0.0f;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_scasum(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx, &result);
+    return result;
+}
+
+static double rocblas_dzasum_impl(void* handle, fb_gpu_stream_t stream,
+                                  int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    double result = 0.0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dzasum(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx, &result);
+    return result;
+}
+
+static int rocblas_icamax_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int result = 0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_icamax(ctx->blas_handle, n, (const rocblas_float_complex*)x, incx, &result);
+    return result - 1; // cuBLAS returns 1-based index
+}
+
+static int rocblas_izamax_impl(void* handle, fb_gpu_stream_t stream,
+                               int n, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int result = 0;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_izamax(ctx->blas_handle, n, (const rocblas_double_complex*)x, incx, &result);
+    return result - 1; // cuBLAS returns 1-based index
+}
+
+/* ============================================================================
+ * BLAS Level 1 Operations - Rotation
+ * ========================================================================== */
+
+static void rocblas_srotg_impl(void* handle, fb_gpu_stream_t stream,
+                               fb_gpu_ptr_t a, fb_gpu_ptr_t b,
+                               fb_gpu_ptr_t c, fb_gpu_ptr_t s) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_srotg(ctx->blas_handle, (float*)a, (float*)b, (float*)c, (float*)s);
+}
+
+static void rocblas_drotg_impl(void* handle, fb_gpu_stream_t stream,
+                               fb_gpu_ptr_t a, fb_gpu_ptr_t b,
+                               fb_gpu_ptr_t c, fb_gpu_ptr_t s) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_drotg(ctx->blas_handle, (double*)a, (double*)b, (double*)c, (double*)s);
+}
+
+static void rocblas_srot_impl(void* handle, fb_gpu_stream_t stream, int n,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                              float c, float s) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_srot(ctx->blas_handle, n, (float*)x, incx, (float*)y, incy, &c, &s);
+}
+
+static void rocblas_drot_impl(void* handle, fb_gpu_stream_t stream, int n,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                              double c, double s) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_drot(ctx->blas_handle, n, (double*)x, incx, (double*)y, incy, &c, &s);
+}
+
+static void rocblas_srotm_impl(void* handle, fb_gpu_stream_t stream, int n,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t param) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_srotm(ctx->blas_handle, n, (float*)x, incx, (float*)y, incy, (const float*)param);
+}
+
+static void rocblas_drotm_impl(void* handle, fb_gpu_stream_t stream, int n,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t param) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_drotm(ctx->blas_handle, n, (double*)x, incx, (double*)y, incy, (const double*)param);
+}
+
+static void rocblas_srotmg_impl(void* handle, fb_gpu_stream_t stream,
+                                fb_gpu_ptr_t d1, fb_gpu_ptr_t d2,
+                                fb_gpu_ptr_t x1, fb_gpu_ptr_t y1,
+                                fb_gpu_ptr_t param) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_srotmg(ctx->blas_handle, (float*)d1, (float*)d2, (float*)x1,
+                 (const float*)y1, (float*)param);
+}
+
+static void rocblas_drotmg_impl(void* handle, fb_gpu_stream_t stream,
+                                fb_gpu_ptr_t d1, fb_gpu_ptr_t d2,
+                                fb_gpu_ptr_t x1, fb_gpu_ptr_t y1,
+                                fb_gpu_ptr_t param) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_drotmg(ctx->blas_handle, (double*)d1, (double*)d2, (double*)x1,
+                 (const double*)y1, (double*)param);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - General Matrix-Vector Multiplication
+ * ========================================================================== */
+
+static void rocblas_sgemv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, float alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, float beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sgemv(ctx->blas_handle, op, m, n, &alpha,
+                (const float*)a, lda, (const float*)x, incx,
+                &beta, (float*)y, incy);
+}
+
+static void rocblas_dgemv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, double alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, double beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dgemv(ctx->blas_handle, op, m, n, &alpha,
+                (const double*)a, lda, (const double*)x, incx,
+                &beta, (double*)y, incy);
+}
+
+static void rocblas_cgemv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cgemv(ctx->blas_handle, op, m, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zgemv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zgemv(ctx->blas_handle, op, m, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - General Banded Matrix-Vector Multiplication
+ * ========================================================================== */
+
+static void rocblas_sgbmv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, int kl, int ku, float alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               float beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sgbmv(ctx->blas_handle, op, m, n, kl, ku, &alpha,
+                (const float*)a, lda, (const float*)x, incx,
+                &beta, (float*)y, incy);
+}
+
+static void rocblas_dgbmv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, int kl, int ku, double alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               double beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dgbmv(ctx->blas_handle, op, m, n, kl, ku, &alpha,
+                (const double*)a, lda, (const double*)x, incx,
+                &beta, (double*)y, incy);
+}
+
+static void rocblas_cgbmv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, int kl, int ku, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cgbmv(ctx->blas_handle, op, m, n, kl, ku, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zgbmv_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int m, int n, int kl, int ku, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zgbmv(ctx->blas_handle, op, m, n, kl, ku, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Hermitian/Symmetric Matrix-Vector Multiplication
+ * ========================================================================== */
+
+static void rocblas_chemv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_chemv(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zhemv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zhemv(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_ssymv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, float alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, float beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssymv(ctx->blas_handle, fill, n, &alpha,
+                (const float*)a, lda, (const float*)x, incx,
+                &beta, (float*)y, incy);
+}
+
+static void rocblas_dsymv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, double alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, double beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsymv(ctx->blas_handle, fill, n, &alpha,
+                (const double*)a, lda, (const double*)x, incx,
+                &beta, (double*)y, incy);
+}
+
+static void rocblas_csymv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csymv(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zsymv_impl(void* handle, fb_gpu_stream_t stream, char uplo,
+                               int n, const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx, const void* beta,
+                               fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zsymv(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Triangular Matrix-Vector Multiplication
+ * ========================================================================== */
+
+static void rocblas_strmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_strmv(ctx->blas_handle, fill, op, diag_type, n,
+                (const float*)a, lda, (float*)x, incx);
+}
+
+static void rocblas_dtrmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dtrmv(ctx->blas_handle, fill, op, diag_type, n,
+                (const double*)a, lda, (double*)x, incx);
+}
+
+static void rocblas_ctrmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ctrmv(ctx->blas_handle, fill, op, diag_type, n,
+                (const rocblas_float_complex*)a, lda, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztrmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ztrmv(ctx->blas_handle, fill, op, diag_type, n,
+                (const rocblas_double_complex*)a, lda, (rocblas_double_complex*)x, incx);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Triangular Solve
+ * ========================================================================== */
+
+static void rocblas_strsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_strsv(ctx->blas_handle, fill, op, diag_type, n,
+                (const float*)a, lda, (float*)x, incx);
+}
+
+static void rocblas_dtrsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dtrsv(ctx->blas_handle, fill, op, diag_type, n,
+                (const double*)a, lda, (double*)x, incx);
+}
+
+static void rocblas_ctrsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ctrsv(ctx->blas_handle, fill, op, diag_type, n,
+                (const rocblas_float_complex*)a, lda, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztrsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag,
+                               int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ztrsv(ctx->blas_handle, fill, op, diag_type, n,
+                (const rocblas_double_complex*)a, lda, (rocblas_double_complex*)x, incx);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Rank-1 Update
+ * ========================================================================== */
+
+static void rocblas_sger_impl(void* handle, fb_gpu_stream_t stream,
+                              int m, int n, float alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                              fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sger(ctx->blas_handle, m, n, &alpha,
+               (const float*)x, incx, (const float*)y, incy,
+               (float*)a, lda);
+}
+
+static void rocblas_dger_impl(void* handle, fb_gpu_stream_t stream,
+                              int m, int n, double alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                              fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dger(ctx->blas_handle, m, n, &alpha,
+               (const double*)x, incx, (const double*)y, incy,
+               (double*)a, lda);
+}
+
+static void rocblas_cgeru_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cgeru(ctx->blas_handle, m, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (const rocblas_float_complex*)y, incy,
+                (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zgeru_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zgeru(ctx->blas_handle, m, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (const rocblas_double_complex*)y, incy,
+                (rocblas_double_complex*)a, lda);
+}
+
+static void rocblas_cgerc_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cgerc(ctx->blas_handle, m, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (const rocblas_float_complex*)y, incy,
+                (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zgerc_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zgerc(ctx->blas_handle, m, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (const rocblas_double_complex*)y, incy,
+                (rocblas_double_complex*)a, lda);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Hermitian/Symmetric Rank-1 Update
+ * ========================================================================== */
+
+static void rocblas_cher_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, float alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cher(ctx->blas_handle, fill, n, &alpha,
+               (const rocblas_float_complex*)x, incx, (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zher_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, double alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zher(ctx->blas_handle, fill, n, &alpha,
+               (const rocblas_double_complex*)x, incx, (rocblas_double_complex*)a, lda);
+}
+
+static void rocblas_ssyr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, float alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssyr(ctx->blas_handle, fill, n, &alpha,
+               (const float*)x, incx, (float*)a, lda);
+}
+
+static void rocblas_dsyr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, double alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsyr(ctx->blas_handle, fill, n, &alpha,
+               (const double*)x, incx, (double*)a, lda);
+}
+
+static void rocblas_csyr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, const void* alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csyr(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+               (const rocblas_float_complex*)x, incx, (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zsyr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, const void* alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zsyr(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+               (const rocblas_double_complex*)x, incx, (rocblas_double_complex*)a, lda);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Hermitian/Symmetric Rank-2 Update
+ * ========================================================================== */
+
+static void rocblas_cher2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cher2(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (const rocblas_float_complex*)y, incy,
+                (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zher2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zher2(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (const rocblas_double_complex*)y, incy,
+                (rocblas_double_complex*)a, lda);
+}
+
+static void rocblas_ssyr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, float alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssyr2(ctx->blas_handle, fill, n, &alpha,
+                (const float*)x, incx, (const float*)y, incy,
+                (float*)a, lda);
+}
+
+static void rocblas_dsyr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, double alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsyr2(ctx->blas_handle, fill, n, &alpha,
+                (const double*)x, incx, (const double*)y, incy,
+                (double*)a, lda);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Banded Matrix Operations (New)
+ * ========================================================================== */
+
+static void rocblas_ssbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int k, float alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               float beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ssbmv(ctx->blas_handle, fill, n, k, &alpha,
+                (const float*)a, lda, (const float*)x, incx,
+                &beta, (float*)y, incy);
+}
+
+static void rocblas_dsbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int k, double alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               double beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dsbmv(ctx->blas_handle, fill, n, k, &alpha,
+                (const double*)a, lda, (const double*)x, incx,
+                &beta, (double*)y, incy);
+}
+
+static void rocblas_chbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int k, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_chbmv(ctx->blas_handle, fill, n, k, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zhbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int k, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_zhbmv(ctx->blas_handle, fill, n, k, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_stbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_stbmv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const float*)a, lda, (float*)x, incx);
+}
+
+static void rocblas_dtbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dtbmv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const double*)a, lda, (double*)x, incx);
+}
+
+static void rocblas_ctbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ctbmv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const rocblas_float_complex*)a, lda, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztbmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ztbmv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const rocblas_double_complex*)a, lda, (rocblas_double_complex*)x, incx);
+}
+
+static void rocblas_stbsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_stbsv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const float*)a, lda, (float*)x, incx);
+}
+
+static void rocblas_dtbsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dtbsv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const double*)a, lda, (double*)x, incx);
+}
+
+static void rocblas_ctbsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ctbsv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const rocblas_float_complex*)a, lda, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztbsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n, int k,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ztbsv(ctx->blas_handle, fill, op, diagtype, n, k,
+                (const rocblas_double_complex*)a, lda, (rocblas_double_complex*)x, incx);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Packed Matrix Operations
+ * ========================================================================== */
+
+static void rocblas_sspmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, float alpha,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx,
+                               float beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_sspmv(ctx->blas_handle, fill, n, &alpha,
+                (const float*)ap, (const float*)x, incx,
+                &beta, (float*)y, incy);
+}
+
+static void rocblas_dspmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, double alpha,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx,
+                               double beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dspmv(ctx->blas_handle, fill, n, &alpha,
+                (const double*)ap, (const double*)x, incx,
+                &beta, (double*)y, incy);
+}
+
+static void rocblas_chpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_chpmv(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)ap, (const rocblas_float_complex*)x, incx,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)y, incy);
+}
+
+static void rocblas_zhpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx,
+                               const void* beta, fb_gpu_ptr_t y, int incy) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_zhpmv(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)ap, (const rocblas_double_complex*)x, incx,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)y, incy);
+}
+
+static void rocblas_stpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_stpmv(ctx->blas_handle, fill, op, diagtype, n,
+                (const float*)ap, (float*)x, incx);
+}
+
+static void rocblas_dtpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dtpmv(ctx->blas_handle, fill, op, diagtype, n,
+                (const double*)ap, (double*)x, incx);
+}
+
+static void rocblas_ctpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ctpmv(ctx->blas_handle, fill, op, diagtype, n,
+                (const rocblas_float_complex*)ap, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztpmv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ztpmv(ctx->blas_handle, fill, op, diagtype, n,
+                (const rocblas_double_complex*)ap, (rocblas_double_complex*)x, incx);
+}
+
+static void rocblas_stpsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_stpsv(ctx->blas_handle, fill, op, diagtype, n,
+                (const float*)ap, (float*)x, incx);
+}
+
+static void rocblas_dtpsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dtpsv(ctx->blas_handle, fill, op, diagtype, n,
+                (const double*)ap, (double*)x, incx);
+}
+
+static void rocblas_ctpsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ctpsv(ctx->blas_handle, fill, op, diagtype, n,
+                (const rocblas_float_complex*)ap, (rocblas_float_complex*)x, incx);
+}
+
+static void rocblas_ztpsv_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, char diag, int n,
+                               fb_gpu_ptr_t ap, fb_gpu_ptr_t x, int incx) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    cublasDiagType_t diagtype = (cublasDiagType_t)rocblas_convert_diag(diag);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_ztpsv(ctx->blas_handle, fill, op, diagtype, n,
+                (const rocblas_double_complex*)ap, (rocblas_double_complex*)x, incx);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Packed Rank Updates
+ * ========================================================================== */
+
+static void rocblas_sspr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, float alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_sspr(ctx->blas_handle, fill, n, &alpha,
+               (const float*)x, incx, (float*)ap);
+}
+
+static void rocblas_dspr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, double alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dspr(ctx->blas_handle, fill, n, &alpha,
+               (const double*)x, incx, (double*)ap);
+}
+
+static void rocblas_chpr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, float alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_chpr(ctx->blas_handle, fill, n, &alpha,
+               (const rocblas_float_complex*)x, incx, (rocblas_float_complex*)ap);
+}
+
+static void rocblas_zhpr_impl(void* handle, fb_gpu_stream_t stream,
+                              char uplo, int n, double alpha,
+                              fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_zhpr(ctx->blas_handle, fill, n, &alpha,
+               (const rocblas_double_complex*)x, incx, (rocblas_double_complex*)ap);
+}
+
+static void rocblas_sspr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, float alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_sspr2(ctx->blas_handle, fill, n, &alpha,
+                (const float*)x, incx, (const float*)y, incy, (float*)ap);
+}
+
+static void rocblas_dspr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, double alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_dspr2(ctx->blas_handle, fill, n, &alpha,
+                (const double*)x, incx, (const double*)y, incy, (double*)ap);
+}
+
+static void rocblas_chpr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_chpr2(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (const rocblas_float_complex*)y, incy,
+                (rocblas_float_complex*)ap);
+}
+
+static void rocblas_zhpr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t ap) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_zhpr2(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (const rocblas_double_complex*)y, incy,
+                (rocblas_double_complex*)ap);
+}
+
+/* ============================================================================
+ * BLAS Level 2 Operations - Complex Symmetric Rank-2 Update
+ * ========================================================================== */
+
+static void rocblas_csyr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_csyr2(ctx->blas_handle, fill, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)x, incx, (const rocblas_float_complex*)y, incy,
+                (rocblas_float_complex*)a, lda);
+}
+
+static void rocblas_zsyr2_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, const void* alpha,
+                               fb_gpu_ptr_t x, int incx, fb_gpu_ptr_t y, int incy,
+                               fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    if (stream) rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    
+    rocblas_zsyr2(ctx->blas_handle, fill, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)x, incx, (const rocblas_double_complex*)y, incy,
+                (rocblas_double_complex*)a, lda);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - General Matrix-Matrix Multiplication
+ * ========================================================================== */
+
+static void rocblas_sgemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char transa, char transb, int m, int n, int k,
+                               float alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, float beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t opA = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasOperation_t opB = (cublasOperation_t)rocblas_convert_transpose(transb);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_sgemm(ctx->blas_handle, opA, opB, m, n, k, &alpha,
+                (const float*)a, lda, (const float*)b, ldb,
+                &beta, (float*)c, ldc);
+}
+
+static void rocblas_dgemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char transa, char transb, int m, int n, int k,
+                               double alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, double beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t opA = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasOperation_t opB = (cublasOperation_t)rocblas_convert_transpose(transb);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dgemm(ctx->blas_handle, opA, opB, m, n, k, &alpha,
+                (const double*)a, lda, (const double*)b, ldb,
+                &beta, (double*)c, ldc);
+}
+
+static void rocblas_cgemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char transa, char transb, int m, int n, int k,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t opA = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasOperation_t opB = (cublasOperation_t)rocblas_convert_transpose(transb);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cgemm(ctx->blas_handle, opA, opB, m, n, k, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)b, ldb,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zgemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char transa, char transb, int m, int n, int k,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t opA = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasOperation_t opB = (cublasOperation_t)rocblas_convert_transpose(transb);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zgemm(ctx->blas_handle, opA, opB, m, n, k, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)b, ldb,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)c, ldc);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Symmetric Matrix-Matrix Multiplication
+ * ========================================================================== */
+
+static void rocblas_ssymm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               float alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, float beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssymm(ctx->blas_handle, side_mode, fill, m, n, &alpha,
+                (const float*)a, lda, (const float*)b, ldb,
+                &beta, (float*)c, ldc);
+}
+
+static void rocblas_dsymm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               double alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, double beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsymm(ctx->blas_handle, side_mode, fill, m, n, &alpha,
+                (const double*)a, lda, (const double*)b, ldb,
+                &beta, (double*)c, ldc);
+}
+
+static void rocblas_csymm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csymm(ctx->blas_handle, side_mode, fill, m, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)b, ldb,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zsymm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zsymm(ctx->blas_handle, side_mode, fill, m, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)b, ldb,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)c, ldc);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Hermitian Matrix-Matrix Multiplication
+ * ========================================================================== */
+
+static void rocblas_chemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_chemm(ctx->blas_handle, side_mode, fill, m, n, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)b, ldb,
+                (const rocblas_float_complex*)beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zhemm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, int m, int n,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb, const void* beta,
+                               fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zhemm(ctx->blas_handle, side_mode, fill, m, n, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)b, ldb,
+                (const rocblas_double_complex*)beta, (rocblas_double_complex*)c, ldc);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Triangular Matrix-Matrix Multiplication
+ * ========================================================================== */
+
+static void rocblas_strmm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, float alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_strmm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n, &alpha,
+                (const float*)a, lda, (float*)b, ldb, (float*)b, ldb);
+}
+
+static void rocblas_dtrmm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, double alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dtrmm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n, &alpha,
+                (const double*)a, lda, (double*)b, ldb, (double*)b, ldb);
+}
+
+static void rocblas_ctrmm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ctrmm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n,
+                (const rocblas_float_complex*)alpha, (const rocblas_float_complex*)a, lda,
+                (rocblas_float_complex*)b, ldb, (rocblas_float_complex*)b, ldb);
+}
+
+static void rocblas_ztrmm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ztrmm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n,
+                (const rocblas_double_complex*)alpha, (const rocblas_double_complex*)a, lda,
+                (rocblas_double_complex*)b, ldb, (rocblas_double_complex*)b, ldb);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Triangular Solve with Multiple RHS
+ * ========================================================================== */
+
+static void rocblas_strsm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, float alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_strsm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n, &alpha,
+                (const float*)a, lda, (float*)b, ldb);
+}
+
+static void rocblas_dtrsm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, double alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dtrsm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n, &alpha,
+                (const double*)a, lda, (double*)b, ldb);
+}
+
+static void rocblas_ctrsm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ctrsm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n,
+                (const rocblas_float_complex*)alpha, (const rocblas_float_complex*)a, lda,
+                (rocblas_float_complex*)b, ldb);
+}
+
+static void rocblas_ztrsm_impl(void* handle, fb_gpu_stream_t stream,
+                               char side, char uplo, char transa, char diag,
+                               int m, int n, const void* alpha,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasSideMode_t side_mode = (cublasSideMode_t)rocblas_convert_side(side);
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(transa);
+    cublasDiagType_t diag_type = (cublasDiagType_t)rocblas_convert_diag(diag);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ztrsm(ctx->blas_handle, side_mode, fill, op, diag_type, m, n,
+                (const rocblas_double_complex*)alpha, (const rocblas_double_complex*)a, lda,
+                (rocblas_double_complex*)b, ldb);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Symmetric/Hermitian Rank-k Update
+ * ========================================================================== */
+
+static void rocblas_ssyrk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               float alpha, fb_gpu_ptr_t a, int lda,
+                               float beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssyrk(ctx->blas_handle, fill, op, n, k, &alpha,
+                (const float*)a, lda, &beta, (float*)c, ldc);
+}
+
+static void rocblas_dsyrk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               double alpha, fb_gpu_ptr_t a, int lda,
+                               double beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsyrk(ctx->blas_handle, fill, op, n, k, &alpha,
+                (const double*)a, lda, &beta, (double*)c, ldc);
+}
+
+static void rocblas_csyrk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               const void* beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csyrk(ctx->blas_handle, fill, op, n, k, (const rocblas_float_complex*)alpha,
+                (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zsyrk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               const void* alpha, fb_gpu_ptr_t a, int lda,
+                               const void* beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zsyrk(ctx->blas_handle, fill, op, n, k, (const rocblas_double_complex*)alpha,
+                (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)beta,
+                (rocblas_double_complex*)c, ldc);
+}
+
+static void rocblas_cherk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               float alpha, fb_gpu_ptr_t a, int lda,
+                               float beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cherk(ctx->blas_handle, fill, op, n, k, &alpha,
+                (const rocblas_float_complex*)a, lda, &beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zherk_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, char trans, int n, int k,
+                               double alpha, fb_gpu_ptr_t a, int lda,
+                               double beta, fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zherk(ctx->blas_handle, fill, op, n, k, &alpha,
+                (const rocblas_double_complex*)a, lda, &beta, (rocblas_double_complex*)c, ldc);
+}
+
+/* ============================================================================
+ * BLAS Level 3 Operations - Symmetric/Hermitian Rank-2k Update
+ * ========================================================================== */
+
+static void rocblas_ssyr2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                float alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, float beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_ssyr2k(ctx->blas_handle, fill, op, n, k, &alpha,
+                 (const float*)a, lda, (const float*)b, ldb,
+                 &beta, (float*)c, ldc);
+}
+
+static void rocblas_dsyr2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                double alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, double beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_dsyr2k(ctx->blas_handle, fill, op, n, k, &alpha,
+                 (const double*)a, lda, (const double*)b, ldb,
+                 &beta, (double*)c, ldc);
+}
+
+static void rocblas_csyr2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                const void* alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, const void* beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_csyr2k(ctx->blas_handle, fill, op, n, k, (const rocblas_float_complex*)alpha,
+                 (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)b, ldb,
+                 (const rocblas_float_complex*)beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zsyr2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                const void* alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, const void* beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zsyr2k(ctx->blas_handle, fill, op, n, k, (const rocblas_double_complex*)alpha,
+                 (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)b, ldb,
+                 (const rocblas_double_complex*)beta, (rocblas_double_complex*)c, ldc);
+}
+
+static void rocblas_cher2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                const void* alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, float beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_cher2k(ctx->blas_handle, fill, op, n, k, (const rocblas_float_complex*)alpha,
+                 (const rocblas_float_complex*)a, lda, (const rocblas_float_complex*)b, ldb,
+                 &beta, (rocblas_float_complex*)c, ldc);
+}
+
+static void rocblas_zher2k_impl(void* handle, fb_gpu_stream_t stream,
+                                char uplo, char trans, int n, int k,
+                                const void* alpha, fb_gpu_ptr_t a, int lda,
+                                fb_gpu_ptr_t b, int ldb, double beta,
+                                fb_gpu_ptr_t c, int ldc) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    
+    if (stream) {
+        rocblas_set_stream(ctx->blas_handle, (hipStream_t)stream);
+    }
+    
+    rocblas_zher2k(ctx->blas_handle, fill, op, n, k, (const rocblas_double_complex*)alpha,
+                 (const rocblas_double_complex*)a, lda, (const rocblas_double_complex*)b, ldb,
+                 &beta, (rocblas_double_complex*)c, ldc);
+}
+
+/* ============================================================================
+ * cuSOLVER LAPACK - Linear Systems (LU Factorization)
+ * ========================================================================== */
+
+static int rocblas_sgetrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    float* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    // Query workspace size
+    status = rocsolver_sgetrf_bufferSize(ctx->solver_handle, m, n,
+                                         (float*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    // Allocate workspace and device info
+    hipMalloc((void**)&workspace, lwork * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    // Perform LU factorization
+    status = rocsolver_sgetrf(ctx->solver_handle, m, n, (float*)a, lda,
+                               workspace, (int*)ipiv, devInfo);
+    
+    // Check for errors
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dgetrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    double* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_dgetrf_bufferSize(ctx->solver_handle, m, n,
+                                         (double*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dgetrf(ctx->solver_handle, m, n, (double*)a, lda,
+                               workspace, (int*)ipiv, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cgetrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_float_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_cgetrf_bufferSize(ctx->solver_handle, m, n,
+                                         (rocblas_float_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_float_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cgetrf(ctx->solver_handle, m, n, (rocblas_float_complex*)a, lda,
+                               workspace, (int*)ipiv, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zgetrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_double_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_zgetrf_bufferSize(ctx->solver_handle, m, n,
+                                         (rocblas_double_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_double_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zgetrf(ctx->solver_handle, m, n, (rocblas_double_complex*)a, lda,
+                               workspace, (int*)ipiv, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* LU Solve (getrs) */
+static int rocblas_sgetrs_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_sgetrs(ctx->solver_handle, op, n, nrhs,
+                              (const float*)a, lda, (const int*)ipiv,
+                              (float*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dgetrs_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dgetrs(ctx->solver_handle, op, n, nrhs,
+                              (const double*)a, lda, (const int*)ipiv,
+                              (double*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cgetrs_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cgetrs(ctx->solver_handle, op, n, nrhs,
+                              (const rocblas_float_complex*)a, lda, (const int*)ipiv,
+                              (rocblas_float_complex*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zgetrs_impl(void* handle, fb_gpu_stream_t stream, char trans,
+                               int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t ipiv, fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasOperation_t op = (cublasOperation_t)rocblas_convert_transpose(trans);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zgetrs(ctx->solver_handle, op, n, nrhs,
+                              (const rocblas_double_complex*)a, lda, (const int*)ipiv,
+                              (rocblas_double_complex*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* ============================================================================
+ * cuSOLVER LAPACK - Cholesky Factorization
+ * ========================================================================== */
+
+static int rocblas_spotrf_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int lwork;
+    float* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_spotrf_bufferSize(ctx->solver_handle, fill, n,
+                                         (float*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_spotrf(ctx->solver_handle, fill, n, (float*)a, lda,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dpotrf_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int lwork;
+    double* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_dpotrf_bufferSize(ctx->solver_handle, fill, n,
+                                         (double*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dpotrf(ctx->solver_handle, fill, n, (double*)a, lda,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cpotrf_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int lwork;
+    rocblas_float_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_cpotrf_bufferSize(ctx->solver_handle, fill, n,
+                                         (rocblas_float_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_float_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cpotrf(ctx->solver_handle, fill, n, (rocblas_float_complex*)a, lda,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zpotrf_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, fb_gpu_ptr_t a, int lda) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int lwork;
+    rocblas_double_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_zpotrf_bufferSize(ctx->solver_handle, fill, n,
+                                         (rocblas_double_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_double_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zpotrf(ctx->solver_handle, fill, n, (rocblas_double_complex*)a, lda,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* Cholesky Solve (potrs) */
+static int rocblas_spotrs_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_spotrs(ctx->solver_handle, fill, n, nrhs,
+                              (const float*)a, lda, (float*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dpotrs_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dpotrs(ctx->solver_handle, fill, n, nrhs,
+                              (const double*)a, lda, (double*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cpotrs_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cpotrs(ctx->solver_handle, fill, n, nrhs,
+                              (const rocblas_float_complex*)a, lda, (rocblas_float_complex*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zpotrs_impl(void* handle, fb_gpu_stream_t stream,
+                               char uplo, int n, int nrhs, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t b, int ldb) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zpotrs(ctx->solver_handle, fill, n, nrhs,
+                              (const rocblas_double_complex*)a, lda,
+                              (rocblas_double_complex*)b, ldb, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* ============================================================================
+ * cuSOLVER LAPACK - QR Factorization
+ * ========================================================================== */
+
+static int rocblas_sgeqrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t tau) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    float* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_sgeqrf_bufferSize(ctx->solver_handle, m, n,
+                                         (float*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_sgeqrf(ctx->solver_handle, m, n, (float*)a, lda,
+                              (float*)tau, workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dgeqrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t tau) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    double* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_dgeqrf_bufferSize(ctx->solver_handle, m, n,
+                                         (double*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dgeqrf(ctx->solver_handle, m, n, (double*)a, lda,
+                              (double*)tau, workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cgeqrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t tau) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_float_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_cgeqrf_bufferSize(ctx->solver_handle, m, n,
+                                         (rocblas_float_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_float_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cgeqrf(ctx->solver_handle, m, n, (rocblas_float_complex*)a, lda,
+                              (rocblas_float_complex*)tau, workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zgeqrf_impl(void* handle, fb_gpu_stream_t stream,
+                               int m, int n, fb_gpu_ptr_t a, int lda,
+                               fb_gpu_ptr_t tau) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_double_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_zgeqrf_bufferSize(ctx->solver_handle, m, n,
+                                         (rocblas_double_complex*)a, lda, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_double_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zgeqrf(ctx->solver_handle, m, n, (rocblas_double_complex*)a, lda,
+                              (rocblas_double_complex*)tau, workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* ============================================================================
+ * cuSOLVER LAPACK - Singular Value Decomposition (SVD)
+ * ========================================================================== */
+
+static int rocblas_sgesvd_impl(void* handle, fb_gpu_stream_t stream,
+                               char jobu, char jobvt, int m, int n,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t s,
+                               fb_gpu_ptr_t u, int ldu, fb_gpu_ptr_t vt, int ldvt) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    float* workspace;
+    int* devInfo;
+    float* rwork = NULL;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_sgesvd_bufferSize(ctx->solver_handle, m, n, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_sgesvd(ctx->solver_handle, jobu, jobvt, m, n,
+                              (float*)a, lda, (float*)s,
+                              (float*)u, ldu, (float*)vt, ldvt,
+                              workspace, lwork, rwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dgesvd_impl(void* handle, fb_gpu_stream_t stream,
+                               char jobu, char jobvt, int m, int n,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t s,
+                               fb_gpu_ptr_t u, int ldu, fb_gpu_ptr_t vt, int ldvt) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    double* workspace;
+    int* devInfo;
+    double* rwork = NULL;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_dgesvd_bufferSize(ctx->solver_handle, m, n, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dgesvd(ctx->solver_handle, jobu, jobvt, m, n,
+                              (double*)a, lda, (double*)s,
+                              (double*)u, ldu, (double*)vt, ldvt,
+                              workspace, lwork, rwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cgesvd_impl(void* handle, fb_gpu_stream_t stream,
+                               char jobu, char jobvt, int m, int n,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t s,
+                               fb_gpu_ptr_t u, int ldu, fb_gpu_ptr_t vt, int ldvt) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_float_complex* workspace;
+    int* devInfo;
+    float* rwork;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_cgesvd_bufferSize(ctx->solver_handle, m, n, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    int minmn = (m < n) ? m : n;
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_float_complex));
+    hipMalloc((void**)&rwork, 5 * minmn * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cgesvd(ctx->solver_handle, jobu, jobvt, m, n,
+                              (rocblas_float_complex*)a, lda, (float*)s,
+                              (rocblas_float_complex*)u, ldu, (rocblas_float_complex*)vt, ldvt,
+                              workspace, lwork, rwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(rwork);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zgesvd_impl(void* handle, fb_gpu_stream_t stream,
+                               char jobu, char jobvt, int m, int n,
+                               fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t s,
+                               fb_gpu_ptr_t u, int ldu, fb_gpu_ptr_t vt, int ldvt) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    int lwork;
+    rocblas_double_complex* workspace;
+    int* devInfo;
+    double* rwork;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_zgesvd_bufferSize(ctx->solver_handle, m, n, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    int minmn = (m < n) ? m : n;
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_double_complex));
+    hipMalloc((void**)&rwork, 5 * minmn * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zgesvd(ctx->solver_handle, jobu, jobvt, m, n,
+                              (rocblas_double_complex*)a, lda, (double*)s,
+                              (rocblas_double_complex*)u, ldu, (rocblas_double_complex*)vt, ldvt,
+                              workspace, lwork, rwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(rwork);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* ============================================================================
+ * cuSOLVER LAPACK - Eigenvalue Decomposition (Symmetric/Hermitian)
+ * ========================================================================== */
+
+static int rocblas_ssyev_impl(void* handle, fb_gpu_stream_t stream,
+                              char jobz, char uplo, int n,
+                              fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t w) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    rocblas_evect jobmode = (jobz == 'V') ? rocblas_evect_original : rocblas_evect_none;
+    int lwork;
+    float* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_ssyevd_bufferSize(ctx->solver_handle, jobmode, fill, n,
+                                         (float*)a, lda, (float*)w, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(float));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_ssyevd(ctx->solver_handle, jobmode, fill, n,
+                              (float*)a, lda, (float*)w,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_dsyev_impl(void* handle, fb_gpu_stream_t stream,
+                              char jobz, char uplo, int n,
+                              fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t w) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    rocblas_evect jobmode = (jobz == 'V') ? rocblas_evect_original : rocblas_evect_none;
+    int lwork;
+    double* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_dsyevd_bufferSize(ctx->solver_handle, jobmode, fill, n,
+                                         (double*)a, lda, (double*)w, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(double));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_dsyevd(ctx->solver_handle, jobmode, fill, n,
+                              (double*)a, lda, (double*)w,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_cheev_impl(void* handle, fb_gpu_stream_t stream,
+                              char jobz, char uplo, int n,
+                              fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t w) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    rocblas_evect jobmode = (jobz == 'V') ? rocblas_evect_original : rocblas_evect_none;
+    int lwork;
+    rocblas_float_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_cheevd_bufferSize(ctx->solver_handle, jobmode, fill, n,
+                                         (rocblas_float_complex*)a, lda, (float*)w, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_float_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_cheevd(ctx->solver_handle, jobmode, fill, n,
+                              (rocblas_float_complex*)a, lda, (float*)w,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+static int rocblas_zheev_impl(void* handle, fb_gpu_stream_t stream,
+                              char jobz, char uplo, int n,
+                              fb_gpu_ptr_t a, int lda, fb_gpu_ptr_t w) {
+    rocblas_context_t* ctx = (rocblas_context_t*)handle;
+    cublasFillMode_t fill = (cublasFillMode_t)rocblas_convert_uplo(uplo);
+    rocblas_evect jobmode = (jobz == 'V') ? rocblas_evect_original : rocblas_evect_none;
+    int lwork;
+    rocblas_double_complex* workspace;
+    int* devInfo;
+    rocblas_status status;
+    
+    if (stream) {
+        rocblas_set_stream(ctx->solver_handle, (hipStream_t)stream);
+    }
+    
+    status = rocsolver_zheevd_bufferSize(ctx->solver_handle, jobmode, fill, n,
+                                         (rocblas_double_complex*)a, lda, (double*)w, &lwork);
+    if (status != rocblas_status_success) return -1;
+    
+    hipMalloc((void**)&workspace, lwork * sizeof(rocblas_double_complex));
+    hipMalloc((void**)&devInfo, sizeof(int));
+    
+    status = rocsolver_zheevd(ctx->solver_handle, jobmode, fill, n,
+                              (rocblas_double_complex*)a, lda, (double*)w,
+                              workspace, lwork, devInfo);
+    
+    int info;
+    hipMemcpy(&info, devInfo, sizeof(int), hipMemcpyDeviceToHost);
+    
+    hipFree(workspace);
+    hipFree(devInfo);
+    
+    return (status == rocblas_status_success && info == 0) ? 0 : -1;
+}
+
+/* Note: Core LAPACK operations implemented above demonstrate the complete pattern:
+ * - LU factorization (getrf/getrs) - 8 functions
+ * - Cholesky factorization (potrf/potrs) - 8 functions  
+ * - QR factorization (geqrf) - 4 functions
+ * - SVD (gesvd) - 4 functions
+ * - Eigenvalue decomposition (syev/heev) - 4 functions
+ * Total: 28 core LAPACK operations implemented
+ * 
+ * Additional operations (gesv, orgqr, ormqr, getri, potri, etc.) follow identical patterns
+ * using cusolverDn API with workspace buffer queries.
+ */
+
+/* ============================================================================
+ * cuBLAS Backend Trait Instance
+ * ========================================================================== */
+
+const fb_gpu_backend_trait_t fb_rocblas_trait = {
+    .name = "NVIDIA cuBLAS",
+    .type = FB_GPU_BACKEND_CUBLAS,
+    
+    // Lifecycle
+    .init = rocblas_init,
+    .shutdown = rocblas_shutdown,
+    .get_device_properties = rocblas_get_device_properties,
+    
+    // Memory
+    .malloc = rocblas_malloc,
+    .free = rocblas_free,
+    .memcpy_h2d = rocblas_memcpy_h2d,
+    .memcpy_d2h = rocblas_memcpy_d2h,
+    .memcpy_d2d = rocblas_memcpy_d2d,
+    
+    // Streams
+    .stream_create = rocblas_stream_create,
+    .stream_destroy = rocblas_stream_destroy,
+    .stream_synchronize = rocblas_stream_synchronize,
+    
+    // Enum conversions
+    .convert_transpose = rocblas_convert_transpose,
+    .convert_uplo = rocblas_convert_uplo,
+    .convert_diag = rocblas_convert_diag,
+    .convert_side = rocblas_convert_side,
+    
+    // Level 1 BLAS - Real
+    .saxpy = rocblas_saxpy_impl,
+    .daxpy = rocblas_daxpy_impl,
+    .sscal = rocblas_sscal_impl,
+    .dscal = rocblas_dscal_impl,
+    .scopy = rocblas_scopy_impl,
+    .dcopy = rocblas_dcopy_impl,
+    .sswap = rocblas_sswap_impl,
+    .dswap = rocblas_dswap_impl,
+    .sdot = rocblas_sdot_impl,
+    .ddot = rocblas_ddot_impl,
+    .snrm2 = rocblas_snrm2_impl,
+    .dnrm2 = rocblas_dnrm2_impl,
+    .sasum = rocblas_sasum_impl,
+    .dasum = rocblas_dasum_impl,
+    .isamax = rocblas_isamax_impl,
+    .idamax = rocblas_idamax_impl,
+    
+    // Level 1 BLAS - Complex
+    .caxpy = rocblas_caxpy_impl,
+    .zaxpy = rocblas_zaxpy_impl,
+    .cscal = rocblas_cscal_impl,
+    .zscal = rocblas_zscal_impl,
+    .csscal = rocblas_csscal_impl,
+    .zdscal = rocblas_zdscal_impl,
+    .ccopy = rocblas_ccopy_impl,
+    .zcopy = rocblas_zcopy_impl,
+    .cswap = rocblas_cswap_impl,
+    .zswap = rocblas_zswap_impl,
+    .cdotu = rocblas_cdotu_impl,
+    .zdotu = rocblas_zdotu_impl,
+    .cdotc = rocblas_cdotc_impl,
+    .zdotc = rocblas_zdotc_impl,
+    .scnrm2 = rocblas_scnrm2_impl,
+    .dznrm2 = rocblas_dznrm2_impl,
+    .scasum = rocblas_scasum_impl,
+    .dzasum = rocblas_dzasum_impl,
+    .icamax = rocblas_icamax_impl,
+    .izamax = rocblas_izamax_impl,
+    
+    // Level 1 BLAS - Rotation
+    .srotg = rocblas_srotg_impl,
+    .drotg = rocblas_drotg_impl,
+    .srot = rocblas_srot_impl,
+    .drot = rocblas_drot_impl,
+    .srotm = rocblas_srotm_impl,
+    .drotm = rocblas_drotm_impl,
+    .srotmg = rocblas_srotmg_impl,
+    .drotmg = rocblas_drotmg_impl,
+    
+    // Level 2 BLAS - Matrix-vector operations
+    .sgemv = rocblas_sgemv_impl,
+    .dgemv = rocblas_dgemv_impl,
+    .cgemv = rocblas_cgemv_impl,
+    .zgemv = rocblas_zgemv_impl,
+    .chemv = rocblas_chemv_impl,
+    .zhemv = rocblas_zhemv_impl,
+    .ssymv = rocblas_ssymv_impl,
+    .dsymv = rocblas_dsymv_impl,
+    .strmv = rocblas_strmv_impl,
+    .dtrmv = rocblas_dtrmv_impl,
+    .ctrmv = rocblas_ctrmv_impl,
+    .ztrmv = rocblas_ztrmv_impl,
+    .strsv = rocblas_strsv_impl,
+    .dtrsv = rocblas_dtrsv_impl,
+    .ctrsv = rocblas_ctrsv_impl,
+    .ztrsv = rocblas_ztrsv_impl,
+    
+    // Level 2 BLAS - Rank updates
+    .sger = rocblas_sger_impl,
+    .dger = rocblas_dger_impl,
+    .cgeru = rocblas_cgeru_impl,
+    .zgeru = rocblas_zgeru_impl,
+    .cgerc = rocblas_cgerc_impl,
+    .zgerc = rocblas_zgerc_impl,
+    .cher = rocblas_cher_impl,
+    .zher = rocblas_zher_impl,
+    .ssyr = rocblas_ssyr_impl,
+    .dsyr = rocblas_dsyr_impl,
+    .cher2 = rocblas_cher2_impl,
+    .zher2 = rocblas_zher2_impl,
+    .ssyr2 = rocblas_ssyr2_impl,
+    .dsyr2 = rocblas_dsyr2_impl,
+    
+    // Level 2 BLAS - Banded matrix operations
+    .sgbmv = rocblas_sgbmv_impl,
+    .dgbmv = rocblas_dgbmv_impl,
+    .cgbmv = rocblas_cgbmv_impl,
+    .zgbmv = rocblas_zgbmv_impl,
+    .ssbmv = rocblas_ssbmv_impl,
+    .dsbmv = rocblas_dsbmv_impl,
+    .chbmv = rocblas_chbmv_impl,
+    .zhbmv = rocblas_zhbmv_impl,
+    .stbmv = rocblas_stbmv_impl,
+    .dtbmv = rocblas_dtbmv_impl,
+    .ctbmv = rocblas_ctbmv_impl,
+    .ztbmv = rocblas_ztbmv_impl,
+    .stbsv = rocblas_stbsv_impl,
+    .dtbsv = rocblas_dtbsv_impl,
+    .ctbsv = rocblas_ctbsv_impl,
+    .ztbsv = rocblas_ztbsv_impl,
+    
+    // Level 2 BLAS - Packed matrix operations
+    .sspmv = rocblas_sspmv_impl,
+    .dspmv = rocblas_dspmv_impl,
+    .chpmv = rocblas_chpmv_impl,
+    .zhpmv = rocblas_zhpmv_impl,
+    .stpmv = rocblas_stpmv_impl,
+    .dtpmv = rocblas_dtpmv_impl,
+    .ctpmv = rocblas_ctpmv_impl,
+    .ztpmv = rocblas_ztpmv_impl,
+    .stpsv = rocblas_stpsv_impl,
+    .dtpsv = rocblas_dtpsv_impl,
+    .ctpsv = rocblas_ctpsv_impl,
+    .ztpsv = rocblas_ztpsv_impl,
+    
+    // Level 2 BLAS - Packed rank updates
+    .sspr = rocblas_sspr_impl,
+    .dspr = rocblas_dspr_impl,
+    .chpr = rocblas_chpr_impl,
+    .zhpr = rocblas_zhpr_impl,
+    .sspr2 = rocblas_sspr2_impl,
+    .dspr2 = rocblas_dspr2_impl,
+    .chpr2 = rocblas_chpr2_impl,
+    .zhpr2 = rocblas_zhpr2_impl,
+    
+    // Level 2 BLAS - Complex symmetric operations
+    .csymv = rocblas_csymv_impl,
+    .zsymv = rocblas_zsymv_impl,
+    .csyr = rocblas_csyr_impl,
+    .zsyr = rocblas_zsyr_impl,
+    .csyr2 = rocblas_csyr2_impl,
+    .zsyr2 = rocblas_zsyr2_impl,
+    
+    // Complex symmetric packed operations (NOT supported by cuBLAS - rocBLAS only)
+    .cspmv = NULL,
+    .zspmv = NULL,
+    .cspr = NULL,
+    .zspr = NULL,
+    .cspr2 = NULL,
+    .zspr2 = NULL,
+    
+    // Level 3 BLAS - Matrix-matrix operations
+    .sgemm = rocblas_sgemm_impl,
+    .dgemm = rocblas_dgemm_impl,
+    .cgemm = rocblas_cgemm_impl,
+    .zgemm = rocblas_zgemm_impl,
+    .ssymm = rocblas_ssymm_impl,
+    .dsymm = rocblas_dsymm_impl,
+    .csymm = rocblas_csymm_impl,
+    .zsymm = rocblas_zsymm_impl,
+    .chemm = rocblas_chemm_impl,
+    .zhemm = rocblas_zhemm_impl,
+    .strmm = rocblas_strmm_impl,
+    .dtrmm = rocblas_dtrmm_impl,
+    .ctrmm = rocblas_ctrmm_impl,
+    .ztrmm = rocblas_ztrmm_impl,
+    .strsm = rocblas_strsm_impl,
+    .dtrsm = rocblas_dtrsm_impl,
+    .ctrsm = rocblas_ctrsm_impl,
+    .ztrsm = rocblas_ztrsm_impl,
+    .ssyrk = rocblas_ssyrk_impl,
+    .dsyrk = rocblas_dsyrk_impl,
+    .csyrk = rocblas_csyrk_impl,
+    .zsyrk = rocblas_zsyrk_impl,
+    .cherk = rocblas_cherk_impl,
+    .zherk = rocblas_zherk_impl,
+    .ssyr2k = rocblas_ssyr2k_impl,
+    .dsyr2k = rocblas_dsyr2k_impl,
+    .csyr2k = rocblas_csyr2k_impl,
+    .zsyr2k = rocblas_zsyr2k_impl,
+    .cher2k = rocblas_cher2k_impl,
+    .zher2k = rocblas_zher2k_impl,
+    
+    // LAPACK - LU factorization
+    .sgetrf = rocblas_sgetrf_impl,
+    .dgetrf = rocblas_dgetrf_impl,
+    .cgetrf = rocblas_cgetrf_impl,
+    .zgetrf = rocblas_zgetrf_impl,
+    .sgetrs = rocblas_sgetrs_impl,
+    .dgetrs = rocblas_dgetrs_impl,
+    .cgetrs = rocblas_cgetrs_impl,
+    .zgetrs = rocblas_zgetrs_impl,
+    
+    // LAPACK - Cholesky factorization
+    .spotrf = rocblas_spotrf_impl,
+    .dpotrf = rocblas_dpotrf_impl,
+    .cpotrf = rocblas_cpotrf_impl,
+    .zpotrf = rocblas_zpotrf_impl,
+    .spotrs = rocblas_spotrs_impl,
+    .dpotrs = rocblas_dpotrs_impl,
+    .cpotrs = rocblas_cpotrs_impl,
+    .zpotrs = rocblas_zpotrs_impl,
+    
+    // LAPACK - QR factorization
+    .sgeqrf = rocblas_sgeqrf_impl,
+    .dgeqrf = rocblas_dgeqrf_impl,
+    .cgeqrf = rocblas_cgeqrf_impl,
+    .zgeqrf = rocblas_zgeqrf_impl,
+    
+    // LAPACK - SVD
+    .sgesvd = rocblas_sgesvd_impl,
+    .dgesvd = rocblas_dgesvd_impl,
+    .cgesvd = rocblas_cgesvd_impl,
+    .zgesvd = rocblas_zgesvd_impl,
+    
+    // LAPACK - Eigenvalues
+    .ssyev = rocblas_ssyev_impl,
+    .dsyev = rocblas_dsyev_impl,
+    .cheev = rocblas_cheev_impl,
+    .zheev = rocblas_zheev_impl,
+    
+    // Note: Banded/packed Level 2 operations and additional LAPACK operations
+    // (gesv, orgqr, ormqr, getri, potri, etc.) can be added following the same patterns
+};

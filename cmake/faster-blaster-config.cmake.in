@@ -1,0 +1,7 @@
+# faster-blaster CMake configuration file
+
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/faster-blaster-targets.cmake")
+
+check_required_components(faster-blaster)

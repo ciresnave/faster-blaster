@@ -1,0 +1,18 @@
+[1/6] Performing update step for 'openblas-backend'
+-- Already at requested tag: v0.3.30
+[2/6] No patch step for 'openblas-backend'
+[3/6] No configure step for 'openblas-backend'
+[4/6] Performing build step for 'openblas-backend'
+FAILED: [code=1] openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build 
+C:\WINDOWS\system32\cmd.exe /C "cd /D C:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\openblas-backend-prefix\src\openblas-backend-build && "C:\Program Files\CMake\bin\cmake.exe" -P C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake && "C:\Program Files\CMake\bin\cmake.exe" -E touch C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build"
+CMake Error at C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-Debug.cmake:49 (message):
+  Command failed: 1
+
+   'powershell' '-ExecutionPolicy' 'Bypass' '-File' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/cmake/build_openblas_msvc_conly.ps1' '-SourceDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-src' '-InstallDir' 'C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/backends-install/openblas' '-Target' 'ZEN' '-NumCores' '32'
+
+  See also
+
+    C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/openblas-backend-prefix/src/openblas-backend-stamp/openblas-backend-build-*.log
+
+
+ninja: build stopped: subcommand failed.

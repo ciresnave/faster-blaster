@@ -1,0 +1,332 @@
+[0/1] Re-running CMake...
+-- Building backends with 32 parallel jobs
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Backend Detection & Configuration
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- CPU: AMD Ryzen 9 7940HX with Radeon Graphics
+-- CPU Vendor: AMD
+--   NVIDIA CUDA Toolkit: 13.0.88
+--   OpenCL: 3.0
+--     ΓåÆ Can detect NVIDIA, AMD (integrated/discrete), Intel, and other GPUs
+-- 
+-- CPU Backends:
+--   Γ£ù OpenBLAS: Not found
+  Γ£ô Intel MKL: (found)
+  Γ£ù AMD AOCL: Not found
+
+-- GPU Backends:
+--   Γ£ô cuBLAS: 13.0.88 (found)
+  Γ£ù AMD rocBLAS: Not found
+  Γ£ô CLBlast: (found)
+
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- ≡ƒÆí AMD CPU detected without AOCL-BLIS
+--    AOCL provides 2-4x better performance on AMD CPUs
+
+-- 
+   Install AMD AOCL? [Y/n]
+  [Y/n] (default: yes): 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  AMD AOCL Installation
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- AMD AOCL provides optimized BLIS/FLAME for AMD CPUs
+--   ΓåÆ 2-4x faster than OpenBLAS on AMD Ryzen/EPYC
+-- 
+-- Windows Installation:
+--   1. Download installer from:
+--      https://www.amd.com/en/developer/aocl/blis.html
+--   2. Run AOCL-Windows installer
+--   3. Default install: C:/Program Files/AMD/AOCL-Windows
+--   4. Reconfigure: cmake ..
+-- 
+-- After installation, AOCL will be auto-detected
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- 
+-- Γ£à NVIDIA GPU with CUDA Toolkit 13.0.88
+-- 
+-- Γ£à OpenCL available with CLBlast
+--    ΓåÆ All GPUs can be accelerated (NVIDIA, AMD, Intel, etc.)
+-- 
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+--  Γä╣∩╕Å  Some recommended backends are missing
+--    You can install them later and reconfigure
+--    Or disable prompts with: -DINTERACTIVE_BACKEND_SETUP=OFF
+-- ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+-- 
+-- Building OpenBLAS from source with threading support...
+CMake Warning (dev) at C:/Program Files/CMake/share/cmake-4.2/Modules/ExternalProject/shared_internal_commands.cmake:1261 (message):
+  The DOWNLOAD_EXTRACT_TIMESTAMP option was not given and policy CMP0135 is
+  not set.  The policy's OLD behavior will be used.  When using a URL
+  download, the timestamps of extracted files should preferably be that of
+  the time of extraction, otherwise code that depends on the extracted
+  contents might not be rebuilt if the URL changes.  The OLD behavior
+  preserves the timestamps from the archive instead, but this is usually not
+  what you want.  Update your project to the NEW behavior or specify the
+  DOWNLOAD_EXTRACT_TIMESTAMP option with a value of true to avoid this
+  robustness issue.
+Call Stack (most recent call first):
+  C:/Program Files/CMake/share/cmake-4.2/Modules/ExternalProject.cmake:3258 (_ep_add_download_command)
+  cmake/BackendInstaller.cmake:150 (ExternalProject_Add)
+  cmake/BackendInstaller.cmake:499 (build_openblas_from_source)
+  CMakeLists.txt:24 (include)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- OpenBLAS will be built with threading support enabled
+--   Build will occur during 'cmake --build'
+-- cpuinfo not found, will fetch from source
+-- Found OpenCL: C:/libraries/vcpkg/installed/x64-windows/include
+-- Γ£ô Found CLBlast
+-- Γ£ô CUDA compiler (nvcc) found and enabled: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/bin/nvcc.exe
+-- Γ£ô CUDA Toolkit 13.0.88 detected
+--   cuBLAS plugin will be enabled
+-- Found rocBLAS:
+--   ROCm Root: C:/Program Files/AMD/ROCm/6.4
+--   HIP Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocBLAS Include: C:/Program Files/AMD/ROCm/6.4/include
+--   rocSOLVER Include: C:/Program Files/AMD/ROCm/6.4/include
+--   Libraries: C:/Program Files/AMD/ROCm/6.4/lib/rocblas.lib;C:/Program Files/AMD/ROCm/6.4/lib/rocsolver.lib;C:/Program Files/AMD/ROCm/6.4/lib/hipblas.lib
+-- Γ£ô ROCm  detected at C:/Program Files/AMD/ROCm/6.4
+--   rocBLAS plugin will be enabled
+--   Found hipcc: C:/Program Files/AMD/ROCm/6.4/bin/hipcc.exe
+--   HIP source files will be compiled using custom commands
+-- 
+-- GPU Backend Configuration:
+--   NVIDIA cuBLAS:  ON
+--   AMD rocBLAS:    ON
+--   Intel oneMKL:   OFF
+--   Apple Metal:    OFF
+-- 
+-- Found Intel MKL:
+--   Include: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include
+--   Libraries: C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_lp64.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_intel_thread.lib;C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/mkl_core.lib
+--   Interface: mkl_intel_lp64 (8-byte pointers)
+--   Threading: mkl_intel_thread
+--   Note: You may also need to link: iomp5md (OpenMP runtime)
+-- Γ£ô Intel MKL  detected
+--   MKL CPU plugin will be enabled
+-- Γ£ù OpenBLAS not found - OpenBLAS plugin disabled
+-- Found BLIS:
+--   Include: C:/BLIS/include
+--   Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-dll.lib
+--   Note: BLIS provides BLAS only, LAPACK may be needed separately
+-- Γ£ô BLIS  detected
+--   BLIS plugin will be enabled
+-- Found AOCL:
+--   BLIS Include: C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64
+--   libFLAME Include: C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64
+--   BLIS Library: C:/Program Files/AMD/AOCL-Windows/amd-blis/lib/LP64/AOCL-LibBlis-Win-MT-dll.lib
+--   libFLAME: Not found (LAPACK operations unavailable)
+-- Γ£ô AMD AOCL  detected
+--   AOCL plugin will be enabled
+-- 
+-- CPU Backend Configuration:
+--   Intel MKL:      ON
+--   OpenBLAS:       OFF
+--   BLIS:           ON
+--   AMD AOCL:       ON
+--   Accelerate:     OFF
+-- 
+--   HIP detection will compile using clang directly: C:/Program Files/AMD/ROCm/6.4/bin/clang.exe
+-- Adding Intel MKL CPU backend source
+-- Adding BLIS CPU backend source
+-- Adding AMD AOCL CPU backend source
+-- rocBLAS backend enabled (BLAS Level 1-3 + LAPACK via rocSOLVER)
+--    Note: rocSOLVER provides LU, Cholesky, QR, SVD, and eigenvalue solvers
+-- Adding CLBlast backend trait implementation
+-- Linking CUDA libraries for cuBLAS plugin with GPU detection
+-- CUDA include dirs: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include;C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl
+--   Linked HIP runtime: C:/Program Files/AMD/ROCm/6.4/lib/amdhip64.lib
+-- ROCm HIP support enabled with HIP compiler
+-- Linking Intel MKL CPU libraries
+-- Linking BLIS libraries
+-- Linking AMD AOCL libraries
+-- Linking OpenCL: C:/libraries/vcpkg/installed/x64-windows/debug/lib/OpenCL.lib
+-- Linking CLBlast
+-- Device Memory Manager simple test enabled
+-- Smart Wrappers GPU test enabled
+-- Phase 1 GPU Operations test enabled
+-- Comprehensive correctness test enabled
+-- Reference BLAS Level 1 expanded test enabled
+-- Judge module tests enabled
+-- Backend loader integration test enabled
+-- CLBlast execution test enabled
+-- cuBLAS tests enabled
+-- Device Memory Manager test enabled
+-- AOCL tests enabled
+-- BLIS tests enabled
+-- hipBLAS tests enabled
+-- 
+-- Backend Tests Configuration:
+--   cuBLAS: ON
+--   rocBLAS: ON
+--   hipBLAS: ON
+--   oneMKL: OFF
+--   MKL (CPU): ON
+--   OpenBLAS: OFF
+--   AOCL (BLIS+libFLAME): ON
+--   BLIS: ON
+-- 
+-- 
+-- === Faster-BLASTER Configuration Summary ===
+-- Version: 0.1.0
+-- Build type: Debug
+-- Shared libraries: ON
+-- 
+-- Optional Features:
+--   Tests: ON
+--   Benchmarks: OFF
+--   Examples: OFF
+--   Statistics: ON
+-- 
+-- Backend Support:
+--   OpenBLAS: OFF
+--   BLIS: ON
+--   Intel MKL: ON
+--   NVIDIA cuBLAS: ON
+--   AMD rocBLAS: ON
+--   Apple Accelerate: ON
+-- ===========================================
+-- 
+-- Configuring done (134.1s)
+CMake Warning (dev) in tests/CMakeLists.txt:
+  Policy CMP0104 is not set: CMAKE_CUDA_ARCHITECTURES now detected for NVCC,
+  empty CUDA_ARCHITECTURES not allowed.  Run "cmake --help-policy CMP0104"
+  for policy details.  Use the cmake_policy command to set the policy and
+  suppress this warning.
+
+  CUDA_ARCHITECTURES is empty for target "cublas_trait".
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) in tests/CMakeLists.txt:
+  Policy CMP0104 is not set: CMAKE_CUDA_ARCHITECTURES now detected for NVCC,
+  empty CUDA_ARCHITECTURES not allowed.  Run "cmake --help-policy CMP0104"
+  for policy details.  Use the cmake_policy command to set the policy and
+  suppress this warning.
+
+  CUDA_ARCHITECTURES is empty for target "cublas_trait".
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) in tests/CMakeLists.txt:
+  Policy CMP0104 is not set: CMAKE_CUDA_ARCHITECTURES now detected for NVCC,
+  empty CUDA_ARCHITECTURES not allowed.  Run "cmake --help-policy CMP0104"
+  for policy details.  Use the cmake_policy command to set the policy and
+  suppress this warning.
+
+  CUDA_ARCHITECTURES is empty for target "test_cublas_basic".
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+CMake Warning (dev) in tests/CMakeLists.txt:
+  Policy CMP0104 is not set: CMAKE_CUDA_ARCHITECTURES now detected for NVCC,
+  empty CUDA_ARCHITECTURES not allowed.  Run "cmake --help-policy CMP0104"
+  for policy details.  Use the cmake_policy command to set the policy and
+  suppress this warning.
+
+  CUDA_ARCHITECTURES is empty for target "test_device_memory_manager".
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang
+[1/49] Building CUDA object tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj
+FAILED: [code=1] tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj 
+C:\PROGRA~1\NVIDIA~2\CUDA\v13.0\bin\nvcc.exe -forward-unknown-to-host-compiler -DFB_ENABLE_OPENCL -D_CRT_SECURE_NO_WARNINGS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -D_WINDOWS -Xcompiler=" /GR /EHsc" -Xcompiler=" -Zi -Ob0 -Od /RTC1" -std=c++20 -Xcompiler=-MDd -MD -MT tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -MF tests\CMakeFiles\cublas_trait.dir\__\src\backends\gpu\cublas_trait_impl.c.obj.d -x cu -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/gpu/cublas_trait_impl.c -o tests/CMakeFiles/cublas_trait.dir/__/src/backends/gpu/cublas_trait_impl.c.obj -Xcompiler=-Fdtests\CMakeFiles\cublas_trait.dir\cublas_trait.pdb,-FS
+nvcc fatal   : Cannot find compiler 'cl.exe' in PATH
+[2/49] Building C object CMakeFiles/faster-blaster.dir/src/plugins/cublas_vtable_wrappers.c.obj
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/cublas_vtable_wrappers.c:226:13: warning: unused function 'cublas_sgemv_wrapper' [-Wunused-function]
+  226 | static void cublas_sgemv_wrapper(
+      |             ^~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+[3/49] Building C object tests/CMakeFiles/test_plugin_architecture.dir/test_plugin_architecture.c.obj
+[4/49] Building C object tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj
+FAILED: [code=1] tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_OPENCL -D_CRT_SECURE_NO_WARNINGS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -O0 -g -Xclang -gcodeview -std=gnu11 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -MD -MT tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj -MF tests\CMakeFiles\test_device_api.dir\test_device_api.c.obj.d -o tests/CMakeFiles/test_device_api.dir/test_device_api.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/tests/test_device_api.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/tests/test_device_api.c:221:5: error: call to undeclared function 'fb_register_all_plugins'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+  221 |     fb_register_all_plugins();
+      |     ^
+1 error generated.
+[5/49] Building C object tests/CMakeFiles/test_phase1_gpu_operations.dir/test_phase1_gpu_operations.c.obj
+[6/49] Building C object tests/CMakeFiles/test_aocl_backend.dir/test_aocl_backend.c.obj
+[7/49] Building C object tests/CMakeFiles/test_clblast_execution.dir/test_clblast_execution.c.obj
+[8/49] Building C object tests/CMakeFiles/test_backend_loader.dir/test_backend_loader.c.obj
+[9/49] Building C object tests/CMakeFiles/test_blis_backend.dir/test_blis_backend.c.obj
+[10/49] Linking C static library tests\aocl_backend_lib.lib
+[11/49] Building CXX object tests/CMakeFiles/test_hipblas_backend.dir/test_hipblas_backend.cpp.obj
+[12/49] Building C object tests/CMakeFiles/test_comprehensive_correctness.dir/test_comprehensive_correctness.c.obj
+[13/49] Building C object CMakeFiles/faster-blaster.dir/src/backends/openblas_backend.c.obj
+FAILED: [code=1] CMakeFiles/faster-blaster.dir/src/backends/openblas_backend.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_AOCL -DFB_ENABLE_BLIS -DFB_ENABLE_CUDA -DFB_ENABLE_HIP -DFB_ENABLE_MKL -DFB_ENABLE_OPENCL -DFB_ENABLE_STATISTICS -D_CRT_SECURE_NO_WARNINGS -Dfaster_blaster_EXPORTS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/core -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends -I"C:/Program Files/AMD/ROCm/6.4/include" -I"C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include" -IC:/BLIS/include -I"C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64" -I"C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64" -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -isystem C:/libraries/vcpkg/installed/x64-windows/include -O0 -g -Xclang -gcodeview -std=gnu23 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/faster-blaster.dir/src/backends/openblas_backend.c.obj -MF CMakeFiles\faster-blaster.dir\src\backends\openblas_backend.c.obj.d -o CMakeFiles/faster-blaster.dir/src/backends/openblas_backend.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2177:14: error: incompatible function pointer types initializing 'fb_sgesv_fn' (aka 'int (*)(const fb_layout_t, const int, const int, float *, const int, int *, float *, const int)') with an expression of type 'void (int, int, float *, int, int *, float *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2177 |     .sgesv = openblas_sgesv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2178:14: error: incompatible function pointer types initializing 'fb_dgesv_fn' (aka 'int (*)(const fb_layout_t, const int, const int, double *, const int, int *, double *, const int)') with an expression of type 'void (int, int, double *, int, int *, double *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2178 |     .dgesv = openblas_dgesv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2179:14: error: incompatible function pointer types initializing 'fb_cgesv_fn' (aka 'int (*)(const fb_layout_t, const int, const int, _Complex float *, const int, int *, _Complex float *, const int)') with an expression of type 'void (int, int, void *, int, int *, void *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2179 |     .cgesv = openblas_cgesv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2180:14: error: incompatible function pointer types initializing 'fb_zgesv_fn' (aka 'int (*)(const fb_layout_t, const int, const int, _Complex double *, const int, int *, _Complex double *, const int)') with an expression of type 'void (int, int, void *, int, int *, void *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2180 |     .zgesv = openblas_zgesv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2183:15: error: incompatible function pointer types initializing 'fb_sgetrf_fn' (aka 'int (*)(const fb_layout_t, const int, const int, float *, const int, int *)') with an expression of type 'void (int, int, float *, int, int *, int *)' [-Wincompatible-function-pointer-types]
+ 2183 |     .sgetrf = openblas_sgetrf,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2184:15: error: incompatible function pointer types initializing 'fb_dgetrf_fn' (aka 'int (*)(const fb_layout_t, const int, const int, double *, const int, int *)') with an expression of type 'void (int, int, double *, int, int *, int *)' [-Wincompatible-function-pointer-types]
+ 2184 |     .dgetrf = openblas_dgetrf,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2185:15: error: incompatible function pointer types initializing 'fb_cgetrf_fn' (aka 'int (*)(const fb_layout_t, const int, const int, _Complex float *, const int, int *)') with an expression of type 'void (int, int, void *, int, int *, int *)' [-Wincompatible-function-pointer-types]
+ 2185 |     .cgetrf = openblas_cgetrf,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2186:15: error: incompatible function pointer types initializing 'fb_zgetrf_fn' (aka 'int (*)(const fb_layout_t, const int, const int, _Complex double *, const int, int *)') with an expression of type 'void (int, int, void *, int, int *, int *)' [-Wincompatible-function-pointer-types]
+ 2186 |     .zgetrf = openblas_zgetrf,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2187:15: error: incompatible function pointer types initializing 'fb_sgetrs_fn' (aka 'int (*)(const fb_layout_t, const fb_transpose_t, const int, const int, const float *, const int, const int *, float *, const int)') with an expression of type 'void (char, int, int, const float *, int, const int *, float *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2187 |     .sgetrs = openblas_sgetrs,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2188:15: error: incompatible function pointer types initializing 'fb_dgetrs_fn' (aka 'int (*)(const fb_layout_t, const fb_transpose_t, const int, const int, const double *, const int, const int *, double *, const int)') with an expression of type 'void (char, int, int, const double *, int, const int *, double *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2188 |     .dgetrs = openblas_dgetrs,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2189:15: error: incompatible function pointer types initializing 'fb_cgetrs_fn' (aka 'int (*)(const fb_layout_t, const fb_transpose_t, const int, const int, const _Complex float *, const int, const int *, _Complex float *, const int)') with an expression of type 'void (char, int, int, const void *, int, const int *, void *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2189 |     .cgetrs = openblas_cgetrs,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2190:15: error: incompatible function pointer types initializing 'fb_zgetrs_fn' (aka 'int (*)(const fb_layout_t, const fb_transpose_t, const int, const int, const _Complex double *, const int, const int *, _Complex double *, const int)') with an expression of type 'void (char, int, int, const void *, int, const int *, void *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2190 |     .zgetrs = openblas_zgetrs,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2191:15: error: incompatible function pointer types initializing 'fb_sgetri_fn' (aka 'int (*)(const fb_layout_t, const int, float *, const int, const int *)') with an expression of type 'void (int, float *, int, const int *, int *)' [-Wincompatible-function-pointer-types]
+ 2191 |     .sgetri = openblas_sgetri,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2192:15: error: incompatible function pointer types initializing 'fb_dgetri_fn' (aka 'int (*)(const fb_layout_t, const int, double *, const int, const int *)') with an expression of type 'void (int, double *, int, const int *, int *)' [-Wincompatible-function-pointer-types]
+ 2192 |     .dgetri = openblas_dgetri,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2193:15: error: incompatible function pointer types initializing 'fb_cgetri_fn' (aka 'int (*)(const fb_layout_t, const int, _Complex float *, const int, const int *)') with an expression of type 'void (int, void *, int, const int *, int *)' [-Wincompatible-function-pointer-types]
+ 2193 |     .cgetri = openblas_cgetri,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2194:15: error: incompatible function pointer types initializing 'fb_zgetri_fn' (aka 'int (*)(const fb_layout_t, const int, _Complex double *, const int, const int *)') with an expression of type 'void (int, void *, int, const int *, int *)' [-Wincompatible-function-pointer-types]
+ 2194 |     .zgetri = openblas_zgetri,
+      |               ^~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2197:14: error: incompatible function pointer types initializing 'fb_sposv_fn' (aka 'int (*)(const fb_layout_t, const fb_uplo_t, const int, const int, float *, const int, float *, const int)') with an expression of type 'void (char, int, int, float *, int, float *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2197 |     .sposv = openblas_sposv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2198:14: error: incompatible function pointer types initializing 'fb_dposv_fn' (aka 'int (*)(const fb_layout_t, const fb_uplo_t, const int, const int, double *, const int, double *, const int)') with an expression of type 'void (char, int, int, double *, int, double *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2198 |     .dposv = openblas_dposv,
+      |              ^~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends/openblas_backend.c:2199:14: error: incompatible function pointer types initializing 'fb_cposv_fn' (aka 'int (*)(const fb_layout_t, const fb_uplo_t, const int, const int, _Complex float *, const int, _Complex float *, const int)') with an expression of type 'void (char, int, int, void *, int, void *, int, int *)' [-Wincompatible-function-pointer-types]
+ 2199 |     .cposv = openblas_cposv,
+      |              ^~~~~~~~~~~~~~
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+[14/49] Building C object tests/CMakeFiles/blis_backend_lib.dir/__/src/backends/blis_backend.c.obj
+[15/49] Building C object CMakeFiles/faster-blaster.dir/src/plugins/plugin_mkl.c.obj
+FAILED: [code=1] CMakeFiles/faster-blaster.dir/src/plugins/plugin_mkl.c.obj 
+C:\PROGRA~1\LLVM\bin\clang.exe -DFB_ENABLE_AOCL -DFB_ENABLE_BLIS -DFB_ENABLE_CUDA -DFB_ENABLE_HIP -DFB_ENABLE_MKL -DFB_ENABLE_OPENCL -DFB_ENABLE_STATISTICS -D_CRT_SECURE_NO_WARNINGS -Dfaster_blaster_EXPORTS -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/core -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/backends -I"C:/Program Files/AMD/ROCm/6.4/include" -I"C:/Program Files (x86)/Intel/oneAPI/mkl/latest/include" -IC:/BLIS/include -I"C:/Program Files/AMD/AOCL-Windows/amd-blis/include/LP64" -I"C:/Program Files/AMD/AOCL-Windows/amd-libflame/include/LP64" -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/include -IC:/Users/cires/OneDrive/Documents/projects/faster-blaster/build-clang/_deps/cpuinfo-src/src -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include" -isystem "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.0/include/cccl" -isystem C:/libraries/vcpkg/installed/x64-windows/include -O0 -g -Xclang -gcodeview -std=gnu23 -D_DEBUG -D_DLL -D_MT -Xclang --dependent-lib=msvcrtd -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/faster-blaster.dir/src/plugins/plugin_mkl.c.obj -MF CMakeFiles\faster-blaster.dir\src\plugins\plugin_mkl.c.obj.d -o CMakeFiles/faster-blaster.dir/src/plugins/plugin_mkl.c.obj -c C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:504:15: warning: initializing 'void *' with an expression of type 'FARPROC' (aka 'long long (*)(void)') converts between void pointer and function pointer [-Wpedantic]
+  504 |         void* cblas_sdot_sym = FB_GET_PROC_ADDRESS(test_handle, "cblas_sdot");
+      |               ^                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:505:15: warning: initializing 'void *' with an expression of type 'FARPROC' (aka 'long long (*)(void)') converts between void pointer and function pointer [-Wpedantic]
+  505 |         void* cblas_sgemm_sym = FB_GET_PROC_ADDRESS(test_handle, "cblas_sgemm");
+      |               ^                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:467:59: warning: unused parameter 'unused_lib_handle' [-Wunused-parameter]
+  467 | static fb_plugin_probe_result_t mkl_probe(fb_lib_handle_t unused_lib_handle, const char** search_paths) {
+      |                                                           ^
+C:/Users/cires/OneDrive/Documents/projects/faster-blaster/src/plugins/plugin_mkl.c:701:71: warning: unused parameter 'ctx' [-Wunused-parameter]
