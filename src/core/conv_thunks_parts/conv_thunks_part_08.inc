@@ -28,6 +28,30 @@ DEFINE_GEEQU_COMPLEX_CBLAS_TO_FORTRAN(cgeequ, fb_complex_float_t, float,
                                       FB_OP_CGEEQU)
 DEFINE_GEEQU_COMPLEX_CBLAS_TO_FORTRAN(zgeequ, fb_complex_double_t, double,
                                       FB_OP_ZGEEQU)
+DEFINE_POCON_REAL_FORTRAN_TO_CBLAS(spocon, float, FB_OP_SPOCON)
+DEFINE_POCON_REAL_FORTRAN_TO_CBLAS(dpocon, double, FB_OP_DPOCON)
+DEFINE_POCON_COMPLEX_FORTRAN_TO_CBLAS(cpocon, fb_complex_float_t, float,
+                                      FB_OP_CPOCON)
+DEFINE_POCON_COMPLEX_FORTRAN_TO_CBLAS(zpocon, fb_complex_double_t, double,
+                                      FB_OP_ZPOCON)
+DEFINE_POCON_REAL_CBLAS_TO_FORTRAN(spocon, float, FB_OP_SPOCON)
+DEFINE_POCON_REAL_CBLAS_TO_FORTRAN(dpocon, double, FB_OP_DPOCON)
+DEFINE_POCON_COMPLEX_CBLAS_TO_FORTRAN(cpocon, fb_complex_float_t, float,
+                                      FB_OP_CPOCON)
+DEFINE_POCON_COMPLEX_CBLAS_TO_FORTRAN(zpocon, fb_complex_double_t, double,
+                                      FB_OP_ZPOCON)
+DEFINE_POEQU_REAL_FORTRAN_TO_CBLAS(spoequ, float, FB_OP_SPOEQU)
+DEFINE_POEQU_REAL_FORTRAN_TO_CBLAS(dpoequ, double, FB_OP_DPOEQU)
+DEFINE_POEQU_COMPLEX_FORTRAN_TO_CBLAS(cpoequ, fb_complex_float_t, float,
+                                      FB_OP_CPOEQU)
+DEFINE_POEQU_COMPLEX_FORTRAN_TO_CBLAS(zpoequ, fb_complex_double_t, double,
+                                      FB_OP_ZPOEQU)
+DEFINE_POEQU_REAL_CBLAS_TO_FORTRAN(spoequ, float, FB_OP_SPOEQU)
+DEFINE_POEQU_REAL_CBLAS_TO_FORTRAN(dpoequ, double, FB_OP_DPOEQU)
+DEFINE_POEQU_COMPLEX_CBLAS_TO_FORTRAN(cpoequ, fb_complex_float_t, float,
+                                      FB_OP_CPOEQU)
+DEFINE_POEQU_COMPLEX_CBLAS_TO_FORTRAN(zpoequ, fb_complex_double_t, double,
+                                      FB_OP_ZPOEQU)
 
 DEFINE_GEEV_REAL_FORTRAN_TO_CBLAS(sgeev, float, FB_OP_SGEEV,
                                   fb_query_size_from_float)
@@ -165,8 +189,16 @@ DEFINE_HEGVD_COMPLEX_CBLAS_TO_FORTRAN(zsygvd, fb_complex_double_t, double,
 #undef DEFINE_GEBRD_REAL_FORTRAN_TO_CBLAS
 #undef DEFINE_GEBRD_COMPLEX_FORTRAN_TO_CBLAS
 #undef DEFINE_GEEQU_REAL_FORTRAN_TO_CBLAS
+#undef DEFINE_POCON_REAL_FORTRAN_TO_CBLAS
+#undef DEFINE_POCON_COMPLEX_FORTRAN_TO_CBLAS
+#undef DEFINE_POEQU_REAL_FORTRAN_TO_CBLAS
+#undef DEFINE_POEQU_COMPLEX_FORTRAN_TO_CBLAS
 #undef DEFINE_GECON_REAL_FORTRAN_TO_CBLAS
 #undef DEFINE_GECON_COMPLEX_FORTRAN_TO_CBLAS
+#undef DEFINE_POCON_REAL_CBLAS_TO_FORTRAN
+#undef DEFINE_POCON_COMPLEX_CBLAS_TO_FORTRAN
+#undef DEFINE_POEQU_REAL_CBLAS_TO_FORTRAN
+#undef DEFINE_POEQU_COMPLEX_CBLAS_TO_FORTRAN
 #undef DEFINE_GESDD_REAL_FORTRAN_TO_CBLAS
 #undef DEFINE_GESDD_COMPLEX_FORTRAN_TO_CBLAS
 #undef DEFINE_SYGV_REAL_FORTRAN_TO_CBLAS
@@ -336,9 +368,32 @@ fb_generic_fn const k_cblas_to_fortran_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DTRSM] = C2F(thunk_dtrsm_cblas_to_fortran),
     [FB_OP_CTRSM] = C2F(thunk_ctrsm_cblas_to_fortran),
     [FB_OP_ZTRSM] = C2F(thunk_ztrsm_cblas_to_fortran),
+    [FB_OP_SBDSDC] = C2F(thunk_sbdsdc_cblas_to_fortran),
+    [FB_OP_DBDSDC] = C2F(thunk_dbdsdc_cblas_to_fortran),
+    [FB_OP_CBDSDC] = C2F(thunk_cbdsdc_cblas_to_fortran),
+    [FB_OP_ZBDSDC] = C2F(thunk_zbdsdc_cblas_to_fortran),
+    [FB_OP_SBDSQR] = C2F(thunk_sbdsqr_cblas_to_fortran),
+    [FB_OP_DBDSQR] = C2F(thunk_dbdsqr_cblas_to_fortran),
+    [FB_OP_CBDSQR] = C2F(thunk_cbdsqr_cblas_to_fortran),
+    [FB_OP_ZBDSQR] = C2F(thunk_zbdsqr_cblas_to_fortran),
+    [FB_OP_SGEEVX] = C2F(thunk_sgeevx_cblas_to_fortran),
+    [FB_OP_DGEEVX] = C2F(thunk_dgeevx_cblas_to_fortran),
+    [FB_OP_CGEEVX] = C2F(thunk_cgeevx_cblas_to_fortran),
+    [FB_OP_ZGEEVX] = C2F(thunk_zgeevx_cblas_to_fortran),
+    [FB_OP_SGELSD] = C2F(thunk_sgelsd_cblas_to_fortran),
+    [FB_OP_SGELSS] = C2F(thunk_sgelss_cblas_to_fortran),
+    [FB_OP_DGELSS] = C2F(thunk_dgelss_cblas_to_fortran),
+    [FB_OP_CGELSS] = C2F(thunk_cgelss_cblas_to_fortran),
+    [FB_OP_ZGELSS] = C2F(thunk_zgelss_cblas_to_fortran),
     /* LAPACK driver ops */
     [FB_OP_SGEES] = C2F(thunk_sgees_cblas_to_fortran),
     [FB_OP_DGEES] = C2F(thunk_dgees_cblas_to_fortran),
+    [FB_OP_CGEES] = C2F(thunk_cgees_cblas_to_fortran),
+    [FB_OP_ZGEES] = C2F(thunk_zgees_cblas_to_fortran),
+    [FB_OP_SGEESX] = C2F(thunk_sgeesx_cblas_to_fortran),
+    [FB_OP_DGEESX] = C2F(thunk_dgeesx_cblas_to_fortran),
+    [FB_OP_CGEESX] = C2F(thunk_cgeesx_cblas_to_fortran),
+    [FB_OP_ZGEESX] = C2F(thunk_zgeesx_cblas_to_fortran),
     [FB_OP_SPOSV] = C2F(thunk_sposv_cblas_to_fortran),
     [FB_OP_DPOSV] = C2F(thunk_dposv_cblas_to_fortran),
     [FB_OP_CPOSV] = C2F(thunk_cposv_cblas_to_fortran),
@@ -583,6 +638,14 @@ fb_generic_fn const k_cblas_to_fortran_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DGEEQU] = C2F(thunk_dgeequ_cblas_to_fortran),
     [FB_OP_CGEEQU] = C2F(thunk_cgeequ_cblas_to_fortran),
     [FB_OP_ZGEEQU] = C2F(thunk_zgeequ_cblas_to_fortran),
+    [FB_OP_SPOCON] = C2F(thunk_spocon_cblas_to_fortran),
+    [FB_OP_DPOCON] = C2F(thunk_dpocon_cblas_to_fortran),
+    [FB_OP_CPOCON] = C2F(thunk_cpocon_cblas_to_fortran),
+    [FB_OP_ZPOCON] = C2F(thunk_zpocon_cblas_to_fortran),
+    [FB_OP_SPOEQU] = C2F(thunk_spoequ_cblas_to_fortran),
+    [FB_OP_DPOEQU] = C2F(thunk_dpoequ_cblas_to_fortran),
+    [FB_OP_CPOEQU] = C2F(thunk_cpoequ_cblas_to_fortran),
+    [FB_OP_ZPOEQU] = C2F(thunk_zpoequ_cblas_to_fortran),
     [FB_OP_SGEEV] = C2F(thunk_sgeev_cblas_to_fortran),
     [FB_OP_DGEEV] = C2F(thunk_dgeev_cblas_to_fortran),
     [FB_OP_CGEEV] = C2F(thunk_cgeev_cblas_to_fortran),
@@ -726,6 +789,10 @@ fb_generic_fn const k_cblas_to_fortran_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_CPBCON] = C2F(thunk_cpbcon_cblas_to_fortran),
     [FB_OP_ZPBCON] = C2F(thunk_zpbcon_cblas_to_fortran),
     [FB_OP_SGBCON] = C2F(thunk_sgbcon_cblas_to_fortran),
+    [FB_OP_SGBRFS] = C2F(thunk_sgbrfs_cblas_to_fortran),
+    [FB_OP_DGBRFS] = C2F(thunk_dgbrfs_cblas_to_fortran),
+    [FB_OP_CGBRFS] = C2F(thunk_cgbrfs_cblas_to_fortran),
+    [FB_OP_ZGBRFS] = C2F(thunk_zgbrfs_cblas_to_fortran),
     [FB_OP_SPPCON] = C2F(thunk_sppcon_cblas_to_fortran),
     [FB_OP_DPPCON] = C2F(thunk_dppcon_cblas_to_fortran),
     [FB_OP_CPPCON] = C2F(thunk_cppcon_cblas_to_fortran),
@@ -1111,9 +1178,32 @@ fb_generic_fn const k_fortran_to_cblas_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DTRSM] = F2C(thunk_dtrsm_fortran_to_cblas),
     [FB_OP_CTRSM] = F2C(thunk_ctrsm_fortran_to_cblas),
     [FB_OP_ZTRSM] = F2C(thunk_ztrsm_fortran_to_cblas),
+    [FB_OP_SBDSDC] = F2C(thunk_sbdsdc_fortran_to_cblas),
+    [FB_OP_DBDSDC] = F2C(thunk_dbdsdc_fortran_to_cblas),
+    [FB_OP_CBDSDC] = F2C(thunk_cbdsdc_fortran_to_cblas),
+    [FB_OP_ZBDSDC] = F2C(thunk_zbdsdc_fortran_to_cblas),
+    [FB_OP_SBDSQR] = F2C(thunk_sbdsqr_fortran_to_cblas),
+    [FB_OP_DBDSQR] = F2C(thunk_dbdsqr_fortran_to_cblas),
+    [FB_OP_CBDSQR] = F2C(thunk_cbdsqr_fortran_to_cblas),
+    [FB_OP_ZBDSQR] = F2C(thunk_zbdsqr_fortran_to_cblas),
+    [FB_OP_SGEEVX] = F2C(thunk_sgeevx_fortran_to_cblas),
+    [FB_OP_DGEEVX] = F2C(thunk_dgeevx_fortran_to_cblas),
+    [FB_OP_CGEEVX] = F2C(thunk_cgeevx_fortran_to_cblas),
+    [FB_OP_ZGEEVX] = F2C(thunk_zgeevx_fortran_to_cblas),
+    [FB_OP_SGELSD] = F2C(thunk_sgelsd_fortran_to_cblas),
+    [FB_OP_SGELSS] = F2C(thunk_sgelss_fortran_to_cblas),
+    [FB_OP_DGELSS] = F2C(thunk_dgelss_fortran_to_cblas),
+    [FB_OP_CGELSS] = F2C(thunk_cgelss_fortran_to_cblas),
+    [FB_OP_ZGELSS] = F2C(thunk_zgelss_fortran_to_cblas),
     /* LAPACK driver ops */
     [FB_OP_SGEES] = F2C(thunk_sgees_fortran_to_cblas),
     [FB_OP_DGEES] = F2C(thunk_dgees_fortran_to_cblas),
+    [FB_OP_CGEES] = F2C(thunk_cgees_fortran_to_cblas),
+    [FB_OP_ZGEES] = F2C(thunk_zgees_fortran_to_cblas),
+    [FB_OP_SGEESX] = F2C(thunk_sgeesx_fortran_to_cblas),
+    [FB_OP_DGEESX] = F2C(thunk_dgeesx_fortran_to_cblas),
+    [FB_OP_CGEESX] = F2C(thunk_cgeesx_fortran_to_cblas),
+    [FB_OP_ZGEESX] = F2C(thunk_zgeesx_fortran_to_cblas),
     [FB_OP_SPOSV] = F2C(thunk_sposv_fortran_to_cblas),
     [FB_OP_DPOSV] = F2C(thunk_dposv_fortran_to_cblas),
     [FB_OP_CPOSV] = F2C(thunk_cposv_fortran_to_cblas),
@@ -1243,6 +1333,10 @@ fb_generic_fn const k_fortran_to_cblas_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_CPBCON] = F2C(thunk_cpbcon_fortran_to_cblas),
     [FB_OP_ZPBCON] = F2C(thunk_zpbcon_fortran_to_cblas),
     [FB_OP_SGBCON] = F2C(thunk_sgbcon_fortran_to_cblas),
+    [FB_OP_SGBRFS] = F2C(thunk_sgbrfs_fortran_to_cblas),
+    [FB_OP_DGBRFS] = F2C(thunk_dgbrfs_fortran_to_cblas),
+    [FB_OP_CGBRFS] = F2C(thunk_cgbrfs_fortran_to_cblas),
+    [FB_OP_ZGBRFS] = F2C(thunk_zgbrfs_fortran_to_cblas),
     [FB_OP_SPPCON] = F2C(thunk_sppcon_fortran_to_cblas),
     [FB_OP_DPPCON] = F2C(thunk_dppcon_fortran_to_cblas),
     [FB_OP_CPPCON] = F2C(thunk_cppcon_fortran_to_cblas),
@@ -1732,6 +1826,14 @@ fb_generic_fn const k_fortran_to_cblas_thunks[FB_JUDGE_MAX_OPERATIONS] = {
     [FB_OP_DGEEQU] = F2C(thunk_dgeequ_fortran_to_cblas),
     [FB_OP_CGEEQU] = F2C(thunk_cgeequ_fortran_to_cblas),
     [FB_OP_ZGEEQU] = F2C(thunk_zgeequ_fortran_to_cblas),
+    [FB_OP_SPOCON] = F2C(thunk_spocon_fortran_to_cblas),
+    [FB_OP_DPOCON] = F2C(thunk_dpocon_fortran_to_cblas),
+    [FB_OP_CPOCON] = F2C(thunk_cpocon_fortran_to_cblas),
+    [FB_OP_ZPOCON] = F2C(thunk_zpocon_fortran_to_cblas),
+    [FB_OP_SPOEQU] = F2C(thunk_spoequ_fortran_to_cblas),
+    [FB_OP_DPOEQU] = F2C(thunk_dpoequ_fortran_to_cblas),
+    [FB_OP_CPOEQU] = F2C(thunk_cpoequ_fortran_to_cblas),
+    [FB_OP_ZPOEQU] = F2C(thunk_zpoequ_fortran_to_cblas),
     [FB_OP_SGEEV] = F2C(thunk_sgeev_fortran_to_cblas),
     [FB_OP_DGEEV] = F2C(thunk_dgeev_fortran_to_cblas),
     [FB_OP_CGEEV] = F2C(thunk_cgeev_fortran_to_cblas),

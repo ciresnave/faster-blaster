@@ -84,7 +84,7 @@ typedef struct {
 **Functions**:
 - `fb_register_plugin()` - Add plugin to registry (linked list)
 - `fb_get_registered_plugins()` - Iterate all plugins
-- `fb_load_best_plugin()` - Probe all, select highest score, initialize
+- `fb_load_best_plugin()` - Probe all, select first compatible plugin in registry order, initialize
 - `fb_plugin_load_library()` - Cross-platform library loading
 - `fb_plugin_get_symbol()` - Cross-platform symbol resolution
 - `fb_plugin_unload_library()` - Cleanup

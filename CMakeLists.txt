@@ -350,7 +350,7 @@ option(ENABLE_STATISTICS "Enable runtime statistics collection" ON)
 # GPU Backend options (AUTO = enable if dependencies found)
 set(FB_ENABLE_CUDA "AUTO" CACHE STRING "Enable NVIDIA cuBLAS (ON/OFF/AUTO)")
 set(FB_ENABLE_ROCM "AUTO" CACHE STRING "Enable AMD rocBLAS (ON/OFF/AUTO)")
-set(FB_ENABLE_ONEMKL "OFF" CACHE STRING "Enable Intel oneMKL GPU (ON/OFF/AUTO)") # Disabled temporarily - member order errors
+set(FB_ENABLE_ONEMKL "AUTO" CACHE STRING "Enable Intel oneMKL GPU (ON/OFF/AUTO)")
 set(FB_ENABLE_METAL "AUTO" CACHE STRING "Enable Apple Metal (ON/OFF/AUTO)")
 
 # Legacy CPU backend options (kept for compatibility)
@@ -553,6 +553,7 @@ if(FB_ENABLE_ONEMKL STREQUAL "AUTO" OR FB_ENABLE_ONEMKL)
     
     if(ONEMKL_FOUND)
         set(ONEMKL_AVAILABLE ON)
+        set(ENABLE_ONEMKL ON CACHE BOOL "Enable Intel oneMKL GPU backend" FORCE)
         message(STATUS "✓ Intel oneMKL ${ONEMKL_VERSION} detected")
         message(STATUS "  oneMKL GPU plugin will be enabled")
     else()
@@ -1054,6 +1055,19 @@ if(NOT CLBLAST_AVAILABLE)
     )
 endif()
 
+# Build-time wrapper generation tool
+add_subdirectory(codegen)
+
+add_custom_target(fb_codegen_generate
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/backends/generated
+    COMMAND $<TARGET_FILE:fb_codegen>
+        --headers-dir ${CMAKE_CURRENT_SOURCE_DIR}/backends/headers
+        --templates-dir ${CMAKE_CURRENT_SOURCE_DIR}/codegen/templates
+        --output-dir ${CMAKE_CURRENT_BINARY_DIR}/backends/generated
+    DEPENDS fb_codegen
+    COMMENT "Generating backend wrappers with fb_codegen"
+)
+
 # Create main library
 add_library(faster-blaster
     ${CORE_SOURCES}
@@ -1064,6 +1078,33 @@ add_library(faster-blaster
     ${PLUGIN_SOURCES}
     ${JUDGE_SOURCES}
 )
+
+add_dependencies(faster-blaster fb_codegen_generate)
+
+# OOM guardrail: reduce peak compiler memory on very large generated units.
+option(FB_LOW_MEMORY_THUNK_COMPILE
+    "Use lower-memory compile flags for thunk-heavy translation units"
+    ON)
+
+if(FB_LOW_MEMORY_THUNK_COMPILE)
+    if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        if(MSVC)
+            # clang-cl: prefer size-oriented optimization and embedded debug info
+            # for giant files to avoid memory spikes from full PDB generation.
+            set_source_files_properties(
+                src/core/conv_thunks.c
+                src/core/op_vtable_map.c
+                PROPERTIES COMPILE_OPTIONS "/O1;/Z7"
+            )
+        else()
+            set_source_files_properties(
+                src/core/conv_thunks.c
+                src/core/op_vtable_map.c
+                PROPERTIES COMPILE_OPTIONS "-O1;-gline-tables-only"
+            )
+        endif()
+    endif()
+endif()
 
 # Enable automatic DLL export on Windows
 set_target_properties(faster-blaster PROPERTIES
@@ -1078,6 +1119,7 @@ target_include_directories(faster-blaster
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/core
         ${CMAKE_CURRENT_SOURCE_DIR}/src/backends
+        ${CMAKE_CURRENT_BINARY_DIR}/backends/generated
 )
 
 # ---- faster-blaster-reference: canonical BLAS/LAPACK correctness oracle ----

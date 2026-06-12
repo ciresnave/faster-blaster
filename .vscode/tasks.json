@@ -4,7 +4,49 @@
 		{
 			"label": "Build faster-blaster DLL",
 			"type": "shell",
-			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster 2>&1 | Select-String 'error:|FAILED' | Select-Object -First 20; echo DONE:$LASTEXITCODE"
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja -j1 faster-blaster 2>&1 | Select-String 'error:|FAILED' | Select-Object -First 20; echo DONE:$LASTEXITCODE"
+		},
+		{
+			"label": "Probe Live Missing Thunks",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"scripts\\run_live_missing_thunks_probe.ps1"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Build + Probe Live Missing Thunks",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; ninja -j1 faster-blaster; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster'; & '.\\scripts\\run_live_missing_thunks_probe.ps1'; exit $LASTEXITCODE"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Clean Rebuild + Probe Live Missing Thunks",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang'; ninja -t clean; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; ninja -j1 faster-blaster; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster'; & '.\\scripts\\run_live_missing_thunks_probe.ps1'; exit $LASTEXITCODE"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		},
 		{
 			"label": "Run device_api test",
@@ -29,7 +71,7 @@
 		{
 			"label": "Build DLL and BLIS test",
 			"type": "shell",
-			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster test_blis_backend 2>&1 | Select-String 'error:|FAILED|BUILD' | Select-Object -First 10; echo DONE:$LASTEXITCODE"
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja -j1 faster-blaster test_blis_backend 2>&1 | Select-String 'error:|FAILED|BUILD' | Select-Object -First 10; echo DONE:$LASTEXITCODE"
 		},
 		{
 			"label": "Full ctest after BLIS fix",
@@ -49,12 +91,12 @@
 		{
 			"label": "Run BLIS Test",
 			"type": "shell",
-			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja test_blis_backend && echo BUILD_OK && cd tests && .\\test_blis_backend.exe; echo EXIT:$LASTEXITCODE"
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja -j1 test_blis_backend && echo BUILD_OK && cd tests && .\\test_blis_backend.exe; echo EXIT:$LASTEXITCODE"
 		},
 		{
 			"label": "Build faster-blaster",
 			"type": "shell",
-			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja faster-blaster 2>&1",
+			"command": "cd 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang' && ninja -j1 faster-blaster 2>&1",
 			"problemMatcher": [
 				"$msCompile"
 			],
@@ -74,213 +116,329 @@
 						"/c"
 					]
 				}
-			},
-			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='265'; $env:FB_JUDGE_END_OP_ID='268'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_FAIL_ON_REFERENCE_SKIP -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe' 2>&1 | Tee-Object -FilePath '.\\judge_gelsy_slice_265_268_20260523_task.txt'; Write-Output \"DONE:$LASTEXITCODE\"""reveal": "always",
-			"panel": "shared",
-			"clear": true
-		}
-	},
-	{
-		"label": "Build Judge Targets",
-		"type": "shell",
-		"command": "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" -arch=amd64 -host_arch=amd64 && ninja test_judge_runner test_reference_loader_audit test_judge_gemm3m_regression & echo DONE:!ERRORLEVEL!",
-		"options": {
-			"cwd": "c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang",
-			"shell": {
-				"executable": "C:\\Windows\\System32\\cmd.exe",
-				"args": [
-					"/d",
-					"/v:on",
-					"/c"
-				]
 			}
 		},
-		"presentation": {
-			"reveal": "always",
-			"panel": "shared",
-			"clear": true
+		{
+			"label": "Run Judge Gelsy Slice 265-268 Task",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='265'; $env:FB_JUDGE_END_OP_ID='268'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_FAIL_ON_REFERENCE_SKIP -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe' 2>&1 | Tee-Object -FilePath '.\\judge_gelsy_slice_265_268_20260523_task.txt'; Write-Output \"DONE:$LASTEXITCODE\"",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true
+			}
+		},
+		{
+			"label": "Build Judge Targets",
+			"type": "shell",
+			"command": "call \"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\VsDevCmd.bat\" -arch=amd64 -host_arch=amd64 && ninja -j1 test_judge_runner test_reference_loader_audit test_judge_gemm3m_regression & echo DONE:!ERRORLEVEL!",
+			"options": {
+				"cwd": "c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang",
+				"shell": {
+					"executable": "C:\\Windows\\System32\\cmd.exe",
+					"args": [
+						"/d",
+						"/v:on",
+						"/c"
+					]
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true
+			}
+		},
+		{
+			"label": "Run Judge Runner",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge Runner Trace",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner_trace.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge Reference Skip Audit",
+			"type": "shell",
+			"command": ".\\.vscode\\run_judge_reference_skip_audit.cmd"
+		},
+		{
+			"label": "Run Judge SGELS Slice Synced",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='253'; $env:FB_JUDGE_END_OP_ID='256'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge GELSD Slice Synced",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge GELSD Slice Verbose Synced",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge GELSD Slice Verbose Synced Fresh",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge Reference Skip Audit Synced",
+			"type": "shell",
+			"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_TRACE_OP_START -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_TRACE_OP_RETURN -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_VALIDATE_HEAP -ErrorAction SilentlyContinue; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; $env:FB_JUDGE_FAIL_ON_REFERENCE_SKIP='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge Runner Heap Validate",
+			"type": "shell",
+			"command": ".\\.vscode\\run_judge_heap_validate.cmd"
+		},
+		{
+			"label": "Run Judge Trace Full Sweep",
+			"type": "shell",
+			"command": ".\\.vscode\\run_judge_trace_full.cmd"
+		},
+		{
+			"label": "Run Judge Reference Skip Audit Stable",
+			"type": "shell",
+			"command": ".\\.vscode\\run_judge_reference_skip_audit.cmd"
+		},
+		{
+			"label": "Run Reference Loader Audit",
+			"type": "shell",
+			"command": "Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; .\\test_reference_loader_audit.exe 2>&1 | Select-Object -Last 200; Write-Output \"DONE:$LASTEXITCODE\""
+		},
+		{
+			"label": "Run Judge Runner Heap Validate Fresh",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".vscode\\run_judge_heap_validate.ps1"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Judge Runner Heap Validate Fresh 2",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".vscode\\run_judge_heap_validate.ps1"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Judge Runner Heap Validate Fresh 3",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				".vscode\\run_judge_heap_validate.ps1"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Run Judge Trace Full Sweep Cmd",
+			"type": "shell",
+			"command": "cmd.exe",
+			"args": [
+				"/d",
+				"/c",
+				".\\.vscode\\run_judge_trace_full.cmd"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Kill Stale Ninja",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-Process ninja,cmake,clang,clang-cl,ld.lld,lld-link -ErrorAction SilentlyContinue | Stop-Process -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Kill All Build Processes",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-Process ninja,cmake,clang,clang-cl,ld.lld,lld-link,wsl,bash,make -ErrorAction SilentlyContinue | Stop-Process -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure No BLIS Source",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"& 'C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/Tools/Launch-VsDevShell.ps1' -Arch amd64 -HostArch amd64; cmake -S . -B build-clang -G Ninja -DFB_BUILD_BLIS_FROM_SOURCE=OFF"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure No BLIS Source CMD",
+			"type": "shell",
+			"command": "cmd",
+			"args": [
+				"/c",
+				"cmake -S . -B build-clang -G Ninja -DFB_BUILD_BLIS_FROM_SOURCE=OFF"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure BLIS Off Direct",
+			"type": "shell",
+			"command": "cmake -S . -B build-clang -G Ninja -DFB_BUILD_BLIS_FROM_SOURCE=OFF",
+			"isBackground": false
+		},
+		{
+			"label": "Task Sentinel Write",
+			"type": "shell",
+			"command": "powershell -NoProfile -Command \"'ok' | Set-Content -Path .task_sentinel.txt\"",
+			"isBackground": false
+		},
+		{
+			"label": "Probe OpenBLAS Script Direct",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"cmake/build_openblas_msvc_conly.ps1",
+				"-SourceDir",
+				"build-clang/openblas-src",
+				"-InstallDir",
+				"build-clang/backends-install/openblas",
+				"-Target",
+				"ZEN",
+				"-NumCores",
+				"2"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure Build Clang",
+			"type": "shell",
+			"command": "cmake -S . -B build-clang -G Ninja",
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure To Log",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"cmake -S . -B build-clang -G Ninja *> reconfigure.log"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Kill Build Procs Again",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-Process cmake,ninja,powershell,pwsh,clang,clang-cl,ld.lld,lld-link -ErrorAction SilentlyContinue | Stop-Process -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Kill Build Processes Now",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Get-Process cmake,ninja,pwsh,powershell,clang,clang-cl,lld-link,ld.lld -ErrorAction SilentlyContinue | Stop-Process -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure For Prebuilt OpenBLAS",
+			"type": "shell",
+			"command": "cmake -S . -B build-clang -G Ninja",
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure After Prebuilt Patch",
+			"type": "shell",
+			"command": "cmake -S . -B build-clang -G Ninja",
+			"isBackground": false
+		},
+		{
+			"label": "Fresh Reconfigure",
+			"type": "shell",
+			"command": "cmake --fresh -S . -B build-clang -G Ninja",
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure Capture",
+			"type": "shell",
+			"command": "cmd /c \"cmake --fresh -S . -B build-clang -G Ninja > reconfig_out.txt 2>&1\"",
+			"isBackground": false
+		},
+		{
+			"label": "Reconfigure OpenBLAS Root",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"-S",
+				".",
+				"-B",
+				"build-clang",
+				"-G",
+				"Ninja",
+				"-DFB_OPENBLAS_WINDOWS_PREBUILT_ROOT=C:/libraries/OpenBLAS-0.3.30-x64"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Clean Build Tree",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Remove-Item -Recurse -Force build-clang -ErrorAction SilentlyContinue"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Validate OpenBLAS backend test link",
+			"type": "shell",
+			"command": "cmake --build build-clang --target test_openblas_backend -- -j1",
+			"isBackground": false
 		}
-	},
-	{
-		"label": "Run Judge Runner",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge Runner Trace",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner_trace.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge Reference Skip Audit",
-		"type": "shell",
-		"command": ".\\.vscode\\run_judge_reference_skip_audit.cmd"
-	},
-	{
-		"label": "Run Judge SGELS Slice Synced",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='253'; $env:FB_JUDGE_END_OP_ID='256'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge GELSD Slice Synced",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge GELSD Slice Verbose Synced",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge GELSD Slice Verbose Synced Fresh",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; $env:FB_JUDGE_START_OP_ID='257'; $env:FB_JUDGE_END_OP_ID='260'; $env:FB_JUDGE_TRACE_OP_START='1'; $env:FB_JUDGE_TRACE_OP_RETURN='1'; Remove-Item Env:FB_JUDGE_SUPPRESS_OP_RESULTS -ErrorAction SilentlyContinue; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge Reference Skip Audit Synced",
-		"type": "shell",
-		"command": "Remove-Item Env:FB_JUDGE_START_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_OP_FILTER -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_TRACE_OP_START -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_TRACE_OP_RETURN -ErrorAction SilentlyContinue; Remove-Item Env:FB_JUDGE_VALIDATE_HEAP -ErrorAction SilentlyContinue; $env:FB_JUDGE_SUPPRESS_OP_RESULTS='1'; $env:FB_JUDGE_FAIL_ON_REFERENCE_SKIP='1'; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\faster-blaster.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\faster-blaster.dll' -Force; Copy-Item 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster-reference\\build-extended\\libfaster_blaster_reference.dll' 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests\\libfaster_blaster_reference.dll' -Force; Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; & '.\\test_judge_runner.exe'; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge Runner Heap Validate",
-		"type": "shell",
-		"command": ".\\.vscode\\run_judge_heap_validate.cmd"
-	},
-	{
-		"label": "Run Judge Trace Full Sweep",
-		"type": "shell",
-		"command": ".\\.vscode\\run_judge_trace_full.cmd"
-	},
-	{
-		"label": "Run Judge Reference Skip Audit Stable",
-		"type": "shell",
-		"command": ".\\.vscode\\run_judge_reference_skip_audit.cmd"
-	},
-	{
-		"label": "Start Judge Reference Skip Audit Watcher",
-		"type": "process",
-		"command": "powershell.exe",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\run_judge_reference_skip_audit_watcher.ps1"
-		],
-		"options": {
-			"cwd": "c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster"
-		},
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Show Judge Reference Skip Audit Status",
-		"type": "process",
-		"command": "powershell.exe",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\show_judge_reference_skip_audit_status.ps1"
-		],
-		"options": {
-			"cwd": "c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster"
-		},
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Stop Judge Reference Skip Audit Watcher",
-		"type": "process",
-		"command": "powershell.exe",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\stop_judge_reference_skip_audit_watcher.ps1"
-		],
-		"options": {
-			"cwd": "c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster"
-		},
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Run Reference Loader Audit",
-		"type": "shell",
-		"command": "Set-Location 'c:\\Users\\cires\\OneDrive\\Documents\\projects\\faster-blaster\\build-clang\\tests'; .\\test_reference_loader_audit.exe 2>&1 | Select-Object -Last 200; Write-Output \"DONE:$LASTEXITCODE\""
-	},
-	{
-		"label": "Run Judge Runner Heap Validate Fresh",
-		"type": "shell",
-		"command": "powershell",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\run_judge_heap_validate.ps1"
-		],
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Run Judge Runner Heap Validate Fresh 2",
-		"type": "shell",
-		"command": "powershell",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\run_judge_heap_validate.ps1"
-		],
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Run Judge Runner Heap Validate Fresh 3",
-		"type": "shell",
-		"command": "powershell",
-		"args": [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-File",
-			".vscode\\run_judge_heap_validate.ps1"
-		],
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Run Judge Trace Full Sweep",
-		"type": "shell",
-		"command": ".\\.vscode\\run_judge_trace_full.cmd",
-		"args": [],
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
-	{
-		"label": "Run Judge Trace Full Sweep Cmd",
-		"type": "shell",
-		"command": "cmd.exe",
-		"args": [
-			"/d",
-			"/c",
-			".\\.vscode\\run_judge_trace_full.cmd"
-		],
-		"isBackground": false,
-		"problemMatcher": [],
-		"group": "test"
-	},
 	]
 }

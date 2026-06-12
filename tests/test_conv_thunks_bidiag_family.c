@@ -5,31 +5,59 @@
 
 typedef int (*fb_sorgbr_fn)(fb_layout_t layout, char vect, int m, int n,
                             int k, float *a, int lda, const float *tau);
+typedef int (*fb_dorgbr_fn)(fb_layout_t layout, char vect, int m, int n,
+                            int k, double *a, int lda, const double *tau);
 typedef int (*fb_cungbr_fn)(fb_layout_t layout, char vect, int m, int n,
                             int k, fb_complex_float_t *a, int lda,
                             const fb_complex_float_t *tau);
+typedef int (*fb_zungbr_fn)(fb_layout_t layout, char vect, int m, int n,
+                            int k, fb_complex_double_t *a, int lda,
+                            const fb_complex_double_t *tau);
 typedef int (*fb_sormbr_fn)(fb_layout_t layout, char vect, char side,
                             char trans, int m, int n, int k,
                             const float *a, int lda, const float *tau,
                             float *c, int ldc);
+typedef int (*fb_dormbr_fn)(fb_layout_t layout, char vect, char side,
+                            char trans, int m, int n, int k,
+                            const double *a, int lda, const double *tau,
+                            double *c, int ldc);
 typedef int (*fb_cunmbr_fn)(fb_layout_t layout, char vect, char side,
                             char trans, int m, int n, int k,
                             const fb_complex_float_t *a, int lda,
                             const fb_complex_float_t *tau,
                             fb_complex_float_t *c, int ldc);
+typedef int (*fb_zunmbr_fn)(fb_layout_t layout, char vect, char side,
+                            char trans, int m, int n, int k,
+                            const fb_complex_double_t *a, int lda,
+                            const fb_complex_double_t *tau,
+                            fb_complex_double_t *c, int ldc);
 
 typedef void (*fb_sorgbr_fortran_slot_fn)(char *vect, int *m, int *n, int *k,
                                           float *a, int *lda, float *tau,
                                           float *work, int *lwork, int *info);
+typedef void (*fb_dorgbr_fortran_slot_fn)(char *vect, int *m, int *n, int *k,
+                                          double *a, int *lda, double *tau,
+                                          double *work, int *lwork,
+                                          int *info);
 typedef void (*fb_cungbr_fortran_slot_fn)(char *vect, int *m, int *n, int *k,
                                           fb_complex_float_t *a, int *lda,
                                           fb_complex_float_t *tau,
                                           fb_complex_float_t *work,
                                           int *lwork, int *info);
+typedef void (*fb_zungbr_fortran_slot_fn)(char *vect, int *m, int *n, int *k,
+                                          fb_complex_double_t *a, int *lda,
+                                          fb_complex_double_t *tau,
+                                          fb_complex_double_t *work,
+                                          int *lwork, int *info);
 typedef void (*fb_sormbr_fortran_slot_fn)(char *vect, char *side, char *trans,
                                           int *m, int *n, int *k,
                                           float *a, int *lda, float *tau,
                                           float *c, int *ldc, float *work,
+                                          int *lwork, int *info);
+typedef void (*fb_dormbr_fortran_slot_fn)(char *vect, char *side, char *trans,
+                                          int *m, int *n, int *k,
+                                          double *a, int *lda, double *tau,
+                                          double *c, int *ldc, double *work,
                                           int *lwork, int *info);
 typedef void (*fb_cunmbr_fortran_slot_fn)(char *vect, char *side, char *trans,
                                           int *m, int *n, int *k,
@@ -37,6 +65,13 @@ typedef void (*fb_cunmbr_fortran_slot_fn)(char *vect, char *side, char *trans,
                                           fb_complex_float_t *tau,
                                           fb_complex_float_t *c, int *ldc,
                                           fb_complex_float_t *work,
+                                          int *lwork, int *info);
+typedef void (*fb_zunmbr_fortran_slot_fn)(char *vect, char *side, char *trans,
+                                          int *m, int *n, int *k,
+                                          fb_complex_double_t *a, int *lda,
+                                          fb_complex_double_t *tau,
+                                          fb_complex_double_t *c, int *ldc,
+                                          fb_complex_double_t *work,
                                           int *lwork, int *info);
 
 static struct {
@@ -75,6 +110,30 @@ static struct {
     int lda;
     int lwork_query;
     int lwork_solve;
+} g_dorgbr_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char vect;
+    int m;
+    int n;
+    int k;
+    int lda;
+    double *a;
+    const double *tau;
+} g_dorgbr_cblas_call;
+
+static struct {
+    int query_calls;
+    int solve_calls;
+    char vect;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int lwork_query;
+    int lwork_solve;
     float a_real_snapshot[6];
     float tau_real_snapshot[2];
 } g_cungbr_fortran_call;
@@ -90,6 +149,30 @@ static struct {
     fb_complex_float_t *a;
     const fb_complex_float_t *tau;
 } g_cungbr_cblas_call;
+
+static struct {
+    int query_calls;
+    int solve_calls;
+    char vect;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int lwork_query;
+    int lwork_solve;
+} g_zungbr_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char vect;
+    int m;
+    int n;
+    int k;
+    int lda;
+    fb_complex_double_t *a;
+    const fb_complex_double_t *tau;
+} g_zungbr_cblas_call;
 
 static struct {
     int query_calls;
@@ -138,6 +221,37 @@ static struct {
     int ldc;
     int lwork_query;
     int lwork_solve;
+} g_dormbr_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char vect;
+    char side;
+    char trans;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int ldc;
+    const double *a;
+    const double *tau;
+    double *c;
+} g_dormbr_cblas_call;
+
+static struct {
+    int query_calls;
+    int solve_calls;
+    char vect;
+    char side;
+    char trans;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int ldc;
+    int lwork_query;
+    int lwork_solve;
     float a_real_snapshot[6];
     float c_real_snapshot[6];
     float tau_real_snapshot[2];
@@ -159,6 +273,37 @@ static struct {
     fb_complex_float_t *c;
 } g_cunmbr_cblas_call;
 
+static struct {
+    int query_calls;
+    int solve_calls;
+    char vect;
+    char side;
+    char trans;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int ldc;
+    int lwork_query;
+    int lwork_solve;
+} g_zunmbr_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char vect;
+    char side;
+    char trans;
+    int m;
+    int n;
+    int k;
+    int lda;
+    int ldc;
+    const fb_complex_double_t *a;
+    const fb_complex_double_t *tau;
+    fb_complex_double_t *c;
+} g_zunmbr_cblas_call;
+
 static fb_complex_float_t make_cfloat(float real_value)
 {
     fb_complex_float_t value = (fb_complex_float_t)0;
@@ -169,6 +314,20 @@ static fb_complex_float_t make_cfloat(float real_value)
 static float cfloat_real(fb_complex_float_t value)
 {
     float real_value = 0.0f;
+    memcpy(&real_value, &value, sizeof(real_value));
+    return real_value;
+}
+
+static fb_complex_double_t make_cdouble(double real_value)
+{
+    fb_complex_double_t value = (fb_complex_double_t)0;
+    memcpy(&value, &real_value, sizeof(real_value));
+    return value;
+}
+
+static double cdouble_real(fb_complex_double_t value)
+{
+    double real_value = 0.0;
     memcpy(&real_value, &value, sizeof(real_value));
     return real_value;
 }
@@ -231,6 +390,51 @@ static int stub_sorgbr_cblas(const fb_layout_t layout, char vect,
     return 81;
 }
 
+static void stub_dorgbr_fortran(char *vect, int *m, int *n, int *k,
+                                double *a, int *lda, double *tau,
+                                double *work, int *lwork, int *info)
+{
+    if (*lwork == -1) {
+        g_dorgbr_fortran_call.query_calls += 1;
+        g_dorgbr_fortran_call.vect = *vect;
+        g_dorgbr_fortran_call.m = *m;
+        g_dorgbr_fortran_call.n = *n;
+        g_dorgbr_fortran_call.k = *k;
+        g_dorgbr_fortran_call.lda = *lda;
+        g_dorgbr_fortran_call.lwork_query = *lwork;
+        work[0] = 9.0;
+        *info = 0;
+        return;
+    }
+
+    g_dorgbr_fortran_call.solve_calls += 1;
+    g_dorgbr_fortran_call.vect = *vect;
+    g_dorgbr_fortran_call.m = *m;
+    g_dorgbr_fortran_call.n = *n;
+    g_dorgbr_fortran_call.k = *k;
+    g_dorgbr_fortran_call.lda = *lda;
+    g_dorgbr_fortran_call.lwork_solve = *lwork;
+    a[0] = 901.0;
+    tau[0] = 902.0;
+    *info = 0;
+}
+
+static int stub_dorgbr_cblas(const fb_layout_t layout, char vect,
+                             const int m, const int n, const int k,
+                             double *a, const int lda, const double *tau)
+{
+    g_dorgbr_cblas_call.called += 1;
+    g_dorgbr_cblas_call.layout = layout;
+    g_dorgbr_cblas_call.vect = vect;
+    g_dorgbr_cblas_call.m = m;
+    g_dorgbr_cblas_call.n = n;
+    g_dorgbr_cblas_call.k = k;
+    g_dorgbr_cblas_call.lda = lda;
+    g_dorgbr_cblas_call.a = a;
+    g_dorgbr_cblas_call.tau = tau;
+    return 82;
+}
+
 static void stub_cungbr_fortran(char *vect, int *m, int *n, int *k,
                                 fb_complex_float_t *a, int *lda,
                                 fb_complex_float_t *tau,
@@ -290,6 +494,54 @@ static int stub_cungbr_cblas(const fb_layout_t layout, char vect,
     g_cungbr_cblas_call.a = a;
     g_cungbr_cblas_call.tau = tau;
     return 83;
+}
+
+static void stub_zungbr_fortran(char *vect, int *m, int *n, int *k,
+                                fb_complex_double_t *a, int *lda,
+                                fb_complex_double_t *tau,
+                                fb_complex_double_t *work, int *lwork,
+                                int *info)
+{
+    if (*lwork == -1) {
+        g_zungbr_fortran_call.query_calls += 1;
+        g_zungbr_fortran_call.vect = *vect;
+        g_zungbr_fortran_call.m = *m;
+        g_zungbr_fortran_call.n = *n;
+        g_zungbr_fortran_call.k = *k;
+        g_zungbr_fortran_call.lda = *lda;
+        g_zungbr_fortran_call.lwork_query = *lwork;
+        work[0] = make_cdouble(10.0);
+        *info = 0;
+        return;
+    }
+
+    g_zungbr_fortran_call.solve_calls += 1;
+    g_zungbr_fortran_call.vect = *vect;
+    g_zungbr_fortran_call.m = *m;
+    g_zungbr_fortran_call.n = *n;
+    g_zungbr_fortran_call.k = *k;
+    g_zungbr_fortran_call.lda = *lda;
+    g_zungbr_fortran_call.lwork_solve = *lwork;
+    a[0] = make_cdouble(1001.0);
+    tau[0] = make_cdouble(1002.0);
+    *info = 0;
+}
+
+static int stub_zungbr_cblas(const fb_layout_t layout, char vect,
+                             const int m, const int n, const int k,
+                             fb_complex_double_t *a, const int lda,
+                             const fb_complex_double_t *tau)
+{
+    g_zungbr_cblas_call.called += 1;
+    g_zungbr_cblas_call.layout = layout;
+    g_zungbr_cblas_call.vect = vect;
+    g_zungbr_cblas_call.m = m;
+    g_zungbr_cblas_call.n = n;
+    g_zungbr_cblas_call.k = k;
+    g_zungbr_cblas_call.lda = lda;
+    g_zungbr_cblas_call.a = a;
+    g_zungbr_cblas_call.tau = tau;
+    return 84;
 }
 
 static void stub_sormbr_fortran(char *vect, char *side, char *trans, int *m,
@@ -369,6 +621,64 @@ static int stub_sormbr_cblas(const fb_layout_t layout, char vect, char side,
     g_sormbr_cblas_call.tau = tau;
     g_sormbr_cblas_call.c = c;
     return 85;
+}
+
+static void stub_dormbr_fortran(char *vect, char *side, char *trans, int *m,
+                                int *n, int *k, double *a, int *lda,
+                                double *tau, double *c, int *ldc,
+                                double *work, int *lwork, int *info)
+{
+    if (*lwork == -1) {
+        g_dormbr_fortran_call.query_calls += 1;
+        g_dormbr_fortran_call.vect = *vect;
+        g_dormbr_fortran_call.side = *side;
+        g_dormbr_fortran_call.trans = *trans;
+        g_dormbr_fortran_call.m = *m;
+        g_dormbr_fortran_call.n = *n;
+        g_dormbr_fortran_call.k = *k;
+        g_dormbr_fortran_call.lda = *lda;
+        g_dormbr_fortran_call.ldc = *ldc;
+        g_dormbr_fortran_call.lwork_query = *lwork;
+        work[0] = 11.0;
+        *info = 0;
+        return;
+    }
+
+    g_dormbr_fortran_call.solve_calls += 1;
+    g_dormbr_fortran_call.vect = *vect;
+    g_dormbr_fortran_call.side = *side;
+    g_dormbr_fortran_call.trans = *trans;
+    g_dormbr_fortran_call.m = *m;
+    g_dormbr_fortran_call.n = *n;
+    g_dormbr_fortran_call.k = *k;
+    g_dormbr_fortran_call.lda = *lda;
+    g_dormbr_fortran_call.ldc = *ldc;
+    g_dormbr_fortran_call.lwork_solve = *lwork;
+    c[0] = 1101.0;
+    a[0] = -123.0;
+    tau[0] = -456.0;
+    *info = 0;
+}
+
+static int stub_dormbr_cblas(const fb_layout_t layout, char vect, char side,
+                             char trans, const int m, const int n,
+                             const int k, const double *a, const int lda,
+                             const double *tau, double *c, const int ldc)
+{
+    g_dormbr_cblas_call.called += 1;
+    g_dormbr_cblas_call.layout = layout;
+    g_dormbr_cblas_call.vect = vect;
+    g_dormbr_cblas_call.side = side;
+    g_dormbr_cblas_call.trans = trans;
+    g_dormbr_cblas_call.m = m;
+    g_dormbr_cblas_call.n = n;
+    g_dormbr_cblas_call.k = k;
+    g_dormbr_cblas_call.lda = lda;
+    g_dormbr_cblas_call.ldc = ldc;
+    g_dormbr_cblas_call.a = a;
+    g_dormbr_cblas_call.tau = tau;
+    g_dormbr_cblas_call.c = c;
+    return 86;
 }
 
 static void stub_cunmbr_fortran(char *vect, char *side, char *trans, int *m,
@@ -451,6 +761,67 @@ static int stub_cunmbr_cblas(const fb_layout_t layout, char vect, char side,
     g_cunmbr_cblas_call.tau = tau;
     g_cunmbr_cblas_call.c = c;
     return 87;
+}
+
+static void stub_zunmbr_fortran(char *vect, char *side, char *trans, int *m,
+                                int *n, int *k, fb_complex_double_t *a,
+                                int *lda, fb_complex_double_t *tau,
+                                fb_complex_double_t *c, int *ldc,
+                                fb_complex_double_t *work, int *lwork,
+                                int *info)
+{
+    if (*lwork == -1) {
+        g_zunmbr_fortran_call.query_calls += 1;
+        g_zunmbr_fortran_call.vect = *vect;
+        g_zunmbr_fortran_call.side = *side;
+        g_zunmbr_fortran_call.trans = *trans;
+        g_zunmbr_fortran_call.m = *m;
+        g_zunmbr_fortran_call.n = *n;
+        g_zunmbr_fortran_call.k = *k;
+        g_zunmbr_fortran_call.lda = *lda;
+        g_zunmbr_fortran_call.ldc = *ldc;
+        g_zunmbr_fortran_call.lwork_query = *lwork;
+        work[0] = make_cdouble(12.0);
+        *info = 0;
+        return;
+    }
+
+    g_zunmbr_fortran_call.solve_calls += 1;
+    g_zunmbr_fortran_call.vect = *vect;
+    g_zunmbr_fortran_call.side = *side;
+    g_zunmbr_fortran_call.trans = *trans;
+    g_zunmbr_fortran_call.m = *m;
+    g_zunmbr_fortran_call.n = *n;
+    g_zunmbr_fortran_call.k = *k;
+    g_zunmbr_fortran_call.lda = *lda;
+    g_zunmbr_fortran_call.ldc = *ldc;
+    g_zunmbr_fortran_call.lwork_solve = *lwork;
+    c[0] = make_cdouble(1201.0);
+    a[0] = make_cdouble(-123.0);
+    tau[0] = make_cdouble(-456.0);
+    *info = 0;
+}
+
+static int stub_zunmbr_cblas(const fb_layout_t layout, char vect, char side,
+                             char trans, const int m, const int n,
+                             const int k, const fb_complex_double_t *a,
+                             const int lda, const fb_complex_double_t *tau,
+                             fb_complex_double_t *c, const int ldc)
+{
+    g_zunmbr_cblas_call.called += 1;
+    g_zunmbr_cblas_call.layout = layout;
+    g_zunmbr_cblas_call.vect = vect;
+    g_zunmbr_cblas_call.side = side;
+    g_zunmbr_cblas_call.trans = trans;
+    g_zunmbr_cblas_call.m = m;
+    g_zunmbr_cblas_call.n = n;
+    g_zunmbr_cblas_call.k = k;
+    g_zunmbr_cblas_call.lda = lda;
+    g_zunmbr_cblas_call.ldc = ldc;
+    g_zunmbr_cblas_call.a = a;
+    g_zunmbr_cblas_call.tau = tau;
+    g_zunmbr_cblas_call.c = c;
+    return 88;
 }
 
 static int check_sorgbr_fortran_to_cblas(void)
@@ -881,6 +1252,317 @@ static int check_cunmbr_cblas_to_fortran(void)
     return 0;
 }
 
+static int check_dorgbr_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dorgbr_fn thunk = NULL;
+    double a[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    double tau[2] = { 7.0, 8.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dorgbr_fortran_call, 0, sizeof(g_dorgbr_fortran_call));
+
+    vtable.ext_ops[FB_OP_DORGBR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dorgbr_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DORGBR);
+
+    thunk = (fb_dorgbr_fn)vtable.ext_ops[FB_OP_DORGBR][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DORGBR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, 'Q', 3, 2, 2, a, 2, tau);
+    if (info != 0 || g_dorgbr_fortran_call.query_calls != 1 ||
+        g_dorgbr_fortran_call.solve_calls != 1 ||
+        g_dorgbr_fortran_call.vect != 'Q' || a[0] != 901.0 || tau[0] != 7.0) {
+        fprintf(stderr, "[FAIL] DORGBR Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DORGBR Fortran->CBLAS thunk performs query+solve path and preserves TAU input\n");
+    return 0;
+}
+
+static int check_dorgbr_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dorgbr_fortran_slot_fn thunk = NULL;
+    char vect = 'P';
+    double a[6] = { 0.0 };
+    double tau[2] = { 9.0, 10.0 };
+    double work[4] = { 0.0 };
+    int m = 2;
+    int n = 3;
+    int k = 2;
+    int lda = 2;
+    int lwork = 4;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dorgbr_cblas_call, 0, sizeof(g_dorgbr_cblas_call));
+
+    vtable.ext_ops[FB_OP_DORGBR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dorgbr_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DORGBR);
+
+    thunk = (fb_dorgbr_fortran_slot_fn)vtable.ext_ops[FB_OP_DORGBR][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DORGBR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&vect, &m, &n, &k, a, &lda, tau, work, &lwork, &info);
+    if (info != 82 || g_dorgbr_cblas_call.called != 1 ||
+        g_dorgbr_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dorgbr_cblas_call.vect != 'P') {
+        fprintf(stderr, "[FAIL] DORGBR CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DORGBR CBLAS->Fortran thunk maps all-pointer ABI into the double C generator entry\n");
+    return 0;
+}
+
+static int check_zungbr_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zungbr_fn thunk = NULL;
+    fb_complex_double_t a[6] = { 0 };
+    fb_complex_double_t tau[2] = { make_cdouble(9.0), make_cdouble(10.0) };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zungbr_fortran_call, 0, sizeof(g_zungbr_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZUNGBR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zungbr_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZUNGBR);
+
+    thunk = (fb_zungbr_fn)vtable.ext_ops[FB_OP_ZUNGBR][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZUNGBR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, 'Q', 2, 3, 2, a, 3, tau);
+    if (info != 0 || g_zungbr_fortran_call.query_calls != 1 ||
+        g_zungbr_fortran_call.solve_calls != 1 ||
+        g_zungbr_fortran_call.vect != 'Q' || cdouble_real(a[0]) != 1001.0 ||
+        cdouble_real(tau[0]) != 9.0) {
+        fprintf(stderr, "[FAIL] ZUNGBR Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZUNGBR Fortran->CBLAS thunk performs query+solve path and preserves complex-double TAU input\n");
+    return 0;
+}
+
+static int check_zungbr_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zungbr_fortran_slot_fn thunk = NULL;
+    char vect = 'P';
+    fb_complex_double_t a[6] = { 0 };
+    fb_complex_double_t tau[2] = { make_cdouble(11.0), make_cdouble(12.0) };
+    fb_complex_double_t work[4] = { 0 };
+    int m = 2;
+    int n = 3;
+    int k = 2;
+    int lda = 2;
+    int lwork = 4;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zungbr_cblas_call, 0, sizeof(g_zungbr_cblas_call));
+
+    vtable.ext_ops[FB_OP_ZUNGBR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zungbr_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZUNGBR);
+
+    thunk = (fb_zungbr_fortran_slot_fn)vtable.ext_ops[FB_OP_ZUNGBR][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZUNGBR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&vect, &m, &n, &k, a, &lda, tau, work, &lwork, &info);
+    if (info != 84 || g_zungbr_cblas_call.called != 1 ||
+        g_zungbr_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zungbr_cblas_call.vect != 'P') {
+        fprintf(stderr, "[FAIL] ZUNGBR CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZUNGBR CBLAS->Fortran thunk maps all-pointer ABI into the complex-double C generator entry\n");
+    return 0;
+}
+
+static int check_dormbr_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dormbr_fn thunk = NULL;
+    double a[4] = { 1.0, 2.0, 3.0, 4.0 };
+    double tau[2] = { 11.0, 12.0 };
+    double c[6] = { 5.0, 6.0, 7.0, 8.0, 9.0, 10.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dormbr_fortran_call, 0, sizeof(g_dormbr_fortran_call));
+
+    vtable.ext_ops[FB_OP_DORMBR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dormbr_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DORMBR);
+
+    thunk = (fb_dormbr_fn)vtable.ext_ops[FB_OP_DORMBR][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DORMBR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, 'Q', 'L', 'N', 2, 3, 2, a, 2, tau, c, 3);
+    if (info != 0 || g_dormbr_fortran_call.query_calls != 1 ||
+        g_dormbr_fortran_call.solve_calls != 1 ||
+        g_dormbr_fortran_call.vect != 'Q' || g_dormbr_fortran_call.side != 'L' ||
+        g_dormbr_fortran_call.trans != 'N' || c[0] != 1101.0 ||
+        a[0] != 1.0 || tau[0] != 11.0) {
+        fprintf(stderr, "[FAIL] DORMBR Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DORMBR Fortran->CBLAS thunk performs query+solve path and preserves A/TAU inputs\n");
+    return 0;
+}
+
+static int check_dormbr_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dormbr_fortran_slot_fn thunk = NULL;
+    char vect = 'Q';
+    char side = 'L';
+    char trans = 'N';
+    double a[4] = { 0.0 };
+    double tau[2] = { 11.0, 12.0 };
+    double c[6] = { 0.0 };
+    double work[4] = { 0.0 };
+    int m = 2;
+    int n = 3;
+    int k = 2;
+    int lda = 2;
+    int ldc = 2;
+    int lwork = 4;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dormbr_cblas_call, 0, sizeof(g_dormbr_cblas_call));
+
+    vtable.ext_ops[FB_OP_DORMBR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dormbr_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DORMBR);
+
+    thunk = (fb_dormbr_fortran_slot_fn)vtable.ext_ops[FB_OP_DORMBR][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DORMBR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&vect, &side, &trans, &m, &n, &k, a, &lda, tau, c, &ldc, work,
+          &lwork, &info);
+    if (info != 86 || g_dormbr_cblas_call.called != 1 ||
+        g_dormbr_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dormbr_cblas_call.vect != 'Q' || g_dormbr_cblas_call.side != 'L' ||
+        g_dormbr_cblas_call.trans != 'N') {
+        fprintf(stderr, "[FAIL] DORMBR CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DORMBR CBLAS->Fortran thunk maps all-pointer ABI into the double C reflector entry\n");
+    return 0;
+}
+
+static int check_zunmbr_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zunmbr_fn thunk = NULL;
+    fb_complex_double_t a[6] = { 0 };
+    fb_complex_double_t tau[2] = { make_cdouble(13.0), make_cdouble(14.0) };
+    fb_complex_double_t c[6] = { 0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zunmbr_fortran_call, 0, sizeof(g_zunmbr_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZUNMBR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zunmbr_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZUNMBR);
+
+    thunk = (fb_zunmbr_fn)vtable.ext_ops[FB_OP_ZUNMBR][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZUNMBR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, 'P', 'R', 'C', 2, 3, 2, a, 3, tau, c, 3);
+    if (info != 0 || g_zunmbr_fortran_call.query_calls != 1 ||
+        g_zunmbr_fortran_call.solve_calls != 1 ||
+        g_zunmbr_fortran_call.vect != 'P' || g_zunmbr_fortran_call.side != 'R' ||
+        g_zunmbr_fortran_call.trans != 'C' || cdouble_real(c[0]) != 1201.0 ||
+        cdouble_real(a[0]) != 0.0 || cdouble_real(tau[0]) != 13.0) {
+        fprintf(stderr, "[FAIL] ZUNMBR Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZUNMBR Fortran->CBLAS thunk performs query+solve path and preserves complex-double A/TAU inputs\n");
+    return 0;
+}
+
+static int check_zunmbr_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zunmbr_fortran_slot_fn thunk = NULL;
+    char vect = 'P';
+    char side = 'R';
+    char trans = 'C';
+    fb_complex_double_t a[6] = { 0 };
+    fb_complex_double_t tau[2] = { make_cdouble(13.0), make_cdouble(14.0) };
+    fb_complex_double_t c[6] = { 0 };
+    fb_complex_double_t work[4] = { 0 };
+    int m = 2;
+    int n = 3;
+    int k = 2;
+    int lda = 2;
+    int ldc = 2;
+    int lwork = 4;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zunmbr_cblas_call, 0, sizeof(g_zunmbr_cblas_call));
+
+    vtable.ext_ops[FB_OP_ZUNMBR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zunmbr_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZUNMBR);
+
+    thunk = (fb_zunmbr_fortran_slot_fn)vtable.ext_ops[FB_OP_ZUNMBR][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZUNMBR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&vect, &side, &trans, &m, &n, &k, a, &lda, tau, c, &ldc, work,
+          &lwork, &info);
+    if (info != 88 || g_zunmbr_cblas_call.called != 1 ||
+        g_zunmbr_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zunmbr_cblas_call.vect != 'P' || g_zunmbr_cblas_call.side != 'R' ||
+        g_zunmbr_cblas_call.trans != 'C') {
+        fprintf(stderr, "[FAIL] ZUNMBR CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZUNMBR CBLAS->Fortran thunk maps all-pointer ABI into the complex-double C reflector entry\n");
+    return 0;
+}
+
 int main(void)
 {
     if (check_sorgbr_fortran_to_cblas() != 0) {
@@ -889,10 +1571,22 @@ int main(void)
     if (check_sorgbr_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dorgbr_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dorgbr_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cungbr_fortran_to_cblas() != 0) {
         return 1;
     }
     if (check_cungbr_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zungbr_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zungbr_cblas_to_fortran() != 0) {
         return 1;
     }
     if (check_sormbr_fortran_to_cblas() != 0) {
@@ -901,10 +1595,22 @@ int main(void)
     if (check_sormbr_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dormbr_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dormbr_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cunmbr_fortran_to_cblas() != 0) {
         return 1;
     }
     if (check_cunmbr_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zunmbr_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zunmbr_cblas_to_fortran() != 0) {
         return 1;
     }
 

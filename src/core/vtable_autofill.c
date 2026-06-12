@@ -274,6 +274,56 @@ typedef int (*fb_adapter_zgesvx_fn)(fb_layout_t, char, char, int, int,
                                     double *, double *, fb_complex_double_t *,
                                     int, fb_complex_double_t *, int, double *,
                                     double *, double *, double *);
+typedef int (*fb_adapter_sgesvxx_fn)(fb_layout_t, char, char, int, int,
+                                     float *, int, float *, int, int *,
+                                     char *, float *, float *, float *, int,
+                                     float *, int, float *, float *, float *,
+                                     int, float *, float *, int, float *);
+typedef int (*fb_adapter_dgesvxx_fn)(fb_layout_t, char, char, int, int,
+                                     double *, int, double *, int, int *,
+                                     char *, double *, double *, double *, int,
+                                     double *, int, double *, double *,
+                                     double *, int, double *, double *, int,
+                                     double *);
+typedef int (*fb_adapter_cgesvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_float_t *, int,
+                                     fb_complex_float_t *, int, int *, char *,
+                                     float *, float *, fb_complex_float_t *,
+                                     int, fb_complex_float_t *, int, float *,
+                                     float *, float *, int, float *, float *,
+                                     int, float *);
+typedef int (*fb_adapter_zgesvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_double_t *, int,
+                                     fb_complex_double_t *, int, int *,
+                                     char *, double *, double *,
+                                     fb_complex_double_t *, int,
+                                     fb_complex_double_t *, int, double *,
+                                     double *, double *, int, double *,
+                                     double *, int, double *);
+typedef int (*fb_adapter_sposvxx_fn)(fb_layout_t, char, char, int, int,
+                                     float *, int, float *, int, char *,
+                                     float *, float *, int, float *, int,
+                                     float *, float *, float *, int, float *,
+                                     float *, int, float *);
+typedef int (*fb_adapter_dposvxx_fn)(fb_layout_t, char, char, int, int,
+                                     double *, int, double *, int, char *,
+                                     double *, double *, int, double *, int,
+                                     double *, double *, double *, int,
+                                     double *, double *, int, double *);
+typedef int (*fb_adapter_cposvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_float_t *, int,
+                                     fb_complex_float_t *, int, char *,
+                                     float *, fb_complex_float_t *, int,
+                                     fb_complex_float_t *, int, float *,
+                                     float *, float *, int, float *, float *,
+                                     int, float *);
+typedef int (*fb_adapter_zposvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_double_t *, int,
+                                     fb_complex_double_t *, int, char *,
+                                     double *, fb_complex_double_t *, int,
+                                     fb_complex_double_t *, int, double *,
+                                     double *, double *, int, double *,
+                                     double *, int, double *);
 typedef int (*fb_adapter_sposvx_fn)(fb_layout_t, char, char, int, int,
                                     float *, int, float *, int, char *,
                                     float *, float *, int, float *, int,
@@ -314,6 +364,154 @@ typedef int (*fb_adapter_zsysvx_fn)(fb_layout_t, char, char, int, int,
                                     const fb_complex_double_t *, int,
                                     fb_complex_double_t *, int, double *,
                                     double *, double *);
+typedef int (*fb_adapter_ssysvxx_fn)(fb_layout_t, char, char, int, int,
+                                     float *, int, float *, int, int *,
+                                     char *, float *, float *, int, float *,
+                                     int, float *, float *, float *, int,
+                                     float *, float *, int, float *);
+typedef int (*fb_adapter_dsysvxx_fn)(fb_layout_t, char, char, int, int,
+                                     double *, int, double *, int, int *,
+                                     char *, double *, double *, int,
+                                     double *, int, double *, double *,
+                                     double *, int, double *, double *, int,
+                                     double *);
+typedef int (*fb_adapter_csysvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_float_t *, int,
+                                     fb_complex_float_t *, int, int *, char *,
+                                     float *, fb_complex_float_t *, int,
+                                     fb_complex_float_t *, int, float *,
+                                     float *, float *, int, float *, float *,
+                                     int, float *);
+typedef int (*fb_adapter_zsysvxx_fn)(fb_layout_t, char, char, int, int,
+                                     fb_complex_double_t *, int,
+                                     fb_complex_double_t *, int, int *,
+                                     char *, double *, fb_complex_double_t *,
+                                     int, fb_complex_double_t *, int, double *,
+                                     double *, double *, int, double *,
+                                     double *, int, double *);
+typedef int (*fb_adapter_sgbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    int, float *, int, float *, int, int *,
+                                    char *, float *, float *, float *, int,
+                                    float *, int, float *, float *, float *,
+                                    float *);
+typedef int (*fb_adapter_dgbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    int, double *, int, double *, int, int *,
+                                    char *, double *, double *, double *, int,
+                                    double *, int, double *, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_cgbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    int, fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, int *, char *,
+                                    float *, float *, fb_complex_float_t *,
+                                    int, fb_complex_float_t *, int, float *,
+                                    float *, float *, float *);
+typedef int (*fb_adapter_zgbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    int, fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, int *, char *,
+                                    double *, double *,
+                                    fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, double *,
+                                    double *, double *, double *);
+typedef int (*fb_adapter_sgtsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const float *, const float *,
+                                    const float *, float *, float *, float *,
+                                    float *, int *, const float *, int,
+                                    float *, int, float *, float *, float *);
+typedef int (*fb_adapter_dgtsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const double *, const double *,
+                                    const double *, double *, double *,
+                                    double *, double *, int *,
+                                    const double *, int, double *, int,
+                                    double *, double *, double *);
+typedef int (*fb_adapter_cgtsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const fb_complex_float_t *,
+                                    const fb_complex_float_t *,
+                                    const fb_complex_float_t *,
+                                    fb_complex_float_t *, fb_complex_float_t *,
+                                    fb_complex_float_t *, fb_complex_float_t *,
+                                    int *, const fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_zgtsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const fb_complex_double_t *,
+                                    const fb_complex_double_t *,
+                                    const fb_complex_double_t *,
+                                    fb_complex_double_t *,
+                                    fb_complex_double_t *,
+                                    fb_complex_double_t *,
+                                    fb_complex_double_t *, int *,
+                                    const fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_sptsvx_fn)(fb_layout_t, char, int, int, const float *,
+                                    const float *, float *, float *,
+                                    const float *, int, float *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_dptsvx_fn)(fb_layout_t, char, int, int,
+                                    const double *, const double *, double *,
+                                    double *, const double *, int, double *,
+                                    int, double *, double *, double *);
+typedef int (*fb_adapter_cptsvx_fn)(fb_layout_t, char, int, int, const float *,
+                                    const fb_complex_float_t *, float *,
+                                    fb_complex_float_t *,
+                                    const fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_zptsvx_fn)(fb_layout_t, char, int, int,
+                                    const double *,
+                                    const fb_complex_double_t *, double *,
+                                    fb_complex_double_t *,
+                                    const fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_spbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    float *, int, float *, int, char *,
+                                    float *, float *, int, float *, int,
+                                    float *, float *, float *);
+typedef int (*fb_adapter_dpbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    double *, int, double *, int, char *,
+                                    double *, double *, int, double *, int,
+                                    double *, double *, double *);
+typedef int (*fb_adapter_cpbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, char *,
+                                    float *, fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_zpbsvx_fn)(fb_layout_t, char, char, int, int, int,
+                                    fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, char *,
+                                    double *, fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_sppsvx_fn)(fb_layout_t, char, char, int, int,
+                                    float *, float *, char *, float *,
+                                    float *, int, float *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_dppsvx_fn)(fb_layout_t, char, char, int, int,
+                                    double *, double *, char *, double *,
+                                    double *, int, double *, int, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_cppsvx_fn)(fb_layout_t, char, char, int, int,
+                                    fb_complex_float_t *,
+                                    fb_complex_float_t *, char *, float *,
+                                    fb_complex_float_t *, int,
+                                    fb_complex_float_t *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_zppsvx_fn)(fb_layout_t, char, char, int, int,
+                                    fb_complex_double_t *,
+                                    fb_complex_double_t *, char *, double *,
+                                    fb_complex_double_t *, int,
+                                    fb_complex_double_t *, int, double *,
+                                    double *, double *);
+typedef int (*fb_adapter_sspsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const float *, float *, int *,
+                                    const float *, int, float *, int, float *,
+                                    float *, float *);
+typedef int (*fb_adapter_dspsvx_fn)(fb_layout_t, char, char, int, int,
+                                    const double *, double *, int *,
+                                    const double *, int, double *, int,
+                                    double *, double *, double *);
 typedef int (*fb_adapter_cgeevx_fn)(fb_layout_t, char, char, char, char, int,
                                     fb_complex_float_t *, int,
                                     fb_complex_float_t *,
@@ -354,6 +552,14 @@ static fb_adapter_sgesvx_fn g_adapter_sgesvx = NULL;
 static fb_adapter_dgesvx_fn g_adapter_dgesvx = NULL;
 static fb_adapter_cgesvx_fn g_adapter_cgesvx = NULL;
 static fb_adapter_zgesvx_fn g_adapter_zgesvx = NULL;
+static fb_adapter_sgesvxx_fn g_adapter_sgesvxx = NULL;
+static fb_adapter_dgesvxx_fn g_adapter_dgesvxx = NULL;
+static fb_adapter_cgesvxx_fn g_adapter_cgesvxx = NULL;
+static fb_adapter_zgesvxx_fn g_adapter_zgesvxx = NULL;
+static fb_adapter_sposvxx_fn g_adapter_sposvxx = NULL;
+static fb_adapter_dposvxx_fn g_adapter_dposvxx = NULL;
+static fb_adapter_cposvxx_fn g_adapter_cposvxx = NULL;
+static fb_adapter_zposvxx_fn g_adapter_zposvxx = NULL;
 static fb_adapter_sposvx_fn g_adapter_sposvx = NULL;
 static fb_adapter_dposvx_fn g_adapter_dposvx = NULL;
 static fb_adapter_cposvx_fn g_adapter_cposvx = NULL;
@@ -362,6 +568,32 @@ static fb_adapter_ssysvx_fn g_adapter_ssysvx = NULL;
 static fb_adapter_dsysvx_fn g_adapter_dsysvx = NULL;
 static fb_adapter_csysvx_fn g_adapter_csysvx = NULL;
 static fb_adapter_zsysvx_fn g_adapter_zsysvx = NULL;
+static fb_adapter_ssysvxx_fn g_adapter_ssysvxx = NULL;
+static fb_adapter_dsysvxx_fn g_adapter_dsysvxx = NULL;
+static fb_adapter_csysvxx_fn g_adapter_csysvxx = NULL;
+static fb_adapter_zsysvxx_fn g_adapter_zsysvxx = NULL;
+static fb_adapter_sgbsvx_fn g_adapter_sgbsvx = NULL;
+static fb_adapter_dgbsvx_fn g_adapter_dgbsvx = NULL;
+static fb_adapter_cgbsvx_fn g_adapter_cgbsvx = NULL;
+static fb_adapter_zgbsvx_fn g_adapter_zgbsvx = NULL;
+static fb_adapter_sgtsvx_fn g_adapter_sgtsvx = NULL;
+static fb_adapter_dgtsvx_fn g_adapter_dgtsvx = NULL;
+static fb_adapter_cgtsvx_fn g_adapter_cgtsvx = NULL;
+static fb_adapter_zgtsvx_fn g_adapter_zgtsvx = NULL;
+static fb_adapter_sptsvx_fn g_adapter_sptsvx = NULL;
+static fb_adapter_dptsvx_fn g_adapter_dptsvx = NULL;
+static fb_adapter_cptsvx_fn g_adapter_cptsvx = NULL;
+static fb_adapter_zptsvx_fn g_adapter_zptsvx = NULL;
+static fb_adapter_spbsvx_fn g_adapter_spbsvx = NULL;
+static fb_adapter_dpbsvx_fn g_adapter_dpbsvx = NULL;
+static fb_adapter_cpbsvx_fn g_adapter_cpbsvx = NULL;
+static fb_adapter_zpbsvx_fn g_adapter_zpbsvx = NULL;
+static fb_adapter_sppsvx_fn g_adapter_sppsvx = NULL;
+static fb_adapter_dppsvx_fn g_adapter_dppsvx = NULL;
+static fb_adapter_cppsvx_fn g_adapter_cppsvx = NULL;
+static fb_adapter_zppsvx_fn g_adapter_zppsvx = NULL;
+static fb_adapter_sspsvx_fn g_adapter_sspsvx = NULL;
+static fb_adapter_dspsvx_fn g_adapter_dspsvx = NULL;
 static fb_adapter_cgeevx_fn g_adapter_cgeevx = NULL;
 static fb_adapter_zgeevx_fn g_adapter_zgeevx = NULL;
 
@@ -1220,6 +1452,358 @@ static int fb_adapter_zgesv_from_zgesvx(fb_layout_t layout, int n, int nrhs,
   return rc;
 }
 
+static int fb_adapter_sgesv_from_sgesvxx(fb_layout_t layout, int n, int nrhs,
+                                         float *A, int lda, int *ipiv,
+                                         float *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sgesvxx_fn src =
+      ctx ? (fb_adapter_sgesvxx_fn)ctx->ext_ops[FB_OP_SGESVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *af = (float *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                              sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *r = (float *)calloc(order, sizeof(float));
+  float *c = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -1;
+  }
+  if (!af || !x || !r || !c || !berr) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, A, lda, af, lda, ipiv, &equed, r, c, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(af); free(x); free(r); free(c); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dgesv_from_dgesvxx(fb_layout_t layout, int n, int nrhs,
+                                         double *A, int lda, int *ipiv,
+                                         double *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dgesvxx_fn src =
+      ctx ? (fb_adapter_dgesvxx_fn)ctx->ext_ops[FB_OP_DGESVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *af = (double *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *r = (double *)calloc(order, sizeof(double));
+  double *c = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -1;
+  }
+  if (!af || !x || !r || !c || !berr) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, A, lda, af, lda, ipiv, &equed, r, c, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(af); free(x); free(r); free(c); free(berr);
+  return rc;
+}
+
+static int fb_adapter_cgesv_from_cgesvxx(fb_layout_t layout, int n, int nrhs,
+                                         fb_complex_float_t *A, int lda,
+                                         int *ipiv, fb_complex_float_t *B,
+                                         int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cgesvxx_fn src =
+      ctx ? (fb_adapter_cgesvxx_fn)ctx->ext_ops[FB_OP_CGESVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *af =
+      (fb_complex_float_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                   sizeof(fb_complex_float_t));
+  fb_complex_float_t *x =
+      (fb_complex_float_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                   sizeof(fb_complex_float_t));
+  float *r = (float *)calloc(order, sizeof(float));
+  float *c = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -1;
+  }
+  if (!af || !x || !r || !c || !berr) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, A, lda, af, lda, ipiv, &equed, r, c, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(af); free(x); free(r); free(c); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zgesv_from_zgesvxx(fb_layout_t layout, int n, int nrhs,
+                                         fb_complex_double_t *A, int lda,
+                                         int *ipiv, fb_complex_double_t *B,
+                                         int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zgesvxx_fn src =
+      ctx ? (fb_adapter_zgesvxx_fn)ctx->ext_ops[FB_OP_ZGESVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *af =
+      (fb_complex_double_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                    sizeof(fb_complex_double_t));
+  fb_complex_double_t *x =
+      (fb_complex_double_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                    sizeof(fb_complex_double_t));
+  double *r = (double *)calloc(order, sizeof(double));
+  double *c = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -1;
+  }
+  if (!af || !x || !r || !c || !berr) {
+    free(af); free(x); free(r); free(c); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, A, lda, af, lda, ipiv, &equed, r, c, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(af); free(x); free(r); free(c); free(berr);
+  return rc;
+}
+
+static int fb_adapter_sposv_from_sposvxx(fb_layout_t layout, fb_uplo_t uplo,
+                                         int n, int nrhs, float *A, int lda,
+                                         float *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sposvxx_fn src =
+      ctx ? (fb_adapter_sposvxx_fn)ctx->ext_ops[FB_OP_SPOSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *af = (float *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                              sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', (char)uplo, n, nrhs, A, lda, af, lda, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dposv_from_dposvxx(fb_layout_t layout, fb_uplo_t uplo,
+                                         int n, int nrhs, double *A, int lda,
+                                         double *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dposvxx_fn src =
+      ctx ? (fb_adapter_dposvxx_fn)ctx->ext_ops[FB_OP_DPOSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *af = (double *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', (char)uplo, n, nrhs, A, lda, af, lda, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_cposv_from_cposvxx(fb_layout_t layout, fb_uplo_t uplo,
+                                         int n, int nrhs,
+                                         fb_complex_float_t *A, int lda,
+                                         fb_complex_float_t *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cposvxx_fn src =
+      ctx ? (fb_adapter_cposvxx_fn)ctx->ext_ops[FB_OP_CPOSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *af =
+      (fb_complex_float_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                   sizeof(fb_complex_float_t));
+  fb_complex_float_t *x =
+      (fb_complex_float_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                   sizeof(fb_complex_float_t));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', (char)uplo, n, nrhs, A, lda, af, lda, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zposv_from_zposvxx(fb_layout_t layout, fb_uplo_t uplo,
+                                         int n, int nrhs,
+                                         fb_complex_double_t *A, int lda,
+                                         fb_complex_double_t *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zposvxx_fn src =
+      ctx ? (fb_adapter_zposvxx_fn)ctx->ext_ops[FB_OP_ZPOSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *af =
+      (fb_complex_double_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                    sizeof(fb_complex_double_t));
+  fb_complex_double_t *x =
+      (fb_complex_double_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                    sizeof(fb_complex_double_t));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', (char)uplo, n, nrhs, A, lda, af, lda, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
 static int fb_adapter_sposv_from_sposvx(fb_layout_t layout, fb_uplo_t uplo,
                                         int n, int nrhs, float *A, int lda,
                                         float *B, int ldb) {
@@ -1644,6 +2228,1299 @@ static int fb_adapter_zsysv_from_zsysvx(fb_layout_t layout, char uplo, int n,
   return rc;
 }
 
+static int fb_adapter_ssysv_from_ssysvxx(fb_layout_t layout, char uplo, int n,
+                                         int nrhs, float *A, int lda,
+                                         int *ipiv, float *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_ssysvxx_fn src =
+      ctx ? (fb_adapter_ssysvxx_fn)ctx->ext_ops[FB_OP_SSYSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *af = (float *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                              sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, A, lda, af, lda, ipiv, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dsysv_from_dsysvxx(fb_layout_t layout, char uplo, int n,
+                                         int nrhs, double *A, int lda,
+                                         int *ipiv, double *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dsysvxx_fn src =
+      ctx ? (fb_adapter_dsysvxx_fn)ctx->ext_ops[FB_OP_DSYSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *af = (double *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, A, lda, af, lda, ipiv, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_csysv_from_csysvxx(fb_layout_t layout, char uplo, int n,
+                                         int nrhs, fb_complex_float_t *A,
+                                         int lda, int *ipiv,
+                                         fb_complex_float_t *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_csysvxx_fn src =
+      ctx ? (fb_adapter_csysvxx_fn)ctx->ext_ops[FB_OP_CSYSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *af =
+      (fb_complex_float_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                   sizeof(fb_complex_float_t));
+  fb_complex_float_t *x =
+      (fb_complex_float_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                   sizeof(fb_complex_float_t));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  float rpvgrw = 0.0f;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, A, lda, af, lda, ipiv, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zsysv_from_zsysvxx(fb_layout_t layout, char uplo, int n,
+                                         int nrhs, fb_complex_double_t *A,
+                                         int lda, int *ipiv,
+                                         fb_complex_double_t *B, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zsysvxx_fn src =
+      ctx ? (fb_adapter_zsysvxx_fn)ctx->ext_ops[FB_OP_ZSYSVXX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *af =
+      (fb_complex_double_t *)calloc((size_t)((lda > 0) ? lda : 1) * order,
+                                    sizeof(fb_complex_double_t));
+  fb_complex_double_t *x =
+      (fb_complex_double_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                    sizeof(fb_complex_double_t));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  double rpvgrw = 0.0;
+  char equed = 'N';
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!A || !B))) {
+    free(af); free(x); free(s); free(berr);
+    return -1;
+  }
+  if (!af || !x || !s || !berr) {
+    free(af); free(x); free(s); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, A, lda, af, lda, ipiv, &equed, s, B,
+           ldb, x, ldb, &rcond, &rpvgrw, berr, 0, NULL, NULL, 0, NULL);
+  if (n > 0 && lda > 0) {
+    memcpy(A, af, (size_t)lda * order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(B, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(af); free(x); free(s); free(berr);
+  return rc;
+}
+
+static int fb_adapter_sgbsv_from_sgbsvx(fb_layout_t layout, int n, int kl,
+                                        int ku, int nrhs, float *ab, int ldab,
+                                        int *ipiv, float *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sgbsvx_fn src =
+      ctx ? (fb_adapter_sgbsvx_fn)ctx->ext_ops[FB_OP_SGBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *afb = (float *)calloc((size_t)((ldab > 0) ? ldab : 1) * order,
+                               sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *r = (float *)calloc(order, sizeof(float));
+  float *c = (float *)calloc(order, sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float *rpivot = (float *)calloc(order, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!ab || !b))) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -1;
+  }
+  if (!afb || !x || !r || !c || !ferr || !berr || !rpivot) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, kl, ku, nrhs, ab, ldab, afb, ldab, ipiv,
+           &equed, r, c, b, ldb, x, ldb, &rcond, ferr, berr, rpivot);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, (size_t)ldab * order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(afb);
+  free(x);
+  free(r);
+  free(c);
+  free(ferr);
+  free(berr);
+  free(rpivot);
+  return rc;
+}
+
+static int fb_adapter_dgbsv_from_dgbsvx(fb_layout_t layout, int n, int kl,
+                                        int ku, int nrhs, double *ab,
+                                        int ldab, int *ipiv, double *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dgbsvx_fn src =
+      ctx ? (fb_adapter_dgbsvx_fn)ctx->ext_ops[FB_OP_DGBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *afb = (double *)calloc((size_t)((ldab > 0) ? ldab : 1) * order,
+                                 sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *r = (double *)calloc(order, sizeof(double));
+  double *c = (double *)calloc(order, sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double *rpivot = (double *)calloc(order, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!ab || !b))) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -1;
+  }
+  if (!afb || !x || !r || !c || !ferr || !berr || !rpivot) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, kl, ku, nrhs, ab, ldab, afb, ldab, ipiv,
+           &equed, r, c, b, ldb, x, ldb, &rcond, ferr, berr, rpivot);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, (size_t)ldab * order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(afb);
+  free(x);
+  free(r);
+  free(c);
+  free(ferr);
+  free(berr);
+  free(rpivot);
+  return rc;
+}
+
+static int fb_adapter_cgbsv_from_cgbsvx(fb_layout_t layout, int n, int kl,
+                                        int ku, int nrhs,
+                                        fb_complex_float_t *ab, int ldab,
+                                        int *ipiv, fb_complex_float_t *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cgbsvx_fn src =
+      ctx ? (fb_adapter_cgbsvx_fn)ctx->ext_ops[FB_OP_CGBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *afb =
+      (fb_complex_float_t *)calloc((size_t)((ldab > 0) ? ldab : 1) * order,
+                                   sizeof(fb_complex_float_t));
+  fb_complex_float_t *x =
+      (fb_complex_float_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                   sizeof(fb_complex_float_t));
+  float *r = (float *)calloc(order, sizeof(float));
+  float *c = (float *)calloc(order, sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float *rpivot = (float *)calloc(order, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!ab || !b))) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -1;
+  }
+  if (!afb || !x || !r || !c || !ferr || !berr || !rpivot) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, kl, ku, nrhs, ab, ldab, afb, ldab, ipiv,
+           &equed, r, c, b, ldb, x, ldb, &rcond, ferr, berr, rpivot);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, (size_t)ldab * order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(afb);
+  free(x);
+  free(r);
+  free(c);
+  free(ferr);
+  free(berr);
+  free(rpivot);
+  return rc;
+}
+
+static int fb_adapter_zgbsv_from_zgbsvx(fb_layout_t layout, int n, int kl,
+                                        int ku, int nrhs,
+                                        fb_complex_double_t *ab, int ldab,
+                                        int *ipiv, fb_complex_double_t *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zgbsvx_fn src =
+      ctx ? (fb_adapter_zgbsvx_fn)ctx->ext_ops[FB_OP_ZGBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *afb =
+      (fb_complex_double_t *)calloc((size_t)((ldab > 0) ? ldab : 1) * order,
+                                    sizeof(fb_complex_double_t));
+  fb_complex_double_t *x =
+      (fb_complex_double_t *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                                    sizeof(fb_complex_double_t));
+  double *r = (double *)calloc(order, sizeof(double));
+  double *c = (double *)calloc(order, sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double *rpivot = (double *)calloc(order, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || !ipiv || (n > 0 && (!ab || !b))) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -1;
+  }
+  if (!afb || !x || !r || !c || !ferr || !berr || !rpivot) {
+    free(afb);
+    free(x);
+    free(r);
+    free(c);
+    free(ferr);
+    free(berr);
+    free(rpivot);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, kl, ku, nrhs, ab, ldab, afb, ldab, ipiv,
+           &equed, r, c, b, ldb, x, ldb, &rcond, ferr, berr, rpivot);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, (size_t)ldab * order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(afb);
+  free(x);
+  free(r);
+  free(c);
+  free(ferr);
+  free(berr);
+  free(rpivot);
+  return rc;
+}
+
+static int fb_adapter_sgtsv_from_sgtsvx(fb_layout_t layout, int n, int nrhs,
+                                        float *dl, float *d, float *du,
+                                        float *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sgtsvx_fn src =
+      ctx ? (fb_adapter_sgtsvx_fn)ctx->ext_ops[FB_OP_SGTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *dlf = (float *)calloc(order, sizeof(float));
+  float *df = (float *)calloc(order, sizeof(float));
+  float *duf = (float *)calloc(order, sizeof(float));
+  float *du2 = (float *)calloc(order, sizeof(float));
+  int *ipiv = (int *)calloc(order, sizeof(int));
+  float *x =
+      (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!dl || !d || !du || !b))) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -1;
+  }
+  if (!dlf || !df || !duf || !du2 || !ipiv || !x || !ferr || !berr) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(dl, dlf, order * sizeof(float));
+    memcpy(d, df, order * sizeof(float));
+    memcpy(du, duf, order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(dlf);
+  free(df);
+  free(duf);
+  free(du2);
+  free(ipiv);
+  free(x);
+  free(ferr);
+  free(berr);
+  return rc;
+}
+
+static int fb_adapter_dgtsv_from_dgtsvx(fb_layout_t layout, int n, int nrhs,
+                                        double *dl, double *d, double *du,
+                                        double *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dgtsvx_fn src =
+      ctx ? (fb_adapter_dgtsvx_fn)ctx->ext_ops[FB_OP_DGTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *dlf = (double *)calloc(order, sizeof(double));
+  double *df = (double *)calloc(order, sizeof(double));
+  double *duf = (double *)calloc(order, sizeof(double));
+  double *du2 = (double *)calloc(order, sizeof(double));
+  int *ipiv = (int *)calloc(order, sizeof(int));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!dl || !d || !du || !b))) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -1;
+  }
+  if (!dlf || !df || !duf || !du2 || !ipiv || !x || !ferr || !berr) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(dl, dlf, order * sizeof(double));
+    memcpy(d, df, order * sizeof(double));
+    memcpy(du, duf, order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(dlf);
+  free(df);
+  free(duf);
+  free(du2);
+  free(ipiv);
+  free(x);
+  free(ferr);
+  free(berr);
+  return rc;
+}
+
+static int fb_adapter_cgtsv_from_cgtsvx(fb_layout_t layout, int n, int nrhs,
+                                        fb_complex_float_t *dl,
+                                        fb_complex_float_t *d,
+                                        fb_complex_float_t *du,
+                                        fb_complex_float_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cgtsvx_fn src =
+      ctx ? (fb_adapter_cgtsvx_fn)ctx->ext_ops[FB_OP_CGTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *dlf =
+      (fb_complex_float_t *)calloc(order, sizeof(fb_complex_float_t));
+  fb_complex_float_t *df =
+      (fb_complex_float_t *)calloc(order, sizeof(fb_complex_float_t));
+  fb_complex_float_t *duf =
+      (fb_complex_float_t *)calloc(order, sizeof(fb_complex_float_t));
+  fb_complex_float_t *du2 =
+      (fb_complex_float_t *)calloc(order, sizeof(fb_complex_float_t));
+  int *ipiv = (int *)calloc(order, sizeof(int));
+  fb_complex_float_t *x = (fb_complex_float_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_float_t));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!dl || !d || !du || !b))) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -1;
+  }
+  if (!dlf || !df || !duf || !du2 || !ipiv || !x || !ferr || !berr) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(dl, dlf, order * sizeof(fb_complex_float_t));
+    memcpy(d, df, order * sizeof(fb_complex_float_t));
+    memcpy(du, duf, order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(dlf);
+  free(df);
+  free(duf);
+  free(du2);
+  free(ipiv);
+  free(x);
+  free(ferr);
+  free(berr);
+  return rc;
+}
+
+static int fb_adapter_zgtsv_from_zgtsvx(fb_layout_t layout, int n, int nrhs,
+                                        fb_complex_double_t *dl,
+                                        fb_complex_double_t *d,
+                                        fb_complex_double_t *du,
+                                        fb_complex_double_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zgtsvx_fn src =
+      ctx ? (fb_adapter_zgtsvx_fn)ctx->ext_ops[FB_OP_ZGTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *dlf =
+      (fb_complex_double_t *)calloc(order, sizeof(fb_complex_double_t));
+  fb_complex_double_t *df =
+      (fb_complex_double_t *)calloc(order, sizeof(fb_complex_double_t));
+  fb_complex_double_t *duf =
+      (fb_complex_double_t *)calloc(order, sizeof(fb_complex_double_t));
+  fb_complex_double_t *du2 =
+      (fb_complex_double_t *)calloc(order, sizeof(fb_complex_double_t));
+  int *ipiv = (int *)calloc(order, sizeof(int));
+  fb_complex_double_t *x = (fb_complex_double_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_double_t));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!dl || !d || !du || !b))) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -1;
+  }
+  if (!dlf || !df || !duf || !du2 || !ipiv || !x || !ferr || !berr) {
+    free(dlf);
+    free(df);
+    free(duf);
+    free(du2);
+    free(ipiv);
+    free(x);
+    free(ferr);
+    free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', 'N', n, nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(dl, dlf, order * sizeof(fb_complex_double_t));
+    memcpy(d, df, order * sizeof(fb_complex_double_t));
+    memcpy(du, duf, order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(dlf);
+  free(df);
+  free(duf);
+  free(du2);
+  free(ipiv);
+  free(x);
+  free(ferr);
+  free(berr);
+  return rc;
+}
+
+static int fb_adapter_sptsv_from_sptsvx(fb_layout_t layout, int n, int nrhs,
+                                        float *d, float *e, float *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sptsvx_fn src =
+      ctx ? (fb_adapter_sptsvx_fn)ctx->ext_ops[FB_OP_SPTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *df = (float *)calloc(order, sizeof(float));
+  float *ef = (float *)calloc(order, sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!d || !e || !b))) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!df || !ef || !x || !ferr || !berr) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', n, nrhs, d, e, df, ef, b, ldb, x, ldb, &rcond, ferr,
+           berr);
+  if (n > 0) {
+    memcpy(d, df, order * sizeof(float));
+    memcpy(e, ef, order * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(df); free(ef); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dptsv_from_dptsvx(fb_layout_t layout, int n, int nrhs,
+                                        double *d, double *e, double *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dptsvx_fn src =
+      ctx ? (fb_adapter_dptsvx_fn)ctx->ext_ops[FB_OP_DPTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *df = (double *)calloc(order, sizeof(double));
+  double *ef = (double *)calloc(order, sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!d || !e || !b))) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!df || !ef || !x || !ferr || !berr) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', n, nrhs, d, e, df, ef, b, ldb, x, ldb, &rcond, ferr,
+           berr);
+  if (n > 0) {
+    memcpy(d, df, order * sizeof(double));
+    memcpy(e, ef, order * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(df); free(ef); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_cptsv_from_cptsvx(fb_layout_t layout, int n, int nrhs,
+                                        float *d, fb_complex_float_t *e,
+                                        fb_complex_float_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cptsvx_fn src =
+      ctx ? (fb_adapter_cptsvx_fn)ctx->ext_ops[FB_OP_CPTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *df = (float *)calloc(order, sizeof(float));
+  fb_complex_float_t *ef =
+      (fb_complex_float_t *)calloc(order, sizeof(fb_complex_float_t));
+  fb_complex_float_t *x = (fb_complex_float_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_float_t));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!d || !e || !b))) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!df || !ef || !x || !ferr || !berr) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', n, nrhs, d, e, df, ef, b, ldb, x, ldb, &rcond, ferr,
+           berr);
+  if (n > 0) {
+    memcpy(d, df, order * sizeof(float));
+    memcpy(e, ef, order * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(df); free(ef); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zptsv_from_zptsvx(fb_layout_t layout, int n, int nrhs,
+                                        double *d, fb_complex_double_t *e,
+                                        fb_complex_double_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zptsvx_fn src =
+      ctx ? (fb_adapter_zptsvx_fn)ctx->ext_ops[FB_OP_ZPTSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *df = (double *)calloc(order, sizeof(double));
+  fb_complex_double_t *ef =
+      (fb_complex_double_t *)calloc(order, sizeof(fb_complex_double_t));
+  fb_complex_double_t *x = (fb_complex_double_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_double_t));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!d || !e || !b))) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!df || !ef || !x || !ferr || !berr) {
+    free(df); free(ef); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', n, nrhs, d, e, df, ef, b, ldb, x, ldb, &rcond, ferr,
+           berr);
+  if (n > 0) {
+    memcpy(d, df, order * sizeof(double));
+    memcpy(e, ef, order * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(df); free(ef); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_spbsv_from_spbsvx(fb_layout_t layout, char uplo, int n,
+                                        int kd, int nrhs, float *ab, int ldab,
+                                        float *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_spbsvx_fn src =
+      ctx ? (fb_adapter_spbsvx_fn)ctx->ext_ops[FB_OP_SPBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t band_elems = (size_t)((ldab > 0) ? ldab : 1) * order;
+  float *afb = (float *)calloc(band_elems, sizeof(float));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!ab || !b))) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afb || !s || !x || !ferr || !berr) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, kd, nrhs, ab, ldab, afb, ldab, &equed, s, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, band_elems * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(afb); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dpbsv_from_dpbsvx(fb_layout_t layout, char uplo, int n,
+                                        int kd, int nrhs, double *ab,
+                                        int ldab, double *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dpbsvx_fn src =
+      ctx ? (fb_adapter_dpbsvx_fn)ctx->ext_ops[FB_OP_DPBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t band_elems = (size_t)((ldab > 0) ? ldab : 1) * order;
+  double *afb = (double *)calloc(band_elems, sizeof(double));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!ab || !b))) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afb || !s || !x || !ferr || !berr) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, kd, nrhs, ab, ldab, afb, ldab, &equed, s, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, band_elems * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(afb); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_cpbsv_from_cpbsvx(fb_layout_t layout, char uplo, int n,
+                                        int kd, int nrhs,
+                                        fb_complex_float_t *ab, int ldab,
+                                        fb_complex_float_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cpbsvx_fn src =
+      ctx ? (fb_adapter_cpbsvx_fn)ctx->ext_ops[FB_OP_CPBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t band_elems = (size_t)((ldab > 0) ? ldab : 1) * order;
+  fb_complex_float_t *afb =
+      (fb_complex_float_t *)calloc(band_elems, sizeof(fb_complex_float_t));
+  float *s = (float *)calloc(order, sizeof(float));
+  fb_complex_float_t *x = (fb_complex_float_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_float_t));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!ab || !b))) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afb || !s || !x || !ferr || !berr) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, kd, nrhs, ab, ldab, afb, ldab, &equed, s, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, band_elems * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(afb); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zpbsv_from_zpbsvx(fb_layout_t layout, char uplo, int n,
+                                        int kd, int nrhs,
+                                        fb_complex_double_t *ab, int ldab,
+                                        fb_complex_double_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zpbsvx_fn src =
+      ctx ? (fb_adapter_zpbsvx_fn)ctx->ext_ops[FB_OP_ZPBSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t band_elems = (size_t)((ldab > 0) ? ldab : 1) * order;
+  fb_complex_double_t *afb =
+      (fb_complex_double_t *)calloc(band_elems, sizeof(fb_complex_double_t));
+  double *s = (double *)calloc(order, sizeof(double));
+  fb_complex_double_t *x = (fb_complex_double_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_double_t));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!ab || !b))) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afb || !s || !x || !ferr || !berr) {
+    free(afb); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, kd, nrhs, ab, ldab, afb, ldab, &equed, s, b,
+           ldb, x, ldb, &rcond, ferr, berr);
+  if (n > 0 && ldab > 0) {
+    memcpy(ab, afb, band_elems * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(afb); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_sppsv_from_sppsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, float *ap, float *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sppsvx_fn src =
+      ctx ? (fb_adapter_sppsvx_fn)ctx->ext_ops[FB_OP_SPPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  float *afp = (float *)calloc(packed_elems, sizeof(float));
+  float *s = (float *)calloc(order, sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !b))) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !s || !x || !ferr || !berr) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, &equed, s, b, ldb, x, ldb,
+           &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(afp); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dppsv_from_dppsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, double *ap, double *b,
+                                        int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dppsvx_fn src =
+      ctx ? (fb_adapter_dppsvx_fn)ctx->ext_ops[FB_OP_DPPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  double *afp = (double *)calloc(packed_elems, sizeof(double));
+  double *s = (double *)calloc(order, sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !b))) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !s || !x || !ferr || !berr) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, &equed, s, b, ldb, x, ldb,
+           &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(afp); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_cppsv_from_cppsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, fb_complex_float_t *ap,
+                                        fb_complex_float_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_cppsvx_fn src =
+      ctx ? (fb_adapter_cppsvx_fn)ctx->ext_ops[FB_OP_CPPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  fb_complex_float_t *afp =
+      (fb_complex_float_t *)calloc(packed_elems, sizeof(fb_complex_float_t));
+  float *s = (float *)calloc(order, sizeof(float));
+  fb_complex_float_t *x = (fb_complex_float_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_float_t));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  char equed = 'N';
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !b))) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !s || !x || !ferr || !berr) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, &equed, s, b, ldb, x, ldb,
+           &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(fb_complex_float_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_float_t));
+  }
+
+  free(afp); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_zppsv_from_zppsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, fb_complex_double_t *ap,
+                                        fb_complex_double_t *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_zppsvx_fn src =
+      ctx ? (fb_adapter_zppsvx_fn)ctx->ext_ops[FB_OP_ZPPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t order = (size_t)((n > 0) ? n : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  fb_complex_double_t *afp = (fb_complex_double_t *)calloc(
+      packed_elems, sizeof(fb_complex_double_t));
+  double *s = (double *)calloc(order, sizeof(double));
+  fb_complex_double_t *x = (fb_complex_double_t *)calloc(
+      (size_t)((ldb > 0) ? ldb : 1) * rhs_count, sizeof(fb_complex_double_t));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  char equed = 'N';
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !b))) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !s || !x || !ferr || !berr) {
+    free(afp); free(s); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, &equed, s, b, ldb, x, ldb,
+           &rcond, ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(fb_complex_double_t));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(fb_complex_double_t));
+  }
+
+  free(afp); free(s); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_sspsv_from_sspsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, float *ap, int *ipiv,
+                                        float *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_sspsvx_fn src =
+      ctx ? (fb_adapter_sspsvx_fn)ctx->ext_ops[FB_OP_SSPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  float *afp = (float *)calloc(packed_elems, sizeof(float));
+  float *x = (float *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                             sizeof(float));
+  float *ferr = (float *)calloc(rhs_count, sizeof(float));
+  float *berr = (float *)calloc(rhs_count, sizeof(float));
+  float rcond = 0.0f;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !ipiv || !b))) {
+    free(afp); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !x || !ferr || !berr) {
+    free(afp); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, ipiv, b, ldb, x, ldb, &rcond,
+           ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(float));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(float));
+  }
+
+  free(afp); free(x); free(ferr); free(berr);
+  return rc;
+}
+
+static int fb_adapter_dspsv_from_dspsvx(fb_layout_t layout, char uplo, int n,
+                                        int nrhs, double *ap, int *ipiv,
+                                        double *b, int ldb) {
+  const fb_backend_vtable_t *ctx = fb_get_active_vtable();
+  fb_adapter_dspsvx_fn src =
+      ctx ? (fb_adapter_dspsvx_fn)ctx->ext_ops[FB_OP_DSPSVX][FB_CONV_CBLAS]
+          : NULL;
+  size_t packed_elems = (size_t)((n > 0) ? ((n * (n + 1)) / 2) : 1);
+  size_t rhs_count = (size_t)((nrhs > 0) ? nrhs : 1);
+  double *afp = (double *)calloc(packed_elems, sizeof(double));
+  double *x = (double *)calloc((size_t)((ldb > 0) ? ldb : 1) * rhs_count,
+                               sizeof(double));
+  double *ferr = (double *)calloc(rhs_count, sizeof(double));
+  double *berr = (double *)calloc(rhs_count, sizeof(double));
+  double rcond = 0.0;
+  int rc;
+
+  if (!src || (n > 0 && (!ap || !ipiv || !b))) {
+    free(afp); free(x); free(ferr); free(berr);
+    return -1;
+  }
+  if (!afp || !x || !ferr || !berr) {
+    free(afp); free(x); free(ferr); free(berr);
+    return -101;
+  }
+
+  rc = src(layout, 'N', uplo, n, nrhs, ap, afp, ipiv, b, ldb, x, ldb, &rcond,
+           ferr, berr);
+  if (n > 0) {
+    memcpy(ap, afp, packed_elems * sizeof(double));
+  }
+  if (rc == 0 && nrhs > 0 && ldb > 0) {
+    memcpy(b, x, (size_t)ldb * rhs_count * sizeof(double));
+  }
+
+  free(afp); free(x); free(ferr); free(berr);
+  return rc;
+}
+
 static void fb_install_adapter_if_missing(fb_backend_vtable_t *vtable,
                                           uint32_t dst_op, uint32_t src_op,
                                           fb_generic_fn adapter_fn,
@@ -1806,6 +3683,42 @@ static fb_status_t fb_autofill_superset_subset_adapters(
                     fb_adapter_zgesv_from_zgesvx,
                   (fb_generic_fn *)&g_adapter_zgesvx);
 
+      /* Family N: GESV from GESVXX (fact='N', trans='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SGESV, FB_OP_SGESVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sgesv_from_sgesvxx,
+                    (fb_generic_fn *)&g_adapter_sgesvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DGESV, FB_OP_DGESVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dgesv_from_dgesvxx,
+                    (fb_generic_fn *)&g_adapter_dgesvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CGESV, FB_OP_CGESVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cgesv_from_cgesvxx,
+                    (fb_generic_fn *)&g_adapter_cgesvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZGESV, FB_OP_ZGESVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zgesv_from_zgesvxx,
+                    (fb_generic_fn *)&g_adapter_zgesvxx);
+
+      /* Family O: POSV from POSVXX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SPOSV, FB_OP_SPOSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sposv_from_sposvxx,
+                    (fb_generic_fn *)&g_adapter_sposvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DPOSV, FB_OP_DPOSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dposv_from_dposvxx,
+                    (fb_generic_fn *)&g_adapter_dposvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CPOSV, FB_OP_CPOSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cposv_from_cposvxx,
+                    (fb_generic_fn *)&g_adapter_cposvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZPOSV, FB_OP_ZPOSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zposv_from_zposvxx,
+                    (fb_generic_fn *)&g_adapter_zposvxx);
+
       /* Family F: POSV from POSVX (fact='N'). */
       fb_install_adapter_if_missing(vtable, FB_OP_SPOSV, FB_OP_SPOSVX,
                     (fb_generic_fn)(void (*)(void))
@@ -1841,6 +3754,124 @@ static fb_status_t fb_autofill_superset_subset_adapters(
                       (fb_generic_fn)(void (*)(void))
                         fb_adapter_zsysv_from_zsysvx,
                       (fb_generic_fn *)&g_adapter_zsysvx);
+
+      /* Family P: SYSV from SYSVXX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SSYSV, FB_OP_SSYSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_ssysv_from_ssysvxx,
+                    (fb_generic_fn *)&g_adapter_ssysvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DSYSV, FB_OP_DSYSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dsysv_from_dsysvxx,
+                    (fb_generic_fn *)&g_adapter_dsysvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CSYSV, FB_OP_CSYSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_csysv_from_csysvxx,
+                    (fb_generic_fn *)&g_adapter_csysvxx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZSYSV, FB_OP_ZSYSVXX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zsysv_from_zsysvxx,
+                    (fb_generic_fn *)&g_adapter_zsysvxx);
+
+      /* Family H: GBSV from GBSVX (fact='N', trans='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SGBSV, FB_OP_SGBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sgbsv_from_sgbsvx,
+                    (fb_generic_fn *)&g_adapter_sgbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DGBSV, FB_OP_DGBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dgbsv_from_dgbsvx,
+                    (fb_generic_fn *)&g_adapter_dgbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CGBSV, FB_OP_CGBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cgbsv_from_cgbsvx,
+                    (fb_generic_fn *)&g_adapter_cgbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZGBSV, FB_OP_ZGBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zgbsv_from_zgbsvx,
+                    (fb_generic_fn *)&g_adapter_zgbsvx);
+
+      /* Family I: GTSV from GTSVX (fact='N', trans='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SGTSV, FB_OP_SGTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sgtsv_from_sgtsvx,
+                    (fb_generic_fn *)&g_adapter_sgtsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DGTSV, FB_OP_DGTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dgtsv_from_dgtsvx,
+                    (fb_generic_fn *)&g_adapter_dgtsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CGTSV, FB_OP_CGTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cgtsv_from_cgtsvx,
+                    (fb_generic_fn *)&g_adapter_cgtsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZGTSV, FB_OP_ZGTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zgtsv_from_zgtsvx,
+                    (fb_generic_fn *)&g_adapter_zgtsvx);
+
+      /* Family J: PTSV from PTSVX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SPTSV, FB_OP_SPTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sptsv_from_sptsvx,
+                    (fb_generic_fn *)&g_adapter_sptsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DPTSV, FB_OP_DPTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dptsv_from_dptsvx,
+                    (fb_generic_fn *)&g_adapter_dptsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CPTSV, FB_OP_CPTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cptsv_from_cptsvx,
+                    (fb_generic_fn *)&g_adapter_cptsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZPTSV, FB_OP_ZPTSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zptsv_from_zptsvx,
+                    (fb_generic_fn *)&g_adapter_zptsvx);
+
+      /* Family K: PBSV from PBSVX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SPBSV, FB_OP_SPBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_spbsv_from_spbsvx,
+                    (fb_generic_fn *)&g_adapter_spbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DPBSV, FB_OP_DPBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dpbsv_from_dpbsvx,
+                    (fb_generic_fn *)&g_adapter_dpbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CPBSV, FB_OP_CPBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cpbsv_from_cpbsvx,
+                    (fb_generic_fn *)&g_adapter_cpbsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZPBSV, FB_OP_ZPBSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zpbsv_from_zpbsvx,
+                    (fb_generic_fn *)&g_adapter_zpbsvx);
+
+      /* Family L: PPSV from PPSVX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SPPSV, FB_OP_SPPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sppsv_from_sppsvx,
+                    (fb_generic_fn *)&g_adapter_sppsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DPPSV, FB_OP_DPPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dppsv_from_dppsvx,
+                    (fb_generic_fn *)&g_adapter_dppsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_CPPSV, FB_OP_CPPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_cppsv_from_cppsvx,
+                    (fb_generic_fn *)&g_adapter_cppsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_ZPPSV, FB_OP_ZPPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_zppsv_from_zppsvx,
+                    (fb_generic_fn *)&g_adapter_zppsvx);
+
+      /* Family M: SPSV from SPSVX (fact='N'). */
+      fb_install_adapter_if_missing(vtable, FB_OP_SSPSV, FB_OP_SSPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_sspsv_from_sspsvx,
+                    (fb_generic_fn *)&g_adapter_sspsvx);
+      fb_install_adapter_if_missing(vtable, FB_OP_DSPSV, FB_OP_DSPSVX,
+                    (fb_generic_fn)(void (*)(void))
+                      fb_adapter_dspsv_from_dspsvx,
+                    (fb_generic_fn *)&g_adapter_dspsvx);
 
   return FB_STATUS_SUCCESS;
 }

@@ -12,6 +12,13 @@
 #  FB_ENABLE_DEEP_SEARCH - Set to ON to search common installation directories (slower)
 
 # Tier 1: User hints (highest priority)
+if(WIN32 AND EXISTS "C:/Program Files (x86)/Intel/oneAPI")
+    list(PREPEND ONEMKL_SEARCH_PATHS
+        "C:/Program Files (x86)/Intel/oneAPI/mkl/latest"
+        "C:/Program Files (x86)/Intel/oneAPI/mkl/2025.3"
+    )
+endif()
+
 set(ONEMKL_SEARCH_PATHS
     # CMake cache variables
     ${ONEMKL_ROOT}
@@ -20,6 +27,8 @@ set(ONEMKL_SEARCH_PATHS
     $ENV{ONEMKL_ROOT}
     $ENV{MKLROOT}
     $ENV{ONEAPI_ROOT}/mkl
+    "C:/Program Files (x86)/Intel/oneAPI/mkl/latest"
+    "C:/Program Files (x86)/Intel/oneAPI/mkl/2025.3"
     
     # Tier 2: Known standard locations
     # Windows oneAPI installation
@@ -73,6 +82,8 @@ find_path(SYCL_INCLUDE_DIR
     NAMES sycl/sycl.hpp
     PATHS
         "$ENV{ONEAPI_ROOT}/compiler/latest"
+        "C:/Program Files (x86)/Intel/oneAPI/compiler/latest"
+        "C:/Program Files (x86)/Intel/oneAPI/compiler/2025.3"
         "C:/Program Files (x86)/Intel/oneAPI/compiler/latest"
         "C:/Program Files (x86)/Intel/oneAPI/compiler/2025.3"
         "/opt/intel/oneapi/compiler/latest"

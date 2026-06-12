@@ -3,6 +3,15 @@ Remove-Item Env:FB_JUDGE_END_OP_ID -ErrorAction SilentlyContinue
 Remove-Item Env:FB_JUDGE_FAIL_ON_REFERENCE_SKIP -ErrorAction SilentlyContinue
 Remove-Item Env:FB_JUDGE_REFERENCE_OP_LIST -ErrorAction SilentlyContinue
 
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '1'
+$env:CTEST_PARALLEL_LEVEL = '1'
+$env:NINJAFLAGS = '-j1'
+$env:OMP_NUM_THREADS = '1'
+$env:OPENBLAS_NUM_THREADS = '1'
+$env:BLIS_NUM_THREADS = '1'
+$env:MKL_NUM_THREADS = '1'
+$env:VECLIB_MAXIMUM_THREADS = '1'
+
 Set-Location 'c:\Users\cires\OneDrive\Documents\projects\faster-blaster\build-clang\tests'
 
 $env:FB_JUDGE_VALIDATE_HEAP = '1'

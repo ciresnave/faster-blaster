@@ -9,6 +9,12 @@ typedef int (*fb_sgbsvx_cblas_fn)(fb_layout_t layout, char fact, char trans,
                                   char *equed, float *r, float *c, float *b,
                                   int ldb, float *x, int ldx, float *rcond,
                                   float *ferr, float *berr, float *rpvgrw);
+typedef int (*fb_dgbsvx_cblas_fn)(fb_layout_t layout, char fact, char trans,
+                                  int n, int kl, int ku, int nrhs, double *ab,
+                                  int ldab, double *afb, int ldafb, int *ipiv,
+                                  char *equed, double *r, double *c, double *b,
+                                  int ldb, double *x, int ldx, double *rcond,
+                                  double *ferr, double *berr, double *rpvgrw);
 typedef int (*fb_cgbsvx_cblas_fn)(fb_layout_t layout, char fact, char trans,
                                   int n, int kl, int ku, int nrhs,
                                   fb_complex_float_t *ab, int ldab,
@@ -18,6 +24,15 @@ typedef int (*fb_cgbsvx_cblas_fn)(fb_layout_t layout, char fact, char trans,
                                   fb_complex_float_t *x, int ldx,
                                   float *rcond, float *ferr, float *berr,
                                   float *rpvgrw);
+typedef int (*fb_zgbsvx_cblas_fn)(fb_layout_t layout, char fact, char trans,
+                                  int n, int kl, int ku, int nrhs,
+                                  fb_complex_double_t *ab, int ldab,
+                                  fb_complex_double_t *afb, int ldafb,
+                                  int *ipiv, char *equed, double *r,
+                                  double *c, fb_complex_double_t *b, int ldb,
+                                  fb_complex_double_t *x, int ldx,
+                                  double *rcond, double *ferr, double *berr,
+                                  double *rpvgrw);
 
 typedef void (*fb_sgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
                                           int *kl, int *ku, int *nrhs,
@@ -27,6 +42,15 @@ typedef void (*fb_sgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
                                           int *ldb, float *x, int *ldx,
                                           float *rcond, float *ferr,
                                           float *berr, float *work,
+                                          int *iwork, int *info);
+typedef void (*fb_dgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
+                                          int *kl, int *ku, int *nrhs,
+                                          double *ab, int *ldab, double *afb,
+                                          int *ldafb, int *ipiv, char *equed,
+                                          double *r, double *c, double *b,
+                                          int *ldb, double *x, int *ldx,
+                                          double *rcond, double *ferr,
+                                          double *berr, double *work,
                                           int *iwork, int *info);
 typedef void (*fb_cgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
                                           int *kl, int *ku, int *nrhs,
@@ -39,6 +63,18 @@ typedef void (*fb_cgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
                                           float *berr,
                                           fb_complex_float_t *work,
                                           float *rwork, int *info);
+typedef void (*fb_zgbsvx_fortran_slot_fn)(char *fact, char *trans, int *n,
+                                          int *kl, int *ku, int *nrhs,
+                                          fb_complex_double_t *ab, int *ldab,
+                                          fb_complex_double_t *afb,
+                                          int *ldafb, int *ipiv, char *equed,
+                                          double *r, double *c,
+                                          fb_complex_double_t *b, int *ldb,
+                                          fb_complex_double_t *x, int *ldx,
+                                          double *rcond, double *ferr,
+                                          double *berr,
+                                          fb_complex_double_t *work,
+                                          double *rwork, int *info);
 
 static struct {
     int calls;
@@ -92,6 +128,30 @@ static struct {
     int calls;
     char fact;
     char trans;
+    int n;
+    int kl;
+    int ku;
+    int nrhs;
+    int work_seen;
+    int aux_seen;
+} g_dgbsvx_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char fact;
+    char trans;
+    int n;
+    int kl;
+    int ku;
+    int nrhs;
+    double *rpvgrw;
+} g_dgbsvx_cblas_call;
+
+static struct {
+    int calls;
+    char fact;
+    char trans;
     char equed_before;
     int n;
     int kl;
@@ -136,6 +196,30 @@ static struct {
     float *rpvgrw;
 } g_cgbsvx_cblas_call;
 
+static struct {
+    int calls;
+    char fact;
+    char trans;
+    int n;
+    int kl;
+    int ku;
+    int nrhs;
+    int work_seen;
+    int aux_seen;
+} g_zgbsvx_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char fact;
+    char trans;
+    int n;
+    int kl;
+    int ku;
+    int nrhs;
+    double *rpvgrw;
+} g_zgbsvx_cblas_call;
+
 static fb_complex_float_t make_cf32(float real_value, float imag_value)
 {
     fb_complex_float_t value;
@@ -145,6 +229,19 @@ static fb_complex_float_t make_cf32(float real_value, float imag_value)
 }
 
 static int cf32_eq(fb_complex_float_t lhs, fb_complex_float_t rhs)
+{
+    return __real__ lhs == __real__ rhs && __imag__ lhs == __imag__ rhs;
+}
+
+static fb_complex_double_t make_cf64(double real_value, double imag_value)
+{
+    fb_complex_double_t value;
+    __real__ value = real_value;
+    __imag__ value = imag_value;
+    return value;
+}
+
+static int cf64_eq(fb_complex_double_t lhs, fb_complex_double_t rhs)
 {
     return __real__ lhs == __real__ rhs && __imag__ lhs == __imag__ rhs;
 }
@@ -175,6 +272,19 @@ static int int_array_eq(const int *lhs, const int *rhs, size_t count)
     return 1;
 }
 
+static int double_array_eq(const double *lhs, const double *rhs, size_t count)
+{
+    size_t index = 0;
+
+    for (index = 0; index < count; ++index) {
+        if (lhs[index] != rhs[index]) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static int cf32_array_eq(const fb_complex_float_t *lhs,
                          const fb_complex_float_t *rhs, size_t count)
 {
@@ -182,6 +292,20 @@ static int cf32_array_eq(const fb_complex_float_t *lhs,
 
     for (index = 0; index < count; ++index) {
         if (!cf32_eq(lhs[index], rhs[index])) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static int cf64_array_eq(const fb_complex_double_t *lhs,
+                         const fb_complex_double_t *rhs, size_t count)
+{
+    size_t index = 0;
+
+    for (index = 0; index < count; ++index) {
+        if (!cf64_eq(lhs[index], rhs[index])) {
             return 0;
         }
     }
@@ -301,6 +425,67 @@ static int stub_sgbsvx_cblas(fb_layout_t layout, char fact, char trans, int n,
     berr[0] = 0.5f;
     *rpvgrw = 0.33f;
     return 191;
+}
+
+static void stub_dgbsvx_fortran(char *fact, char *trans, int *n, int *kl,
+                                int *ku, int *nrhs, double *ab, int *ldab,
+                                double *afb, int *ldafb, int *ipiv,
+                                char *equed, double *r, double *c, double *b,
+                                int *ldb, double *x, int *ldx, double *rcond,
+                                double *ferr, double *berr, double *work,
+                                int *iwork, int *info)
+{
+    g_dgbsvx_fortran_call.calls += 1;
+    g_dgbsvx_fortran_call.fact = *fact;
+    g_dgbsvx_fortran_call.trans = *trans;
+    g_dgbsvx_fortran_call.n = *n;
+    g_dgbsvx_fortran_call.kl = *kl;
+    g_dgbsvx_fortran_call.ku = *ku;
+    g_dgbsvx_fortran_call.nrhs = *nrhs;
+    g_dgbsvx_fortran_call.work_seen = (work != NULL);
+    g_dgbsvx_fortran_call.aux_seen = (iwork != NULL);
+    ipiv[0] = 9;
+    *equed = 'Y';
+    ab[0] = 1001.0;
+    afb[0] = 1002.0;
+    b[0] = 1003.0;
+    x[0] = 1004.0;
+    r[0] = 1.01;
+    c[0] = 2.01;
+    *rcond = 0.41;
+    ferr[0] = 0.71;
+    berr[0] = 0.17;
+    work[0] = 0.91;
+    *info = 0;
+}
+
+static int stub_dgbsvx_cblas(fb_layout_t layout, char fact, char trans, int n,
+                             int kl, int ku, int nrhs, double *ab, int ldab,
+                             double *afb, int ldafb, int *ipiv, char *equed,
+                             double *r, double *c, double *b, int ldb,
+                             double *x, int ldx, double *rcond, double *ferr,
+                             double *berr, double *rpvgrw)
+{
+    g_dgbsvx_cblas_call.called += 1;
+    g_dgbsvx_cblas_call.layout = layout;
+    g_dgbsvx_cblas_call.fact = fact;
+    g_dgbsvx_cblas_call.trans = trans;
+    g_dgbsvx_cblas_call.n = n;
+    g_dgbsvx_cblas_call.kl = kl;
+    g_dgbsvx_cblas_call.ku = ku;
+    g_dgbsvx_cblas_call.nrhs = nrhs;
+    g_dgbsvx_cblas_call.rpvgrw = rpvgrw;
+    ipiv[0] = 6;
+    *equed = 'N';
+    ab[0] = 1101.0;
+    afb[0] = 1102.0;
+    b[0] = 1103.0;
+    x[0] = 1104.0;
+    *rcond = 0.51;
+    ferr[0] = 0.81;
+    berr[0] = 0.18;
+    *rpvgrw = 0.93;
+    return 194;
 }
 
 static void stub_cgbsvx_fortran(char *fact, char *trans, int *n, int *kl,
@@ -426,6 +611,70 @@ static int stub_cgbsvx_cblas(fb_layout_t layout, char fact, char trans, int n,
     berr[0] = 0.9f;
     *rpvgrw = 0.55f;
     return 193;
+}
+
+static void stub_zgbsvx_fortran(char *fact, char *trans, int *n, int *kl,
+                                int *ku, int *nrhs, fb_complex_double_t *ab,
+                                int *ldab, fb_complex_double_t *afb,
+                                int *ldafb, int *ipiv, char *equed,
+                                double *r, double *c, fb_complex_double_t *b,
+                                int *ldb, fb_complex_double_t *x, int *ldx,
+                                double *rcond, double *ferr, double *berr,
+                                fb_complex_double_t *work, double *rwork,
+                                int *info)
+{
+    g_zgbsvx_fortran_call.calls += 1;
+    g_zgbsvx_fortran_call.fact = *fact;
+    g_zgbsvx_fortran_call.trans = *trans;
+    g_zgbsvx_fortran_call.n = *n;
+    g_zgbsvx_fortran_call.kl = *kl;
+    g_zgbsvx_fortran_call.ku = *ku;
+    g_zgbsvx_fortran_call.nrhs = *nrhs;
+    g_zgbsvx_fortran_call.work_seen = (work != NULL);
+    g_zgbsvx_fortran_call.aux_seen = (rwork != NULL);
+    ipiv[0] = 5;
+    *equed = 'B';
+    ab[0] = make_cf64(1201.0, 1.0);
+    afb[0] = make_cf64(1202.0, 2.0);
+    b[0] = make_cf64(1203.0, 3.0);
+    x[0] = make_cf64(1204.0, 4.0);
+    r[0] = 1.21;
+    c[0] = 2.21;
+    *rcond = 0.61;
+    ferr[0] = 0.91;
+    berr[0] = 0.19;
+    rwork[1] = 0.97;
+    *info = 0;
+}
+
+static int stub_zgbsvx_cblas(fb_layout_t layout, char fact, char trans, int n,
+                             int kl, int ku, int nrhs, fb_complex_double_t *ab,
+                             int ldab, fb_complex_double_t *afb, int ldafb,
+                             int *ipiv, char *equed, double *r, double *c,
+                             fb_complex_double_t *b, int ldb,
+                             fb_complex_double_t *x, int ldx, double *rcond,
+                             double *ferr, double *berr, double *rpvgrw)
+{
+    g_zgbsvx_cblas_call.called += 1;
+    g_zgbsvx_cblas_call.layout = layout;
+    g_zgbsvx_cblas_call.fact = fact;
+    g_zgbsvx_cblas_call.trans = trans;
+    g_zgbsvx_cblas_call.n = n;
+    g_zgbsvx_cblas_call.kl = kl;
+    g_zgbsvx_cblas_call.ku = ku;
+    g_zgbsvx_cblas_call.nrhs = nrhs;
+    g_zgbsvx_cblas_call.rpvgrw = rpvgrw;
+    ipiv[0] = 4;
+    *equed = 'N';
+    ab[0] = make_cf64(1301.0, 1.0);
+    afb[0] = make_cf64(1302.0, 2.0);
+    b[0] = make_cf64(1303.0, 3.0);
+    x[0] = make_cf64(1304.0, 4.0);
+    *rcond = 0.71;
+    ferr[0] = 1.01;
+    berr[0] = 0.21;
+    *rpvgrw = 0.99;
+    return 196;
 }
 
 static int check_sgbsvx_fortran_to_cblas_fact_e(void)
@@ -588,6 +837,112 @@ static int check_sgbsvx_cblas_to_fortran(void)
     }
 
     printf("[PASS] SGBSVX CBLAS->Fortran thunk forwards the expanded column-major ABI and hides the extra C rpvgrw parameter\n");
+    return 0;
+}
+
+static int check_dgbsvx_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dgbsvx_cblas_fn thunk = NULL;
+    double ab[12] = { 0.0 };
+    double afb[16] = { 0.0 };
+    double b[8] = { 0.0 };
+    double x[8] = { 0.0 };
+    int ipiv[4] = { 0, 0, 0, 0 };
+    char equed = 'N';
+    double r[4] = { 0.0 };
+    double c[4] = { 0.0 };
+    double rcond = 0.0;
+    double ferr[2] = { 0.0, 0.0 };
+    double berr[2] = { 0.0, 0.0 };
+    double rpvgrw = 0.0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dgbsvx_fortran_call, 0, sizeof(g_dgbsvx_fortran_call));
+
+    vtable.ext_ops[FB_OP_DGBSVX][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dgbsvx_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DGBSVX);
+
+    thunk = (fb_dgbsvx_cblas_fn)vtable.ext_ops[FB_OP_DGBSVX][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DGBSVX Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    if (thunk(FB_LAYOUT_COL_MAJOR, 'E', 'N', 4, 1, 1, 2, ab, 4, afb, 4, ipiv,
+              &equed, r, c, b, 4, x, 4, &rcond, ferr, berr, &rpvgrw) != 0 ||
+        g_dgbsvx_fortran_call.calls != 1 || g_dgbsvx_fortran_call.fact != 'E' ||
+        g_dgbsvx_fortran_call.trans != 'N' || g_dgbsvx_fortran_call.n != 4 ||
+        ipiv[0] != 9 || equed != 'Y' || ab[0] != 1001.0 || afb[0] != 1002.0 ||
+        b[0] != 1003.0 || x[0] != 1004.0 || rcond != 0.41 || ferr[0] != 0.71 ||
+        berr[0] != 0.17) {
+        fprintf(stderr, "[FAIL] DGBSVX Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DGBSVX Fortran->CBLAS thunk bridges expert-solve arguments and exposes work[0] as rpvgrw\n");
+    return 0;
+}
+
+static int check_dgbsvx_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dgbsvx_fortran_slot_fn thunk = NULL;
+    char fact = 'F';
+    char trans = 'T';
+    int n = 4;
+    int kl = 1;
+    int ku = 1;
+    int nrhs = 2;
+    double ab[16] = { 0.0 };
+    int ldab = 4;
+    double afb[16] = { 0.0 };
+    int ldafb = 4;
+    int ipiv[4] = { 0, 0, 0, 0 };
+    char equed = 'N';
+    double r[4] = { 0.0 };
+    double c[4] = { 0.0 };
+    double b[8] = { 0.0 };
+    int ldb = 4;
+    double x[8] = { 0.0 };
+    int ldx = 4;
+    double rcond = 0.0;
+    double ferr[2] = { 0.0, 0.0 };
+    double berr[2] = { 0.0, 0.0 };
+    double work[12] = { 0.0 };
+    int iwork[4] = { 0, 0, 0, 0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dgbsvx_cblas_call, 0, sizeof(g_dgbsvx_cblas_call));
+
+    vtable.ext_ops[FB_OP_DGBSVX][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dgbsvx_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DGBSVX);
+
+    thunk = (fb_dgbsvx_fortran_slot_fn)vtable.ext_ops[FB_OP_DGBSVX][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DGBSVX CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&fact, &trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, &ldafb, ipiv,
+          &equed, r, c, b, &ldb, x, &ldx, &rcond, ferr, berr, work, iwork,
+          &info);
+
+    if (g_dgbsvx_cblas_call.called != 1 ||
+        g_dgbsvx_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dgbsvx_cblas_call.fact != 'F' || g_dgbsvx_cblas_call.trans != 'T' ||
+        g_dgbsvx_cblas_call.n != 4 || g_dgbsvx_cblas_call.rpvgrw == NULL ||
+        info != 194 || ipiv[0] != 6 || equed != 'N' || ab[0] != 1101.0 ||
+        afb[0] != 1102.0 || b[0] != 1103.0 || x[0] != 1104.0 ||
+        rcond != 0.51 || ferr[0] != 0.81 || berr[0] != 0.18) {
+        fprintf(stderr, "[FAIL] DGBSVX CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DGBSVX CBLAS->Fortran thunk forwards column-major expert-solve arguments and hides C rpvgrw\n");
     return 0;
 }
 
@@ -792,6 +1147,117 @@ static int check_cgbsvx_cblas_to_fortran(void)
     return 0;
 }
 
+static int check_zgbsvx_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zgbsvx_cblas_fn thunk = NULL;
+    fb_complex_double_t ab[12] = { 0 };
+    fb_complex_double_t afb[16] = { 0 };
+    fb_complex_double_t b[8] = { 0 };
+    fb_complex_double_t x[8] = { 0 };
+    int ipiv[4] = { 0, 0, 0, 0 };
+    char equed = 'N';
+    double r[4] = { 0.0 };
+    double c[4] = { 0.0 };
+    double rcond = 0.0;
+    double ferr[2] = { 0.0, 0.0 };
+    double berr[2] = { 0.0, 0.0 };
+    double rpvgrw = 0.0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zgbsvx_fortran_call, 0, sizeof(g_zgbsvx_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZGBSVX][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zgbsvx_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZGBSVX);
+
+    thunk = (fb_zgbsvx_cblas_fn)vtable.ext_ops[FB_OP_ZGBSVX][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZGBSVX Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    if (thunk(FB_LAYOUT_COL_MAJOR, 'E', 'C', 4, 1, 1, 2, ab, 4, afb, 4, ipiv,
+              &equed, r, c, b, 4, x, 4, &rcond, ferr, berr, &rpvgrw) != 0 ||
+        g_zgbsvx_fortran_call.calls != 1 || g_zgbsvx_fortran_call.fact != 'E' ||
+        g_zgbsvx_fortran_call.trans != 'C' || g_zgbsvx_fortran_call.n != 4 ||
+        ipiv[0] != 5 || equed != 'B' || !cf64_eq(ab[0], make_cf64(1201.0, 1.0)) ||
+        !cf64_eq(afb[0], make_cf64(1202.0, 2.0)) ||
+        !cf64_eq(b[0], make_cf64(1203.0, 3.0)) ||
+        !cf64_eq(x[0], make_cf64(1204.0, 4.0)) || rcond != 0.61 ||
+        ferr[0] != 0.91 || berr[0] != 0.19) {
+        fprintf(stderr, "[FAIL] ZGBSVX Fortran->CBLAS thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZGBSVX Fortran->CBLAS thunk bridges complex-double expert-solve arguments and exposes rwork[1] as rpvgrw\n");
+    return 0;
+}
+
+static int check_zgbsvx_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zgbsvx_fortran_slot_fn thunk = NULL;
+    char fact = 'N';
+    char trans = 'T';
+    int n = 4;
+    int kl = 1;
+    int ku = 1;
+    int nrhs = 2;
+    fb_complex_double_t ab[16] = { 0 };
+    int ldab = 4;
+    fb_complex_double_t afb[16] = { 0 };
+    int ldafb = 4;
+    int ipiv[4] = { 0, 0, 0, 0 };
+    char equed = 'N';
+    double r[4] = { 0.0 };
+    double c[4] = { 0.0 };
+    fb_complex_double_t b[8] = { 0 };
+    int ldb = 4;
+    fb_complex_double_t x[8] = { 0 };
+    int ldx = 4;
+    double rcond = 0.0;
+    double ferr[2] = { 0.0, 0.0 };
+    double berr[2] = { 0.0, 0.0 };
+    fb_complex_double_t work[8] = { 0 };
+    double rwork[4] = { 0.0, 0.0, 0.0, 0.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zgbsvx_cblas_call, 0, sizeof(g_zgbsvx_cblas_call));
+
+    vtable.ext_ops[FB_OP_ZGBSVX][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zgbsvx_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZGBSVX);
+
+    thunk = (fb_zgbsvx_fortran_slot_fn)vtable.ext_ops[FB_OP_ZGBSVX][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZGBSVX CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&fact, &trans, &n, &kl, &ku, &nrhs, ab, &ldab, afb, &ldafb, ipiv,
+          &equed, r, c, b, &ldb, x, &ldx, &rcond, ferr, berr, work, rwork,
+          &info);
+
+    if (g_zgbsvx_cblas_call.called != 1 ||
+        g_zgbsvx_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zgbsvx_cblas_call.fact != 'N' || g_zgbsvx_cblas_call.trans != 'T' ||
+        g_zgbsvx_cblas_call.n != 4 || g_zgbsvx_cblas_call.rpvgrw == NULL ||
+        info != 196 || ipiv[0] != 4 || equed != 'N' ||
+        !cf64_eq(ab[0], make_cf64(1301.0, 1.0)) ||
+        !cf64_eq(afb[0], make_cf64(1302.0, 2.0)) ||
+        !cf64_eq(b[0], make_cf64(1303.0, 3.0)) ||
+        !cf64_eq(x[0], make_cf64(1304.0, 4.0)) || rcond != 0.71 ||
+        ferr[0] != 1.01 || berr[0] != 0.21) {
+        fprintf(stderr, "[FAIL] ZGBSVX CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZGBSVX CBLAS->Fortran thunk forwards column-major complex-double expert-solve arguments and hides C rpvgrw\n");
+    return 0;
+}
+
 int main(void)
 {
     if (check_sgbsvx_fortran_to_cblas_fact_e() != 0) {
@@ -800,10 +1266,22 @@ int main(void)
     if (check_sgbsvx_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dgbsvx_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dgbsvx_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cgbsvx_fortran_to_cblas_fact_f() != 0) {
         return 1;
     }
     if (check_cgbsvx_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zgbsvx_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zgbsvx_cblas_to_fortran() != 0) {
         return 1;
     }
 

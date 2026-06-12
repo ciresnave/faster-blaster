@@ -57,7 +57,12 @@ int main(void) {
 
 #### `fb_load_best_plugin()`
 
-Probe all registered plugins and load the one with the highest compatibility score.
+Probe all registered plugins and load the first compatible plugin in registry order.
+
+**Score semantics**:
+- Score > 0 means compatible.
+- Score == 0 means incompatible.
+- Plugin scores are used for diagnostics and compatibility checks only; they do not determine global selection order.
 
 **Signature**:
 ```c
@@ -98,7 +103,7 @@ if (plugin) {
 
 **Notes**:
 - Automatically calls `probe()` on all plugins
-- Selects plugin with highest score
+- Selects the first compatible plugin in registry order
 - Calls `init()` on selected plugin
 - `backend_name` can specify exact plugin (e.g., `"aocl-blis"`) to override automatic selection
 

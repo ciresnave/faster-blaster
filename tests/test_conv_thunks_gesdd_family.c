@@ -6,22 +6,42 @@
 typedef int (*fb_sgesdd_fn)(fb_layout_t layout, char jobz, int m, int n,
                             float *a, int lda, float *s, float *u, int ldu,
                             float *vt, int ldvt);
+typedef int (*fb_dgesdd_fn)(fb_layout_t layout, char jobz, int m, int n,
+                            double *a, int lda, double *s, double *u, int ldu,
+                            double *vt, int ldvt);
 typedef int (*fb_cgesdd_fn)(fb_layout_t layout, char jobz, int m, int n,
                             fb_complex_float_t *a, int lda, float *s,
                             fb_complex_float_t *u, int ldu,
                             fb_complex_float_t *vt, int ldvt);
+typedef int (*fb_zgesdd_fn)(fb_layout_t layout, char jobz, int m, int n,
+                            fb_complex_double_t *a, int lda, double *s,
+                            fb_complex_double_t *u, int ldu,
+                            fb_complex_double_t *vt, int ldvt);
 
 typedef void (*fb_sgesdd_fortran_slot_fn)(char *jobz, int *m, int *n, float *a,
                                           int *lda, float *s, float *u,
                                           int *ldu, float *vt, int *ldvt,
                                           float *work, int *lwork, int *iwork,
                                           int *info);
+typedef void (*fb_dgesdd_fortran_slot_fn)(char *jobz, int *m, int *n,
+                                          double *a, int *lda, double *s,
+                                          double *u, int *ldu, double *vt,
+                                          int *ldvt, double *work,
+                                          int *lwork, int *iwork, int *info);
 typedef void (*fb_cgesdd_fortran_slot_fn)(char *jobz, int *m, int *n,
                                           fb_complex_float_t *a, int *lda,
                                           float *s, fb_complex_float_t *u,
                                           int *ldu, fb_complex_float_t *vt,
                                           int *ldvt, fb_complex_float_t *work,
                                           int *lwork, float *rwork,
+                                          int *iwork, int *info);
+typedef void (*fb_zgesdd_fortran_slot_fn)(char *jobz, int *m, int *n,
+                                          fb_complex_double_t *a, int *lda,
+                                          double *s, fb_complex_double_t *u,
+                                          int *ldu, fb_complex_double_t *vt,
+                                          int *ldvt,
+                                          fb_complex_double_t *work,
+                                          int *lwork, double *rwork,
                                           int *iwork, int *info);
 
 static struct {
@@ -47,6 +67,24 @@ static struct {
     int exec_calls;
     int query_lwork;
     int exec_lwork;
+} g_dgesdd_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char jobz;
+    int m;
+    int n;
+    int lda;
+    int ldu;
+    int ldvt;
+} g_dgesdd_cblas_call;
+
+static struct {
+    int query_calls;
+    int exec_calls;
+    int query_lwork;
+    int exec_lwork;
 } g_cgesdd_fortran_call;
 
 static struct {
@@ -60,12 +98,39 @@ static struct {
     int ldvt;
 } g_cgesdd_cblas_call;
 
+static struct {
+    int query_calls;
+    int exec_calls;
+    int query_lwork;
+    int exec_lwork;
+} g_zgesdd_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    char jobz;
+    int m;
+    int n;
+    int lda;
+    int ldu;
+    int ldvt;
+} g_zgesdd_cblas_call;
+
 static int g_sgesdd_cblas_rc = 0;
+static int g_dgesdd_cblas_rc = 0;
 static int g_cgesdd_cblas_rc = 0;
+static int g_zgesdd_cblas_rc = 0;
 
 static fb_complex_float_t make_cfloat(float real_value)
 {
     fb_complex_float_t value = (fb_complex_float_t)0;
+    memcpy(&value, &real_value, sizeof(real_value));
+    return value;
+}
+
+static fb_complex_double_t make_cdouble(double real_value)
+{
+    fb_complex_double_t value = (fb_complex_double_t)0;
     memcpy(&value, &real_value, sizeof(real_value));
     return value;
 }
@@ -120,6 +185,56 @@ static int stub_sgesdd_cblas(fb_layout_t layout, char jobz, int m, int n,
     return g_sgesdd_cblas_rc;
 }
 
+static void stub_dgesdd_fortran(char *jobz, int *m, int *n, double *a, int *lda,
+                                double *s, double *u, int *ldu, double *vt,
+                                int *ldvt, double *work, int *lwork,
+                                int *iwork, int *info)
+{
+    (void)jobz;
+    (void)m;
+    (void)n;
+    (void)a;
+    (void)lda;
+    (void)u;
+    (void)ldu;
+    (void)vt;
+    (void)ldvt;
+    (void)iwork;
+    if (*lwork == -1) {
+        g_dgesdd_fortran_call.query_calls += 1;
+        g_dgesdd_fortran_call.query_lwork = *lwork;
+        work[0] = 37.0;
+        *info = 0;
+        return;
+    }
+
+    g_dgesdd_fortran_call.exec_calls += 1;
+    g_dgesdd_fortran_call.exec_lwork = *lwork;
+    s[0] = 9.0;
+    s[1] = 8.0;
+    s[2] = 7.0;
+    *info = 0;
+}
+
+static int stub_dgesdd_cblas(fb_layout_t layout, char jobz, int m, int n,
+                             double *a, int lda, double *s, double *u, int ldu,
+                             double *vt, int ldvt)
+{
+    (void)a;
+    (void)s;
+    (void)u;
+    (void)vt;
+    g_dgesdd_cblas_call.called += 1;
+    g_dgesdd_cblas_call.layout = layout;
+    g_dgesdd_cblas_call.jobz = jobz;
+    g_dgesdd_cblas_call.m = m;
+    g_dgesdd_cblas_call.n = n;
+    g_dgesdd_cblas_call.lda = lda;
+    g_dgesdd_cblas_call.ldu = ldu;
+    g_dgesdd_cblas_call.ldvt = ldvt;
+    return g_dgesdd_cblas_rc;
+}
+
 static void stub_cgesdd_fortran(char *jobz, int *m, int *n,
                                 fb_complex_float_t *a, int *lda, float *s,
                                 fb_complex_float_t *u, int *ldu,
@@ -172,6 +287,60 @@ static int stub_cgesdd_cblas(fb_layout_t layout, char jobz, int m, int n,
     g_cgesdd_cblas_call.ldu = ldu;
     g_cgesdd_cblas_call.ldvt = ldvt;
     return g_cgesdd_cblas_rc;
+}
+
+static void stub_zgesdd_fortran(char *jobz, int *m, int *n,
+                                fb_complex_double_t *a, int *lda, double *s,
+                                fb_complex_double_t *u, int *ldu,
+                                fb_complex_double_t *vt, int *ldvt,
+                                fb_complex_double_t *work, int *lwork,
+                                double *rwork, int *iwork, int *info)
+{
+    (void)jobz;
+    (void)m;
+    (void)n;
+    (void)a;
+    (void)lda;
+    (void)u;
+    (void)ldu;
+    (void)vt;
+    (void)ldvt;
+    (void)rwork;
+    (void)iwork;
+    if (*lwork == -1) {
+        g_zgesdd_fortran_call.query_calls += 1;
+        g_zgesdd_fortran_call.query_lwork = *lwork;
+        work[0] = make_cdouble(38.0);
+        *info = 0;
+        return;
+    }
+
+    g_zgesdd_fortran_call.exec_calls += 1;
+    g_zgesdd_fortran_call.exec_lwork = *lwork;
+    s[0] = 10.0;
+    s[1] = 9.0;
+    s[2] = 8.0;
+    *info = 0;
+}
+
+static int stub_zgesdd_cblas(fb_layout_t layout, char jobz, int m, int n,
+                             fb_complex_double_t *a, int lda, double *s,
+                             fb_complex_double_t *u, int ldu,
+                             fb_complex_double_t *vt, int ldvt)
+{
+    (void)a;
+    (void)s;
+    (void)u;
+    (void)vt;
+    g_zgesdd_cblas_call.called += 1;
+    g_zgesdd_cblas_call.layout = layout;
+    g_zgesdd_cblas_call.jobz = jobz;
+    g_zgesdd_cblas_call.m = m;
+    g_zgesdd_cblas_call.n = n;
+    g_zgesdd_cblas_call.lda = lda;
+    g_zgesdd_cblas_call.ldu = ldu;
+    g_zgesdd_cblas_call.ldvt = ldvt;
+    return g_zgesdd_cblas_rc;
 }
 
 static int check_sgesdd_fortran_to_cblas(void)
@@ -256,6 +425,91 @@ static int check_sgesdd_cblas_to_fortran(void)
     }
 
     printf("[PASS] SGESDD CBLAS->Fortran thunk maps the all-pointer ABI into the generic C divide-and-conquer SVD entry\n");
+    return 0;
+}
+
+static int check_dgesdd_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dgesdd_fn thunk = NULL;
+    double a[9] = { 0.0 };
+    double s[3] = { 0.0, 0.0, 0.0 };
+    double u[9] = { 0.0 };
+    double vt[9] = { 0.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dgesdd_fortran_call, 0, sizeof(g_dgesdd_fortran_call));
+
+    vtable.ext_ops[FB_OP_DGESDD][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dgesdd_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DGESDD);
+
+    thunk = (fb_dgesdd_fn)vtable.ext_ops[FB_OP_DGESDD][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DGESDD Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_COL_MAJOR, 'A', 3, 3, a, 3, s, u, 3, vt, 3);
+    if (info != 0 || g_dgesdd_fortran_call.query_calls != 1 ||
+        g_dgesdd_fortran_call.exec_calls != 1 ||
+        g_dgesdd_fortran_call.query_lwork != -1 ||
+        g_dgesdd_fortran_call.exec_lwork != 37 ||
+        s[0] != 9.0 || s[1] != 8.0 || s[2] != 7.0) {
+        fprintf(stderr, "[FAIL] DGESDD Fortran->CBLAS thunk did not preserve double divide-and-conquer SVD query semantics\n");
+        return 1;
+    }
+
+    printf("[PASS] DGESDD Fortran->CBLAS thunk performs the workspace query and forwards double singular values\n");
+    return 0;
+}
+
+static int check_dgesdd_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dgesdd_fortran_slot_fn thunk = NULL;
+    double a[9] = { 0.0 };
+    double s[3] = { 0.0, 0.0, 0.0 };
+    double u[9] = { 0.0 };
+    double vt[9] = { 0.0 };
+    double work[8] = { 0.0 };
+    int iwork[24] = { 0 };
+    char jobz = 'A';
+    int m = 3;
+    int n = 3;
+    int lda = 3;
+    int ldu = 3;
+    int ldvt = 3;
+    int lwork = 8;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dgesdd_cblas_call, 0, sizeof(g_dgesdd_cblas_call));
+    g_dgesdd_cblas_rc = 231;
+
+    vtable.ext_ops[FB_OP_DGESDD][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dgesdd_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DGESDD);
+
+    thunk = (fb_dgesdd_fortran_slot_fn)vtable.ext_ops[FB_OP_DGESDD][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DGESDD CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&jobz, &m, &n, a, &lda, s, u, &ldu, vt, &ldvt, work, &lwork, iwork, &info);
+    if (info != 231 || g_dgesdd_cblas_call.called != 1 ||
+        g_dgesdd_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dgesdd_cblas_call.jobz != 'A' ||
+        g_dgesdd_cblas_call.m != 3 || g_dgesdd_cblas_call.n != 3 ||
+        g_dgesdd_cblas_call.lda != 3 || g_dgesdd_cblas_call.ldu != 3 ||
+        g_dgesdd_cblas_call.ldvt != 3) {
+        fprintf(stderr, "[FAIL] DGESDD CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DGESDD CBLAS->Fortran thunk maps the all-pointer ABI into the generic C double divide-and-conquer SVD entry\n");
     return 0;
 }
 
@@ -345,6 +599,92 @@ static int check_cgesdd_cblas_to_fortran(void)
     return 0;
 }
 
+static int check_zgesdd_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zgesdd_fn thunk = NULL;
+    fb_complex_double_t a[9] = { 0 };
+    double s[3] = { 0.0, 0.0, 0.0 };
+    fb_complex_double_t u[9] = { 0 };
+    fb_complex_double_t vt[9] = { 0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zgesdd_fortran_call, 0, sizeof(g_zgesdd_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZGESDD][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zgesdd_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZGESDD);
+
+    thunk = (fb_zgesdd_fn)vtable.ext_ops[FB_OP_ZGESDD][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZGESDD Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_COL_MAJOR, 'A', 3, 3, a, 3, s, u, 3, vt, 3);
+    if (info != 0 || g_zgesdd_fortran_call.query_calls != 1 ||
+        g_zgesdd_fortran_call.exec_calls != 1 ||
+        g_zgesdd_fortran_call.query_lwork != -1 ||
+        g_zgesdd_fortran_call.exec_lwork != 38 ||
+        s[0] != 10.0 || s[1] != 9.0 || s[2] != 8.0) {
+        fprintf(stderr, "[FAIL] ZGESDD Fortran->CBLAS thunk did not preserve complex-double divide-and-conquer SVD query semantics\n");
+        return 1;
+    }
+
+    printf("[PASS] ZGESDD Fortran->CBLAS thunk performs the workspace query and forwards complex-double singular values\n");
+    return 0;
+}
+
+static int check_zgesdd_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zgesdd_fortran_slot_fn thunk = NULL;
+    fb_complex_double_t a[9] = { 0 };
+    double s[3] = { 0.0, 0.0, 0.0 };
+    fb_complex_double_t u[9] = { 0 };
+    fb_complex_double_t vt[9] = { 0 };
+    fb_complex_double_t work[8] = { 0 };
+    double rwork[16] = { 0.0 };
+    int iwork[24] = { 0 };
+    char jobz = 'A';
+    int m = 3;
+    int n = 3;
+    int lda = 3;
+    int ldu = 3;
+    int ldvt = 3;
+    int lwork = 8;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zgesdd_cblas_call, 0, sizeof(g_zgesdd_cblas_call));
+    g_zgesdd_cblas_rc = 233;
+
+    vtable.ext_ops[FB_OP_ZGESDD][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zgesdd_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZGESDD);
+
+    thunk = (fb_zgesdd_fortran_slot_fn)vtable.ext_ops[FB_OP_ZGESDD][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZGESDD CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&jobz, &m, &n, a, &lda, s, u, &ldu, vt, &ldvt, work, &lwork, rwork, iwork, &info);
+    if (info != 233 || g_zgesdd_cblas_call.called != 1 ||
+        g_zgesdd_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zgesdd_cblas_call.jobz != 'A' ||
+        g_zgesdd_cblas_call.m != 3 || g_zgesdd_cblas_call.n != 3 ||
+        g_zgesdd_cblas_call.lda != 3 || g_zgesdd_cblas_call.ldu != 3 ||
+        g_zgesdd_cblas_call.ldvt != 3) {
+        fprintf(stderr, "[FAIL] ZGESDD CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZGESDD CBLAS->Fortran thunk maps the all-pointer ABI into the generic complex-double divide-and-conquer SVD entry\n");
+    return 0;
+}
+
 int main(void)
 {
     if (check_sgesdd_fortran_to_cblas() != 0) {
@@ -353,10 +693,22 @@ int main(void)
     if (check_sgesdd_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dgesdd_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dgesdd_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cgesdd_fortran_to_cblas() != 0) {
         return 1;
     }
     if (check_cgesdd_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zgesdd_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zgesdd_cblas_to_fortran() != 0) {
         return 1;
     }
 

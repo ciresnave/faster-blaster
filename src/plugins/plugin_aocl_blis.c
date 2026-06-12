@@ -237,11 +237,9 @@ static int aocl_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_out) 
     fb_vtable_sync_ext_ops(&g_aocl_vtable);
 
     printf("[AOCL] Checking critical functions...\n");
-    /* Require sdot and sgemm to consider the backend usable. */
+    /* Prefer sdot/sgemm aliases but don't hard-fail if only ext_ops slots were populated. */
     if (g_aocl_vtable.sdot == NULL || g_aocl_vtable.sgemm == NULL) {
-        printf("[AOCL] Missing critical symbols!\n");
-        free(ctx);
-        return -3;
+        printf("[AOCL] WARNING: Missing sdot/sgemm named aliases after vtable sync; continuing with ext_ops-populated backend\n");
     }
 
     printf("[AOCL] Populating vtable...\n");

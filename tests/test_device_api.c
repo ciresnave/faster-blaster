@@ -12,6 +12,7 @@
  */
 
 #include "faster-blaster/device_api.h"
+#include "faster-blaster/compute_manager.h"
 #include "faster-blaster/compute_device.h"
 #include "faster-blaster/backend_instance.h"
 #include "faster-blaster/backend_plugin.h"
@@ -215,6 +216,27 @@ void test_backend_instance(fb_compute_device_t* device) {
     }
 }
 
+void test_compute_manager_selection(void) {
+    printf("\n=== Testing Compute Manager Device Selection ===\n");
+
+    if (fb_compute_manager_init() != 0) {
+        test_result("Compute manager init", 0);
+        return;
+    }
+
+    const void* no_data[1] = { NULL };
+    fb_compute_device_t* device = fb_select_device(FB_DISPATCH_FASTEST, FB_PRECISION_FP32, NULL, 0);
+    test_result("Select device (FASTEST, FP32)", device != NULL);
+
+    fb_compute_device_t* round_robin = fb_select_device(FB_DISPATCH_ROUND_ROBIN, FB_PRECISION_FP32, NULL, 0);
+    test_result("Select device (ROUND_ROBIN, FP32)", round_robin != NULL);
+
+    fb_compute_device_t* locality = fb_select_device(FB_DISPATCH_DATA_LOCALITY, FB_PRECISION_FP32, no_data, 0);
+    test_result("Select device (DATA_LOCALITY, FP32)", locality != NULL);
+
+    fb_compute_manager_shutdown();
+}
+
 int main(void) {
     printf("========================================\n");
     printf("  Unified Device API Test Suite\n");
@@ -231,6 +253,9 @@ int main(void) {
         return 1;
     }
     printf("Found %d device(s)\n", device_count);
+
+    /* Test compute manager device selection before backend instances load */
+    test_compute_manager_selection();
     
     /* Initialize backend instance manager */
     if (fb_backend_instance_manager_init() != 0) {

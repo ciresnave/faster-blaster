@@ -432,6 +432,130 @@ static void thunk_##OP##_cblas_to_fortran(                                      
   if (info) *info = rc;                                                         \
 }
 
+#define DEFINE_LAPACK_GB_REFINE_REAL_THUNKS(OP, REAL_TYPE, OP_ID)              \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const char trans, const int n, const int kl,     \
+    const int ku, const int nrhs, const REAL_TYPE *ab, const int ldab,         \
+    const REAL_TYPE *afb, const int ldafb, const int *ipiv, const REAL_TYPE *b,\
+    const int ldb, REAL_TYPE *x, const int ldx, REAL_TYPE *ferr,               \
+    REAL_TYPE *berr) {                                                          \
+  char trans_char = trans;                                                      \
+  int n_ = n, kl_ = kl, ku_ = ku, nrhs_ = nrhs, ldab_ = ldab, ldafb_ = ldafb, \
+      ldb_ = ldb, ldx_ = ldx, info = 0;                                         \
+  int work_len = (n > 0) ? (3 * n) : 1;                                         \
+  int iwork_len = (n > 0) ? n : 1;                                              \
+  REAL_TYPE *work = NULL;                                                       \
+  int *iwork = NULL;                                                            \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!ipiv || !ferr || !berr || (n > 0 && (!ab || !afb)) ||                   \
+      (n > 0 && nrhs > 0 && (!b || !x))) {                                     \
+    return -1;                                                                  \
+  }                                                                             \
+  work = (REAL_TYPE *)malloc((size_t)work_len * sizeof(REAL_TYPE));            \
+  iwork = (int *)malloc((size_t)iwork_len * sizeof(int));                      \
+  if (!work || !iwork) {                                                        \
+    free(work);                                                                 \
+    free(iwork);                                                                \
+    return -101;                                                                \
+  }                                                                             \
+  ((void (*)(char *, int *, int *, int *, int *, REAL_TYPE *, int *,           \
+             REAL_TYPE *, int *, int *, REAL_TYPE *, int *, REAL_TYPE *,       \
+             int *, REAL_TYPE *, REAL_TYPE *, REAL_TYPE *, int *, int *))      \
+      g_fortran_fn[OP_ID])(                                                     \
+      &trans_char, &n_, &kl_, &ku_, &nrhs_, (REAL_TYPE *)ab, &ldab_,           \
+      (REAL_TYPE *)afb, &ldafb_, (int *)ipiv, (REAL_TYPE *)b, &ldb_, x, &ldx_, \
+      ferr, berr, work, iwork, &info);                                          \
+  free(work);                                                                   \
+  free(iwork);                                                                  \
+  return info;                                                                  \
+}                                                                               \
+static void thunk_##OP##_cblas_to_fortran(                                      \
+    char *trans, int *n, int *kl, int *ku, int *nrhs, REAL_TYPE *ab,           \
+    int *ldab, REAL_TYPE *afb, int *ldafb, int *ipiv, REAL_TYPE *b,            \
+    int *ldb, REAL_TYPE *x, int *ldx, REAL_TYPE *ferr, REAL_TYPE *berr,        \
+    REAL_TYPE *work, int *iwork, int *info) {                                  \
+  (void)work;                                                                   \
+  (void)iwork;                                                                  \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!trans || !ipiv || !ferr || !berr) {                                      \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, char, int, int, int, int, const REAL_TYPE *,\
+                     int, const REAL_TYPE *, int, const int *,                 \
+                     const REAL_TYPE *, int, REAL_TYPE *, int,                 \
+                     REAL_TYPE *, REAL_TYPE *))g_cblas_fn[OP_ID])(             \
+      FB_LAYOUT_COL_MAJOR, *trans, *n, *kl, *ku, *nrhs, ab, *ldab, afb, *ldafb,\
+      ipiv, b, *ldb, x, *ldx, ferr, berr);                                      \
+  if (info) *info = rc;                                                         \
+}
+
+#define DEFINE_LAPACK_GB_REFINE_COMPLEX_THUNKS(OP, MAT_TYPE, REAL_TYPE, OP_ID) \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const char trans, const int n, const int kl,     \
+    const int ku, const int nrhs, const MAT_TYPE *ab, const int ldab,          \
+    const MAT_TYPE *afb, const int ldafb, const int *ipiv, const MAT_TYPE *b,  \
+    const int ldb, MAT_TYPE *x, const int ldx, REAL_TYPE *ferr,                \
+    REAL_TYPE *berr) {                                                          \
+  char trans_char = trans;                                                      \
+  int n_ = n, kl_ = kl, ku_ = ku, nrhs_ = nrhs, ldab_ = ldab, ldafb_ = ldafb, \
+      ldb_ = ldb, ldx_ = ldx, info = 0;                                         \
+  int work_len = (n > 0) ? (2 * n) : 1;                                         \
+  int rwork_len = (n > 0) ? n : 1;                                              \
+  MAT_TYPE *work = NULL;                                                        \
+  REAL_TYPE *rwork = NULL;                                                      \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!ipiv || !ferr || !berr || (n > 0 && (!ab || !afb)) ||                   \
+      (n > 0 && nrhs > 0 && (!b || !x))) {                                     \
+    return -1;                                                                  \
+  }                                                                             \
+  work = (MAT_TYPE *)malloc((size_t)work_len * sizeof(MAT_TYPE));              \
+  rwork = (REAL_TYPE *)malloc((size_t)rwork_len * sizeof(REAL_TYPE));          \
+  if (!work || !rwork) {                                                        \
+    free(work);                                                                 \
+    free(rwork);                                                                \
+    return -101;                                                                \
+  }                                                                             \
+  ((void (*)(char *, int *, int *, int *, int *, MAT_TYPE *, int *,            \
+             MAT_TYPE *, int *, int *, MAT_TYPE *, int *, MAT_TYPE *,          \
+             int *, REAL_TYPE *, REAL_TYPE *, MAT_TYPE *, REAL_TYPE *, int *)) \
+      g_fortran_fn[OP_ID])(                                                     \
+      &trans_char, &n_, &kl_, &ku_, &nrhs_, (MAT_TYPE *)ab, &ldab_,            \
+      (MAT_TYPE *)afb, &ldafb_, (int *)ipiv, (MAT_TYPE *)b, &ldb_, x, &ldx_,   \
+      ferr, berr, work, rwork, &info);                                          \
+  free(work);                                                                   \
+  free(rwork);                                                                  \
+  return info;                                                                  \
+}                                                                               \
+static void thunk_##OP##_cblas_to_fortran(                                      \
+    char *trans, int *n, int *kl, int *ku, int *nrhs, MAT_TYPE *ab,            \
+    int *ldab, MAT_TYPE *afb, int *ldafb, int *ipiv, MAT_TYPE *b,              \
+    int *ldb, MAT_TYPE *x, int *ldx, REAL_TYPE *ferr, REAL_TYPE *berr,         \
+    MAT_TYPE *work, REAL_TYPE *rwork, int *info) {                             \
+  (void)work;                                                                   \
+  (void)rwork;                                                                  \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!trans || !ipiv || !ferr || !berr) {                                      \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, char, int, int, int, int, const MAT_TYPE *, \
+                     int, const MAT_TYPE *, int, const int *,                  \
+                     const MAT_TYPE *, int, MAT_TYPE *, int,                   \
+                     REAL_TYPE *, REAL_TYPE *))g_cblas_fn[OP_ID])(             \
+      FB_LAYOUT_COL_MAJOR, *trans, *n, *kl, *ku, *nrhs, ab, *ldab, afb, *ldafb,\
+      ipiv, b, *ldb, x, *ldx, ferr, berr);                                      \
+  if (info) *info = rc;                                                         \
+}
+
 #define DEFINE_LAPACK_PP_REFINE_REAL_THUNKS(OP, REAL_TYPE, OP_ID)              \
 static int thunk_##OP##_fortran_to_cblas(                                       \
     const fb_layout_t layout, const fb_uplo_t uplo, const int n,                \

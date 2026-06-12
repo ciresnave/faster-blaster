@@ -263,8 +263,7 @@ static int openblas_init(fb_lib_handle_t lib_handle, fb_plugin_context_t** ctx_o
     
     fb_vtable_sync_ext_ops(&g_openblas_vtable);
     if (g_openblas_vtable.sdot == NULL || g_openblas_vtable.sgemm == NULL) {
-        free(ctx);
-        return -3;
+        printf("[OpenBLAS] WARNING: Missing sdot/sgemm named aliases after vtable sync; continuing with ext_ops-populated backend\n");
     }
     g_openblas_context = ctx;
 

@@ -5,26 +5,48 @@
 
 typedef int (*fb_spbtrf_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
                             float *ab, int ldab);
+typedef int (*fb_dpbtrf_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                            double *ab, int ldab);
 typedef int (*fb_cpbtrf_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
                             fb_complex_float_t *ab, int ldab);
+typedef int (*fb_zpbtrf_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                            fb_complex_double_t *ab, int ldab);
 typedef int (*fb_spbtrs_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
                             int nrhs, const float *ab, int ldab, float *b,
+                            int ldb);
+typedef int (*fb_dpbtrs_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                            int nrhs, const double *ab, int ldab, double *b,
                             int ldb);
 typedef int (*fb_cpbtrs_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
                             int nrhs, const fb_complex_float_t *ab, int ldab,
                             fb_complex_float_t *b, int ldb);
+typedef int (*fb_zpbtrs_fn)(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                            int nrhs, const fb_complex_double_t *ab, int ldab,
+                            fb_complex_double_t *b, int ldb);
 
 typedef void (*fb_spbtrf_fortran_slot_fn)(char *uplo, int *n, int *kd,
                                           float *ab, int *ldab, int *info);
+typedef void (*fb_dpbtrf_fortran_slot_fn)(char *uplo, int *n, int *kd,
+                                          double *ab, int *ldab, int *info);
 typedef void (*fb_cpbtrf_fortran_slot_fn)(char *uplo, int *n, int *kd,
                                           fb_complex_float_t *ab, int *ldab,
+                                          int *info);
+typedef void (*fb_zpbtrf_fortran_slot_fn)(char *uplo, int *n, int *kd,
+                                          fb_complex_double_t *ab, int *ldab,
                                           int *info);
 typedef void (*fb_spbtrs_fortran_slot_fn)(char *uplo, int *n, int *kd,
                                           int *nrhs, float *ab, int *ldab,
                                           float *b, int *ldb, int *info);
+typedef void (*fb_dpbtrs_fortran_slot_fn)(char *uplo, int *n, int *kd,
+                                          int *nrhs, double *ab, int *ldab,
+                                          double *b, int *ldb, int *info);
 typedef void (*fb_cpbtrs_fortran_slot_fn)(char *uplo, int *n, int *kd,
                                           int *nrhs, fb_complex_float_t *ab,
                                           int *ldab, fb_complex_float_t *b,
+                                          int *ldb, int *info);
+typedef void (*fb_zpbtrs_fortran_slot_fn)(char *uplo, int *n, int *kd,
+                                          int *nrhs, fb_complex_double_t *ab,
+                                          int *ldab, fb_complex_double_t *b,
                                           int *ldb, int *info);
 
 static struct {
@@ -52,6 +74,25 @@ static struct {
     int n;
     int kd;
     int ldab;
+    double ab_snapshot[8];
+} g_dpbtrf_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    fb_uplo_t uplo;
+    int n;
+    int kd;
+    int ldab;
+    double *ab;
+} g_dpbtrf_cblas_call;
+
+static struct {
+    int calls;
+    char uplo;
+    int n;
+    int kd;
+    int ldab;
     float ab_real_snapshot[8];
 } g_cpbtrf_fortran_call;
 
@@ -64,6 +105,25 @@ static struct {
     int ldab;
     fb_complex_float_t *ab;
 } g_cpbtrf_cblas_call;
+
+static struct {
+    int calls;
+    char uplo;
+    int n;
+    int kd;
+    int ldab;
+    double ab_real_snapshot[8];
+} g_zpbtrf_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    fb_uplo_t uplo;
+    int n;
+    int kd;
+    int ldab;
+    fb_complex_double_t *ab;
+} g_zpbtrf_cblas_call;
 
 static struct {
     int calls;
@@ -98,6 +158,31 @@ static struct {
     int nrhs;
     int ldab;
     int ldb;
+    double ab_snapshot[8];
+    double b_snapshot[8];
+} g_dpbtrs_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    fb_uplo_t uplo;
+    int n;
+    int kd;
+    int nrhs;
+    int ldab;
+    int ldb;
+    const double *ab;
+    double *b;
+} g_dpbtrs_cblas_call;
+
+static struct {
+    int calls;
+    char uplo;
+    int n;
+    int kd;
+    int nrhs;
+    int ldab;
+    int ldb;
     float ab_real_snapshot[8];
     float b_real_snapshot[8];
 } g_cpbtrs_fortran_call;
@@ -115,6 +200,31 @@ static struct {
     fb_complex_float_t *b;
 } g_cpbtrs_cblas_call;
 
+static struct {
+    int calls;
+    char uplo;
+    int n;
+    int kd;
+    int nrhs;
+    int ldab;
+    int ldb;
+    double ab_real_snapshot[8];
+    double b_real_snapshot[8];
+} g_zpbtrs_fortran_call;
+
+static struct {
+    int called;
+    fb_layout_t layout;
+    fb_uplo_t uplo;
+    int n;
+    int kd;
+    int nrhs;
+    int ldab;
+    int ldb;
+    const fb_complex_double_t *ab;
+    fb_complex_double_t *b;
+} g_zpbtrs_cblas_call;
+
 static fb_complex_float_t make_cfloat(float real_value)
 {
     fb_complex_float_t value = (fb_complex_float_t)0;
@@ -125,6 +235,20 @@ static fb_complex_float_t make_cfloat(float real_value)
 static float cfloat_real(fb_complex_float_t value)
 {
     float real_value = 0.0f;
+    memcpy(&real_value, &value, sizeof(real_value));
+    return real_value;
+}
+
+static fb_complex_double_t make_cdouble(double real_value)
+{
+    fb_complex_double_t value = (fb_complex_double_t)0;
+    memcpy(&value, &real_value, sizeof(real_value));
+    return value;
+}
+
+static double cdouble_real(fb_complex_double_t value)
+{
+    double real_value = 0.0;
     memcpy(&real_value, &value, sizeof(real_value));
     return real_value;
 }
@@ -162,6 +286,39 @@ static int stub_spbtrf_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
     return 181;
 }
 
+static void stub_dpbtrf_fortran(char *uplo, int *n, int *kd, double *ab,
+                                int *ldab, int *info)
+{
+    static const double factor_ab_col[8] = { 0.0, 620.0, 611.0, 621.0,
+                                             612.0, 622.0, 613.0, 623.0 };
+    int index = 0;
+
+    g_dpbtrf_fortran_call.calls += 1;
+    g_dpbtrf_fortran_call.uplo = *uplo;
+    g_dpbtrf_fortran_call.n = *n;
+    g_dpbtrf_fortran_call.kd = *kd;
+    g_dpbtrf_fortran_call.ldab = *ldab;
+    for (index = 0; index < (*ldab * *n); ++index) {
+        g_dpbtrf_fortran_call.ab_snapshot[index] = ab[index];
+    }
+    memcpy(ab, factor_ab_col, sizeof(factor_ab_col));
+    *info = 0;
+}
+
+static int stub_dpbtrf_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                             double *ab, int ldab)
+{
+    g_dpbtrf_cblas_call.called += 1;
+    g_dpbtrf_cblas_call.layout = layout;
+    g_dpbtrf_cblas_call.uplo = uplo;
+    g_dpbtrf_cblas_call.n = n;
+    g_dpbtrf_cblas_call.kd = kd;
+    g_dpbtrf_cblas_call.ldab = ldab;
+    g_dpbtrf_cblas_call.ab = ab;
+    ab[0] = 298.0;
+    return 281;
+}
+
 static void stub_cpbtrf_fortran(char *uplo, int *n, int *kd,
                                 fb_complex_float_t *ab, int *ldab, int *info)
 {
@@ -193,6 +350,39 @@ static int stub_cpbtrf_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
     g_cpbtrf_cblas_call.ab = ab;
     ab[0] = make_cfloat(198.0f);
     return 183;
+}
+
+static void stub_zpbtrf_fortran(char *uplo, int *n, int *kd,
+                                fb_complex_double_t *ab, int *ldab, int *info)
+{
+    static const double factor_ab_col_real[8] = { 630.0, 730.0, 631.0, 731.0,
+                                                  632.0, 732.0, 633.0, 0.0 };
+    int index = 0;
+
+    g_zpbtrf_fortran_call.calls += 1;
+    g_zpbtrf_fortran_call.uplo = *uplo;
+    g_zpbtrf_fortran_call.n = *n;
+    g_zpbtrf_fortran_call.kd = *kd;
+    g_zpbtrf_fortran_call.ldab = *ldab;
+    for (index = 0; index < (*ldab * *n); ++index) {
+        g_zpbtrf_fortran_call.ab_real_snapshot[index] = cdouble_real(ab[index]);
+        ab[index] = make_cdouble(factor_ab_col_real[index]);
+    }
+    *info = 0;
+}
+
+static int stub_zpbtrf_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                             fb_complex_double_t *ab, int ldab)
+{
+    g_zpbtrf_cblas_call.called += 1;
+    g_zpbtrf_cblas_call.layout = layout;
+    g_zpbtrf_cblas_call.uplo = uplo;
+    g_zpbtrf_cblas_call.n = n;
+    g_zpbtrf_cblas_call.kd = kd;
+    g_zpbtrf_cblas_call.ldab = ldab;
+    g_zpbtrf_cblas_call.ab = ab;
+    ab[0] = make_cdouble(398.0);
+    return 283;
 }
 
 static void stub_spbtrs_fortran(char *uplo, int *n, int *kd, int *nrhs,
@@ -238,6 +428,49 @@ static int stub_spbtrs_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
     return 185;
 }
 
+static void stub_dpbtrs_fortran(char *uplo, int *n, int *kd, int *nrhs,
+                                double *ab, int *ldab, double *b, int *ldb,
+                                int *info)
+{
+    static const double solution_b_col[8] = { 710.0, 730.0, 750.0, 770.0,
+                                              720.0, 740.0, 760.0, 780.0 };
+    int index = 0;
+
+    g_dpbtrs_fortran_call.calls += 1;
+    g_dpbtrs_fortran_call.uplo = *uplo;
+    g_dpbtrs_fortran_call.n = *n;
+    g_dpbtrs_fortran_call.kd = *kd;
+    g_dpbtrs_fortran_call.nrhs = *nrhs;
+    g_dpbtrs_fortran_call.ldab = *ldab;
+    g_dpbtrs_fortran_call.ldb = *ldb;
+    for (index = 0; index < (*ldab * *n); ++index) {
+        g_dpbtrs_fortran_call.ab_snapshot[index] = ab[index];
+    }
+    for (index = 0; index < (*ldb * *nrhs); ++index) {
+        g_dpbtrs_fortran_call.b_snapshot[index] = b[index];
+    }
+    memcpy(b, solution_b_col, sizeof(solution_b_col));
+    *info = 0;
+}
+
+static int stub_dpbtrs_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                             int nrhs, const double *ab, int ldab, double *b,
+                             int ldb)
+{
+    g_dpbtrs_cblas_call.called += 1;
+    g_dpbtrs_cblas_call.layout = layout;
+    g_dpbtrs_cblas_call.uplo = uplo;
+    g_dpbtrs_cblas_call.n = n;
+    g_dpbtrs_cblas_call.kd = kd;
+    g_dpbtrs_cblas_call.nrhs = nrhs;
+    g_dpbtrs_cblas_call.ldab = ldab;
+    g_dpbtrs_cblas_call.ldb = ldb;
+    g_dpbtrs_cblas_call.ab = ab;
+    g_dpbtrs_cblas_call.b = b;
+    b[0] = 288.0;
+    return 285;
+}
+
 static void stub_cpbtrs_fortran(char *uplo, int *n, int *kd, int *nrhs,
                                 fb_complex_float_t *ab, int *ldab,
                                 fb_complex_float_t *b, int *ldb, int *info)
@@ -279,6 +512,49 @@ static int stub_cpbtrs_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
     g_cpbtrs_cblas_call.b = b;
     b[0] = make_cfloat(188.0f);
     return 187;
+}
+
+static void stub_zpbtrs_fortran(char *uplo, int *n, int *kd, int *nrhs,
+                                fb_complex_double_t *ab, int *ldab,
+                                fb_complex_double_t *b, int *ldb, int *info)
+{
+    static const double solution_b_col_real[8] = { 810.0, 830.0, 850.0, 870.0,
+                                                   820.0, 840.0, 860.0, 880.0 };
+    int index = 0;
+
+    g_zpbtrs_fortran_call.calls += 1;
+    g_zpbtrs_fortran_call.uplo = *uplo;
+    g_zpbtrs_fortran_call.n = *n;
+    g_zpbtrs_fortran_call.kd = *kd;
+    g_zpbtrs_fortran_call.nrhs = *nrhs;
+    g_zpbtrs_fortran_call.ldab = *ldab;
+    g_zpbtrs_fortran_call.ldb = *ldb;
+    for (index = 0; index < (*ldab * *n); ++index) {
+        g_zpbtrs_fortran_call.ab_real_snapshot[index] = cdouble_real(ab[index]);
+    }
+    for (index = 0; index < (*ldb * *nrhs); ++index) {
+        g_zpbtrs_fortran_call.b_real_snapshot[index] = cdouble_real(b[index]);
+        b[index] = make_cdouble(solution_b_col_real[index]);
+    }
+    *info = 0;
+}
+
+static int stub_zpbtrs_cblas(fb_layout_t layout, fb_uplo_t uplo, int n, int kd,
+                             int nrhs, const fb_complex_double_t *ab, int ldab,
+                             fb_complex_double_t *b, int ldb)
+{
+    g_zpbtrs_cblas_call.called += 1;
+    g_zpbtrs_cblas_call.layout = layout;
+    g_zpbtrs_cblas_call.uplo = uplo;
+    g_zpbtrs_cblas_call.n = n;
+    g_zpbtrs_cblas_call.kd = kd;
+    g_zpbtrs_cblas_call.nrhs = nrhs;
+    g_zpbtrs_cblas_call.ldab = ldab;
+    g_zpbtrs_cblas_call.ldb = ldb;
+    g_zpbtrs_cblas_call.ab = ab;
+    g_zpbtrs_cblas_call.b = b;
+    b[0] = make_cdouble(388.0);
+    return 287;
 }
 
 static int check_spbtrf_fortran_to_cblas(void)
@@ -354,6 +630,82 @@ static int check_spbtrf_cblas_to_fortran(void)
     }
 
     printf("[PASS] SPBTRF CBLAS->Fortran thunk maps the all-pointer ABI into the generic band-factor entry\n");
+    return 0;
+}
+
+static int check_dpbtrf_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dpbtrf_fn thunk = NULL;
+    double ab[8] = { 110.0, 111.0, 112.0, 113.0, 120.0, 121.0, 122.0, 123.0 };
+    double expected_ab_in[8] = { 0.0, 120.0, 111.0, 121.0, 112.0, 122.0, 113.0, 123.0 };
+    double expected_ab_out[8] = { 0.0, 611.0, 612.0, 613.0, 620.0, 621.0, 622.0, 623.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dpbtrf_fortran_call, 0, sizeof(g_dpbtrf_fortran_call));
+
+    vtable.ext_ops[FB_OP_DPBTRF][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dpbtrf_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DPBTRF);
+
+    thunk = (fb_dpbtrf_fn)vtable.ext_ops[FB_OP_DPBTRF][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DPBTRF Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, FB_UPPER, 4, 1, ab, 4);
+    if (info != 0 || g_dpbtrf_fortran_call.calls != 1 ||
+        g_dpbtrf_fortran_call.uplo != 'U' || g_dpbtrf_fortran_call.n != 4 ||
+        g_dpbtrf_fortran_call.kd != 1 || g_dpbtrf_fortran_call.ldab != 2 ||
+        memcmp(g_dpbtrf_fortran_call.ab_snapshot, expected_ab_in,
+               sizeof(expected_ab_in)) != 0 ||
+        memcmp(ab, expected_ab_out, sizeof(expected_ab_out)) != 0) {
+        fprintf(stderr, "[FAIL] DPBTRF Fortran->CBLAS thunk did not preserve double band factor row-major translation and copy-back\n");
+        return 1;
+    }
+
+    printf("[PASS] DPBTRF Fortran->CBLAS thunk transposes symmetric band storage and copies the double-precision factorized band matrix back to row-major\n");
+    return 0;
+}
+
+static int check_dpbtrf_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dpbtrf_fortran_slot_fn thunk = NULL;
+    double ab[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    char uplo = 'L';
+    int n = 3;
+    int kd = 1;
+    int ldab = 2;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dpbtrf_cblas_call, 0, sizeof(g_dpbtrf_cblas_call));
+
+    vtable.ext_ops[FB_OP_DPBTRF][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dpbtrf_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DPBTRF);
+
+    thunk = (fb_dpbtrf_fortran_slot_fn)vtable.ext_ops[FB_OP_DPBTRF][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DPBTRF CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&uplo, &n, &kd, ab, &ldab, &info);
+    if (info != 281 || g_dpbtrf_cblas_call.called != 1 ||
+        g_dpbtrf_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dpbtrf_cblas_call.uplo != FB_LOWER ||
+        g_dpbtrf_cblas_call.n != 3 || g_dpbtrf_cblas_call.kd != 1 ||
+        g_dpbtrf_cblas_call.ldab != 2 || g_dpbtrf_cblas_call.ab != ab ||
+        ab[0] != 298.0) {
+        fprintf(stderr, "[FAIL] DPBTRF CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DPBTRF CBLAS->Fortran thunk maps the all-pointer ABI into the generic double-precision band-factor entry\n");
     return 0;
 }
 
@@ -442,6 +794,91 @@ static int check_cpbtrf_cblas_to_fortran(void)
     return 0;
 }
 
+static int check_zpbtrf_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zpbtrf_fn thunk = NULL;
+    fb_complex_double_t ab[8] = {
+        make_cdouble(130.0), make_cdouble(131.0), make_cdouble(132.0), make_cdouble(133.0),
+        make_cdouble(140.0), make_cdouble(141.0), make_cdouble(142.0), make_cdouble(143.0)
+    };
+    double expected_ab_in[8] = { 130.0, 140.0, 131.0, 141.0, 132.0, 142.0, 133.0, 0.0 };
+    double expected_ab_out[8] = { 630.0, 631.0, 632.0, 633.0, 730.0, 731.0, 732.0, 0.0 };
+    double actual_ab_out[8] = { 0.0 };
+    int index = 0;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zpbtrf_fortran_call, 0, sizeof(g_zpbtrf_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZPBTRF][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zpbtrf_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPBTRF);
+
+    thunk = (fb_zpbtrf_fn)vtable.ext_ops[FB_OP_ZPBTRF][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZPBTRF Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, FB_LOWER, 4, 1, ab, 4);
+    for (index = 0; index < 8; ++index) {
+        actual_ab_out[index] = cdouble_real(ab[index]);
+    }
+    if (info != 0 || g_zpbtrf_fortran_call.calls != 1 ||
+        g_zpbtrf_fortran_call.uplo != 'L' || g_zpbtrf_fortran_call.n != 4 ||
+        g_zpbtrf_fortran_call.kd != 1 || g_zpbtrf_fortran_call.ldab != 2 ||
+        memcmp(g_zpbtrf_fortran_call.ab_real_snapshot, expected_ab_in,
+               sizeof(expected_ab_in)) != 0 ||
+        memcmp(actual_ab_out, expected_ab_out, sizeof(expected_ab_out)) != 0) {
+        fprintf(stderr, "[FAIL] ZPBTRF Fortran->CBLAS thunk did not preserve complex-double band factor row-major translation and copy-back\n");
+        return 1;
+    }
+
+    printf("[PASS] ZPBTRF Fortran->CBLAS thunk transposes Hermitian band storage and copies the complex-double factorized band matrix back to row-major\n");
+    return 0;
+}
+
+static int check_zpbtrf_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zpbtrf_fortran_slot_fn thunk = NULL;
+    fb_complex_double_t ab[6];
+    char uplo = 'U';
+    int n = 3;
+    int kd = 1;
+    int ldab = 2;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zpbtrf_cblas_call, 0, sizeof(g_zpbtrf_cblas_call));
+    memset(ab, 0, sizeof(ab));
+
+    vtable.ext_ops[FB_OP_ZPBTRF][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zpbtrf_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPBTRF);
+
+    thunk = (fb_zpbtrf_fortran_slot_fn)vtable.ext_ops[FB_OP_ZPBTRF][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZPBTRF CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&uplo, &n, &kd, ab, &ldab, &info);
+    if (info != 283 || g_zpbtrf_cblas_call.called != 1 ||
+        g_zpbtrf_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zpbtrf_cblas_call.uplo != FB_UPPER ||
+        g_zpbtrf_cblas_call.n != 3 || g_zpbtrf_cblas_call.kd != 1 ||
+        g_zpbtrf_cblas_call.ldab != 2 || g_zpbtrf_cblas_call.ab != ab ||
+        cdouble_real(ab[0]) != 398.0) {
+        fprintf(stderr, "[FAIL] ZPBTRF CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZPBTRF CBLAS->Fortran thunk maps the all-pointer ABI into the generic complex-double band-factor entry\n");
+    return 0;
+}
+
 static int check_spbtrs_fortran_to_cblas(void)
 {
     fb_backend_vtable_t vtable;
@@ -526,6 +963,93 @@ static int check_spbtrs_cblas_to_fortran(void)
     }
 
     printf("[PASS] SPBTRS CBLAS->Fortran thunk maps the all-pointer ABI into the generic band factored-solve entry\n");
+    return 0;
+}
+
+static int check_dpbtrs_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dpbtrs_fn thunk = NULL;
+    double ab[8] = { 210.0, 211.0, 212.0, 213.0, 220.0, 221.0, 222.0, 223.0 };
+    double b[8] = { 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0 };
+    double original_ab[8] = { 210.0, 211.0, 212.0, 213.0, 220.0, 221.0, 222.0, 223.0 };
+    double expected_ab_in[8] = { 0.0, 220.0, 211.0, 221.0, 212.0, 222.0, 213.0, 223.0 };
+    double expected_b_in[8] = { 11.0, 13.0, 15.0, 17.0, 12.0, 14.0, 16.0, 18.0 };
+    double expected_b_out[8] = { 710.0, 720.0, 730.0, 740.0, 750.0, 760.0, 770.0, 780.0 };
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dpbtrs_fortran_call, 0, sizeof(g_dpbtrs_fortran_call));
+
+    vtable.ext_ops[FB_OP_DPBTRS][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_dpbtrs_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_DPBTRS);
+
+    thunk = (fb_dpbtrs_fn)vtable.ext_ops[FB_OP_DPBTRS][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DPBTRS Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, FB_UPPER, 4, 1, 2, ab, 4, b, 2);
+    if (info != 0 || g_dpbtrs_fortran_call.calls != 1 ||
+        g_dpbtrs_fortran_call.uplo != 'U' || g_dpbtrs_fortran_call.n != 4 ||
+        g_dpbtrs_fortran_call.kd != 1 || g_dpbtrs_fortran_call.nrhs != 2 ||
+        g_dpbtrs_fortran_call.ldab != 2 || g_dpbtrs_fortran_call.ldb != 4 ||
+        memcmp(g_dpbtrs_fortran_call.ab_snapshot, expected_ab_in,
+               sizeof(expected_ab_in)) != 0 ||
+        memcmp(g_dpbtrs_fortran_call.b_snapshot, expected_b_in,
+               sizeof(expected_b_in)) != 0 ||
+        memcmp(ab, original_ab, sizeof(original_ab)) != 0 ||
+        memcmp(b, expected_b_out, sizeof(expected_b_out)) != 0) {
+        fprintf(stderr, "[FAIL] DPBTRS Fortran->CBLAS thunk did not preserve double band factored-solve row-major translation and selective copy-back\n");
+        return 1;
+    }
+
+    printf("[PASS] DPBTRS Fortran->CBLAS thunk transposes band storage and RHS data, then copies back only the solved double-precision RHS\n");
+    return 0;
+}
+
+static int check_dpbtrs_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_dpbtrs_fortran_slot_fn thunk = NULL;
+    double ab[6] = { 1.0, 2.0, 3.0, 4.0, 5.0, 6.0 };
+    double b[6] = { 10.0, 20.0, 30.0, 40.0, 50.0, 60.0 };
+    char uplo = 'L';
+    int n = 3;
+    int kd = 1;
+    int nrhs = 2;
+    int ldab = 2;
+    int ldb = 3;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_dpbtrs_cblas_call, 0, sizeof(g_dpbtrs_cblas_call));
+
+    vtable.ext_ops[FB_OP_DPBTRS][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_dpbtrs_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_DPBTRS);
+
+    thunk = (fb_dpbtrs_fortran_slot_fn)vtable.ext_ops[FB_OP_DPBTRS][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] DPBTRS CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&uplo, &n, &kd, &nrhs, ab, &ldab, b, &ldb, &info);
+    if (info != 285 || g_dpbtrs_cblas_call.called != 1 ||
+        g_dpbtrs_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_dpbtrs_cblas_call.uplo != FB_LOWER ||
+        g_dpbtrs_cblas_call.n != 3 || g_dpbtrs_cblas_call.kd != 1 ||
+        g_dpbtrs_cblas_call.nrhs != 2 || g_dpbtrs_cblas_call.ldab != 2 ||
+        g_dpbtrs_cblas_call.ldb != 3 || g_dpbtrs_cblas_call.ab != ab ||
+        g_dpbtrs_cblas_call.b != b || b[0] != 288.0) {
+        fprintf(stderr, "[FAIL] DPBTRS CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] DPBTRS CBLAS->Fortran thunk maps the all-pointer ABI into the generic double-precision band factored-solve entry\n");
     return 0;
 }
 
@@ -631,6 +1155,108 @@ static int check_cpbtrs_cblas_to_fortran(void)
     return 0;
 }
 
+static int check_zpbtrs_fortran_to_cblas(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zpbtrs_fn thunk = NULL;
+    fb_complex_double_t ab[8] = {
+        make_cdouble(230.0), make_cdouble(231.0), make_cdouble(232.0), make_cdouble(233.0),
+        make_cdouble(240.0), make_cdouble(241.0), make_cdouble(242.0), make_cdouble(243.0)
+    };
+    fb_complex_double_t b[8] = {
+        make_cdouble(21.0), make_cdouble(22.0), make_cdouble(23.0), make_cdouble(24.0),
+        make_cdouble(25.0), make_cdouble(26.0), make_cdouble(27.0), make_cdouble(28.0)
+    };
+    double original_ab[8] = { 230.0, 231.0, 232.0, 233.0, 240.0, 241.0, 242.0, 243.0 };
+    double expected_ab_in[8] = { 230.0, 240.0, 231.0, 241.0, 232.0, 242.0, 233.0, 0.0 };
+    double expected_b_in[8] = { 21.0, 23.0, 25.0, 27.0, 22.0, 24.0, 26.0, 28.0 };
+    double expected_b_out[8] = { 810.0, 820.0, 830.0, 840.0, 850.0, 860.0, 870.0, 880.0 };
+    double actual_ab_out[8] = { 0.0 };
+    double actual_b_out[8] = { 0.0 };
+    int index = 0;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zpbtrs_fortran_call, 0, sizeof(g_zpbtrs_fortran_call));
+
+    vtable.ext_ops[FB_OP_ZPBTRS][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_zpbtrs_fortran;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPBTRS);
+
+    thunk = (fb_zpbtrs_fn)vtable.ext_ops[FB_OP_ZPBTRS][FB_CONV_CBLAS];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZPBTRS Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    info = thunk(FB_LAYOUT_ROW_MAJOR, FB_LOWER, 4, 1, 2, ab, 4, b, 2);
+    for (index = 0; index < 8; ++index) {
+        actual_ab_out[index] = cdouble_real(ab[index]);
+        actual_b_out[index] = cdouble_real(b[index]);
+    }
+    if (info != 0 || g_zpbtrs_fortran_call.calls != 1 ||
+        g_zpbtrs_fortran_call.uplo != 'L' || g_zpbtrs_fortran_call.n != 4 ||
+        g_zpbtrs_fortran_call.kd != 1 || g_zpbtrs_fortran_call.nrhs != 2 ||
+        g_zpbtrs_fortran_call.ldab != 2 || g_zpbtrs_fortran_call.ldb != 4 ||
+        memcmp(g_zpbtrs_fortran_call.ab_real_snapshot, expected_ab_in,
+               sizeof(expected_ab_in)) != 0 ||
+        memcmp(g_zpbtrs_fortran_call.b_real_snapshot, expected_b_in,
+               sizeof(expected_b_in)) != 0 ||
+        memcmp(actual_ab_out, original_ab, sizeof(original_ab)) != 0 ||
+        memcmp(actual_b_out, expected_b_out, sizeof(expected_b_out)) != 0) {
+        fprintf(stderr, "[FAIL] ZPBTRS Fortran->CBLAS thunk did not preserve complex-double band factored-solve row-major translation and selective copy-back\n");
+        return 1;
+    }
+
+    printf("[PASS] ZPBTRS Fortran->CBLAS thunk transposes complex-double band storage and RHS data, then copies back only the solved complex-double RHS\n");
+    return 0;
+}
+
+static int check_zpbtrs_cblas_to_fortran(void)
+{
+    fb_backend_vtable_t vtable;
+    fb_zpbtrs_fortran_slot_fn thunk = NULL;
+    fb_complex_double_t ab[6];
+    fb_complex_double_t b[6];
+    char uplo = 'U';
+    int n = 3;
+    int kd = 1;
+    int nrhs = 2;
+    int ldab = 2;
+    int ldb = 3;
+    int info = 0;
+
+    memset(&vtable, 0, sizeof(vtable));
+    memset(&g_zpbtrs_cblas_call, 0, sizeof(g_zpbtrs_cblas_call));
+    memset(ab, 0, sizeof(ab));
+    memset(b, 0, sizeof(b));
+
+    vtable.ext_ops[FB_OP_ZPBTRS][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_zpbtrs_cblas;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPBTRS);
+
+    thunk = (fb_zpbtrs_fortran_slot_fn)vtable.ext_ops[FB_OP_ZPBTRS][FB_CONV_FORTRAN];
+    if (!thunk) {
+        fprintf(stderr, "[FAIL] ZPBTRS CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    thunk(&uplo, &n, &kd, &nrhs, ab, &ldab, b, &ldb, &info);
+    if (info != 287 || g_zpbtrs_cblas_call.called != 1 ||
+        g_zpbtrs_cblas_call.layout != FB_LAYOUT_COL_MAJOR ||
+        g_zpbtrs_cblas_call.uplo != FB_UPPER ||
+        g_zpbtrs_cblas_call.n != 3 || g_zpbtrs_cblas_call.kd != 1 ||
+        g_zpbtrs_cblas_call.nrhs != 2 || g_zpbtrs_cblas_call.ldab != 2 ||
+        g_zpbtrs_cblas_call.ldb != 3 || g_zpbtrs_cblas_call.ab != ab ||
+        g_zpbtrs_cblas_call.b != b || cdouble_real(b[0]) != 388.0) {
+        fprintf(stderr, "[FAIL] ZPBTRS CBLAS->Fortran thunk delegated incorrectly\n");
+        return 1;
+    }
+
+    printf("[PASS] ZPBTRS CBLAS->Fortran thunk maps the all-pointer ABI into the generic complex-double band factored-solve entry\n");
+    return 0;
+}
+
 int main(void)
 {
     if (check_spbtrf_fortran_to_cblas() != 0) {
@@ -639,10 +1265,22 @@ int main(void)
     if (check_spbtrf_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dpbtrf_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dpbtrf_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cpbtrf_fortran_to_cblas() != 0) {
         return 1;
     }
     if (check_cpbtrf_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zpbtrf_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zpbtrf_cblas_to_fortran() != 0) {
         return 1;
     }
     if (check_spbtrs_fortran_to_cblas() != 0) {
@@ -651,10 +1289,22 @@ int main(void)
     if (check_spbtrs_cblas_to_fortran() != 0) {
         return 1;
     }
+    if (check_dpbtrs_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_dpbtrs_cblas_to_fortran() != 0) {
+        return 1;
+    }
     if (check_cpbtrs_fortran_to_cblas() != 0) {
         return 1;
     }
     if (check_cpbtrs_cblas_to_fortran() != 0) {
+        return 1;
+    }
+    if (check_zpbtrs_fortran_to_cblas() != 0) {
+        return 1;
+    }
+    if (check_zpbtrs_cblas_to_fortran() != 0) {
         return 1;
     }
 

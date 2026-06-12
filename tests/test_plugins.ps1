@@ -30,25 +30,25 @@ $ErrorActionPreference = "Stop"
 # Color output functions
 function Write-Success {
     param([string]$Message)
-    Write-Host "✅ $Message" -ForegroundColor Green
+    Write-Host "[PASS] $Message" -ForegroundColor Green
 }
 
 function Write-Failure {
     param([string]$Message)
-    Write-Host "❌ $Message" -ForegroundColor Red
+    Write-Host "[FAIL] $Message" -ForegroundColor Red
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "ℹ️  $Message" -ForegroundColor Blue
+    Write-Host "[INFO]  $Message" -ForegroundColor Blue
 }
 
 function Write-Header {
     param([string]$Message)
     Write-Host ""
-    Write-Host "╔════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║ $($Message.PadRight(58)) ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "== $Message"
+    Write-Host "============================================================" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -79,7 +79,7 @@ Write-Success "Build completed successfully"
 # Run test
 Write-Header "Running Plugin Architecture Test"
 
-$TestExe = Join-Path $BuildDir "tests\$Config\test_plugin_architecture.exe"
+$TestExe = Join-Path $BuildDir "tests\test_plugin_architecture.exe"
 
 if (-not (Test-Path $TestExe)) {
     Write-Failure "Test executable not found: $TestExe"
@@ -101,7 +101,25 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "🎯 Hardware-aware selection working!" -ForegroundColor Green
     Write-Host ""
-    exit 0
+
+    # Run plugin selection order regression test
+    Write-Header "Running Plugin Selection Order Regression"
+    $SelectionTestExe = Join-Path $BuildDir "tests\test_plugin_selection_order.exe"
+    if (Test-Path $SelectionTestExe) {
+        Write-Info "Executing: $SelectionTestExe"
+        Write-Host ""
+        & $SelectionTestExe
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Plugin selection order regression PASSED!"
+            exit 0
+        } else {
+            Write-Failure "Plugin selection order regression FAILED (exit code: $LASTEXITCODE)"
+            exit 1
+        }
+    } else {
+        Write-Warning "Plugin selection order test executable not found: $SelectionTestExe"
+        exit 0
+    }
 } else {
     Write-Host ""
     Write-Failure "Plugin architecture test FAILED (exit code: $LASTEXITCODE)"

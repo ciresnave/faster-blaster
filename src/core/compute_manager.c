@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+
 
 /* Global state */
 static bool g_manager_initialized = false;
@@ -40,125 +40,15 @@ static bool device_supports_precision(const fb_compute_device_t* device, fb_prec
     }
 }
 
-/**
- * @brief Calculate device score for fastest strategy
- */
-static double score_device_fastest(const fb_compute_device_t* device, fb_precision_t precision) {
-    if (!device || !device->is_available) return -1.0;
-    if (!device_supports_precision(device, precision)) return -1.0;
-    
-    /* Score = GFLOPS (higher is better) */
-    double score = device->properties.peak_gflops_fp32;
-    
-    /* Adjust for precision */
-    if (precision == FB_PRECISION_FP64) {
-        score = device->properties.peak_gflops_fp64;
-    } else if (precision == FB_PRECISION_FP16 || precision == FB_PRECISION_BF16) {
-        /* FP16/BF16 is typically 2x faster than FP32 */
-        score *= 2.0;
-    }
-    
-    return score;
+static bool device_is_eligible(const fb_compute_device_t* device, fb_precision_t precision) {
+    return device && device->is_available && device_supports_precision(device, precision);
 }
 
 /**
- * @brief Calculate device score for load-balanced strategy
- */
-static double score_device_load_balanced(const fb_compute_device_t* device, fb_precision_t precision) {
-    if (!device || !device->is_available) return -1.0;
-    if (!device_supports_precision(device, precision)) return -1.0;
-    
-    /* Score = GFLOPS × (1 - utilization%) */
-    double base_score = device->properties.peak_gflops_fp32;
-    
-    /* Adjust for precision */
-    if (precision == FB_PRECISION_FP64) {
-        base_score = device->properties.peak_gflops_fp64;
-    } else if (precision == FB_PRECISION_FP16 || precision == FB_PRECISION_BF16) {
-        base_score *= 2.0;
-    }
-    
-    /* Factor in current load */
-    double load_factor = 1.0 - (device->load.utilization_percent / 100.0);
-    double score = base_score * load_factor;
-    
-    /* Penalize devices with many active operations */
-    if (device->load.active_operations > 0) {
-        score /= (1.0 + device->load.active_operations * 0.1);
-    }
-    
-    return score;
-}
-
-/**
- * @brief Calculate device score for power-efficient strategy
- */
-static double score_device_power_efficient(const fb_compute_device_t* device, fb_precision_t precision) {
-    if (!device || !device->is_available) return -1.0;
-    if (!device_supports_precision(device, precision)) return -1.0;
-    
-    /* Prefer CPUs for power efficiency (GPUs consume more power) */
-    double score = 100.0;
-    
-    if (device->properties.type == FB_DEVICE_TYPE_CPU) {
-        /* CPUs get higher score for power efficiency */
-        score = 1000.0;
-        
-        /* Penalize high-performance CPUs slightly */
-        if (device->properties.peak_gflops_fp32 > 500.0) {
-            score *= 0.8;
-        }
-    } else {
-        /* GPUs get lower score */
-        score = 100.0;
-        
-        /* Smaller GPUs are more power efficient */
-        if (device->properties.peak_gflops_fp32 < 5000.0) {
-            score *= 1.5;
-        }
-    }
-    
-    /* Consider power state */
-    switch (device->load.power_state) {
-        case FB_POWER_STATE_POWER_SAVER:
-            score *= 2.0; // Prefer devices in power saver mode
-            break;
-        case FB_POWER_STATE_BALANCED:
-            score *= 1.5;
-            break;
-        case FB_POWER_STATE_PERFORMANCE:
-            score *= 1.0;
-            break;
-        case FB_POWER_STATE_THERMAL_LIMIT:
-            score *= 0.5; // Avoid thermally throttled devices
-            break;
-        default:
-            break;
-    }
-    
-    return score;
-}
-
-/**
- * @brief Calculate device score for data locality strategy
- */
-static double score_device_data_locality(const fb_compute_device_t* device, 
-                                         fb_precision_t precision,
-                                         const void** data_ptrs,
-                                         uint32_t num_data_ptrs) {
-    (void)data_ptrs;
-    (void)num_data_ptrs;
-
-    if (!device || !device->is_available) return -1.0;
-    if (!device_supports_precision(device, precision)) return -1.0;
-    
-    /* For now, just use fastest strategy since we don't track data locations yet */
-    /* TODO: Implement data tracking and prefer devices where data already resides */
-    return score_device_fastest(device, precision);
-}
-
-/**
- * @brief Select device using specified strategy
+ * @brief Select device using specified strategy.
+ *
+ * This implementation uses availability and compatibility only.
+ * Device-level scoring is intentionally removed from scheduling.
  */
 static fb_compute_device_t* select_device_internal(fb_dispatch_strategy_t strategy,
                                                    fb_precision_t precision,
@@ -170,75 +60,27 @@ static fb_compute_device_t* select_device_internal(fb_dispatch_strategy_t strate
         return NULL;
     }
     
-    fb_compute_device_t* best_device = NULL;
-    double best_score = -1.0;
-    
-    /* Handle round-robin separately */
     if (strategy == FB_DISPATCH_ROUND_ROBIN) {
         for (int attempts = 0; attempts < device_count; attempts++) {
             g_round_robin_index = (g_round_robin_index + 1) % device_count;
             fb_compute_device_t* device = fb_get_device(g_round_robin_index);
-            
-            if (device && device->is_available && device_supports_precision(device, precision)) {
+            if (device_is_eligible(device, precision)) {
                 return device;
             }
         }
-        return NULL; // No suitable device found
+        return NULL;
     }
     
-    /* Score all devices */
+    /* For all other strategies, choose the first available compatible device.
+     * This avoids score-based device ranking in the scheduling layer. */
     for (int i = 0; i < device_count; i++) {
         fb_compute_device_t* device = fb_get_device(i);
-        if (!device) continue;
-        
-        double score = -1.0;
-        
-        switch (strategy) {
-            case FB_DISPATCH_FASTEST:
-                score = score_device_fastest(device, precision);
-                break;
-                
-            case FB_DISPATCH_LOAD_BALANCED:
-                score = score_device_load_balanced(device, precision);
-                break;
-                
-            case FB_DISPATCH_POWER_EFFICIENT:
-                score = score_device_power_efficient(device, precision);
-                break;
-                
-            case FB_DISPATCH_DATA_LOCALITY:
-                score = score_device_data_locality(device, precision, data_ptrs, num_data_ptrs);
-                break;
-                
-            case FB_DISPATCH_ADAPTIVE:
-                /* For now, use load-balanced as a good default for adaptive */
-                score = score_device_load_balanced(device, precision);
-                break;
-                
-            default:
-                /* Default to fastest */
-                score = score_device_fastest(device, precision);
-                break;
-        }
-        
-        if (score > best_score) {
-            best_score = score;
-            best_device = device;
+        if (device_is_eligible(device, precision)) {
+            return device;
         }
     }
     
-    if (!best_device && device_count > 0) {
-        /* Fallback: return first available device */
-        fprintf(stderr, "Warning: No device matched criteria, using fallback\n");
-        for (int i = 0; i < device_count; i++) {
-            fb_compute_device_t* device = fb_get_device(i);
-            if (device && device->is_available) {
-                return device;
-            }
-        }
-    }
-    
-    return best_device;
+    return NULL;
 }
 
 /* ============================================================================

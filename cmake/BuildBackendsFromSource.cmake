@@ -17,6 +17,19 @@ option(FB_BUILD_BLIS_FROM_SOURCE "Build BLIS from source" ON)
 option(FB_BUILD_OPENBLAS_FROM_SOURCE "Build OpenBLAS from source with clang-cl" ON)
 option(FB_BUILD_CLBLAST_FROM_SOURCE "Build CLBlast from source" ON)
 
+if(WIN32)
+    option(FB_USE_PREBUILT_OPENBLAS_WINDOWS
+        "Use precompiled OpenBLAS binaries on Windows instead of building OpenBLAS from source"
+        ON)
+    option(FB_OPENBLAS_WINDOWS_PREBUILT_DOWNLOAD
+        "Automatically download official precompiled OpenBLAS binaries on Windows"
+        ON)
+    set(FB_OPENBLAS_WINDOWS_PREBUILT_VERSION "0.3.30" CACHE STRING
+        "OpenBLAS release version for precompiled Windows package download")
+    set(FB_OPENBLAS_WINDOWS_PREBUILT_ROOT "C:/libraries/OpenBLAS-0.3.30-x64" CACHE PATH
+        "Path to extracted precompiled OpenBLAS root (must contain include/ and lib/)" FORCE)
+endif()
+
 # OxiBLAS: Pure-Rust BLAS/LAPACK via oxiblas-ffi.
 # Upstream retired oxiblas-ffi in v0.2.0+, so the auto-clone uses the last
 # FFI-capable release by default. Override with
@@ -52,6 +65,31 @@ ProcessorCount(NUM_CORES)
 if(NUM_CORES EQUAL 0)
     set(NUM_CORES 4)
 endif()
+
+# OOM guardrail: cap backend parallelism unless explicitly overridden.
+set(FB_BACKEND_BUILD_JOBS "" CACHE STRING
+    "Max parallel jobs for backend source builds (empty = auto cap)")
+
+if(FB_BACKEND_BUILD_JOBS STREQUAL "")
+    if(WIN32)
+        # Windows clang-cl + large backend builds can spike memory usage.
+        if(NUM_CORES GREATER 8)
+            set(FB_EFFECTIVE_BACKEND_JOBS 8)
+        else()
+            set(FB_EFFECTIVE_BACKEND_JOBS ${NUM_CORES})
+        endif()
+    else()
+        if(NUM_CORES GREATER 16)
+            set(FB_EFFECTIVE_BACKEND_JOBS 16)
+        else()
+            set(FB_EFFECTIVE_BACKEND_JOBS ${NUM_CORES})
+        endif()
+    endif()
+else()
+    set(FB_EFFECTIVE_BACKEND_JOBS ${FB_BACKEND_BUILD_JOBS})
+endif()
+
+set(NUM_CORES ${FB_EFFECTIVE_BACKEND_JOBS})
 message(STATUS "Building backends with ${NUM_CORES} parallel jobs")
 
 # Function to convert Windows paths to WSL paths
@@ -393,10 +431,101 @@ function(build_openblas_from_source CPU_VENDOR CPU_CONFIG)
     
     # Platform-specific build configuration
     if(WIN32)
+        # Prefer precompiled OpenBLAS binaries on Windows for reliability.
+        if(FB_USE_PREBUILT_OPENBLAS_WINDOWS)
+            set(_openblas_prebuilt_root "${FB_OPENBLAS_WINDOWS_PREBUILT_ROOT}")
+
+            if(NOT _openblas_prebuilt_root)
+                set(_openblas_prebuilt_candidates
+                    "C:/libraries/OpenBLAS-0.3.30-x64"
+                    "C:/libraries/OpenBLAS-0.3.29-x64"
+                    "C:/libraries/OpenBLAS-0.3.28-x64"
+                    "C:/Program Files/OpenBLAS"
+                    "C:/OpenBLAS"
+                )
+
+                foreach(_cand IN LISTS _openblas_prebuilt_candidates)
+                    if(EXISTS "${_cand}/include" AND (EXISTS "${_cand}/lib/openblas.lib" OR EXISTS "${_cand}/lib/libopenblas.a"))
+                        set(_openblas_prebuilt_root "${_cand}")
+                        break()
+                    endif()
+                endforeach()
+            endif()
+
+            if(_openblas_prebuilt_root)
+                message(STATUS "Using precompiled OpenBLAS on Windows: ${_openblas_prebuilt_root}")
+
+                if(EXISTS "${_openblas_prebuilt_root}/lib/openblas.lib")
+                    set(_openblas_lib_file "openblas.lib")
+                elseif(EXISTS "${_openblas_prebuilt_root}/lib/libopenblas.a")
+                    set(_openblas_lib_file "libopenblas.a")
+                else()
+                    set(_openblas_lib_file "openblas.lib")
+                endif()
+
+                ExternalProject_Add(openblas-backend
+                    DOWNLOAD_COMMAND ""
+                    UPDATE_COMMAND ""
+                    PATCH_COMMAND ""
+                    SOURCE_DIR ${_openblas_prebuilt_root}
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        ${CMAKE_COMMAND} -E make_directory ${OPENBLAS_INSTALL_DIR}
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory ${_openblas_prebuilt_root}/include ${OPENBLAS_INSTALL_DIR}/include
+                        COMMAND ${CMAKE_COMMAND} -E make_directory ${OPENBLAS_INSTALL_DIR}/lib
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory ${_openblas_prebuilt_root}/lib ${OPENBLAS_INSTALL_DIR}/lib
+                    LOG_INSTALL TRUE
+                )
+
+                set(OpenBLAS_FOUND TRUE PARENT_SCOPE)
+                set(OpenBLAS_INCLUDE_DIRS "${OPENBLAS_INSTALL_DIR}/include" PARENT_SCOPE)
+                set(OpenBLAS_LIBRARIES "${OPENBLAS_INSTALL_DIR}/lib/${_openblas_lib_file}" PARENT_SCOPE)
+                message(STATUS "OpenBLAS will be staged to: ${OPENBLAS_INSTALL_DIR}")
+                return()
+            else()
+                if(NOT DEFINED FB_OPENBLAS_WINDOWS_PREBUILT_VERSION OR FB_OPENBLAS_WINDOWS_PREBUILT_VERSION STREQUAL "")
+                    set(FB_OPENBLAS_WINDOWS_PREBUILT_VERSION "0.3.30")
+                endif()
+
+                if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+                    set(_openblas_pkg_arch "x64")
+                else()
+                    set(_openblas_pkg_arch "x86")
+                endif()
+
+                set(_openblas_pkg_url
+                    "https://github.com/OpenMathLib/OpenBLAS/releases/download/v${FB_OPENBLAS_WINDOWS_PREBUILT_VERSION}/OpenBLAS-${FB_OPENBLAS_WINDOWS_PREBUILT_VERSION}-${_openblas_pkg_arch}.zip")
+
+                message(STATUS "Downloading precompiled OpenBLAS on Windows: ${_openblas_pkg_url}")
+
+                ExternalProject_Add(openblas-backend
+                    URL ${_openblas_pkg_url}
+                    SOURCE_DIR ${OPENBLAS_SOURCE_DIR}
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        ${CMAKE_COMMAND} -E make_directory ${OPENBLAS_INSTALL_DIR}
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory ${OPENBLAS_SOURCE_DIR}/include ${OPENBLAS_INSTALL_DIR}/include
+                        COMMAND ${CMAKE_COMMAND} -E make_directory ${OPENBLAS_INSTALL_DIR}/lib
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory ${OPENBLAS_SOURCE_DIR}/lib ${OPENBLAS_INSTALL_DIR}/lib
+                    LOG_DOWNLOAD TRUE
+                    LOG_INSTALL TRUE
+                )
+
+                set(OpenBLAS_FOUND TRUE PARENT_SCOPE)
+                set(OpenBLAS_INCLUDE_DIRS "${OPENBLAS_INSTALL_DIR}/include" PARENT_SCOPE)
+                set(OpenBLAS_LIBRARIES "${OPENBLAS_INSTALL_DIR}/lib/openblas.lib" PARENT_SCOPE)
+                message(STATUS "OpenBLAS will be staged to: ${OPENBLAS_INSTALL_DIR}")
+                return()
+            endif()
+        endif()
+
         # Native Windows build using external PowerShell script
         # This avoids CMake generator inheritance conflicts
         # The script builds OpenBLAS independently with clang-cl (C99/VLA + MSVC ABI + OpenMP 5.0+)
         set(BUILD_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/build_openblas_msvc_conly.ps1")
+        set(BUILD_WRAPPER_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/build_openblas_external_wrapper.ps1")
         
         # Download source first
         ExternalProject_Add(openblas-backend
@@ -405,7 +534,8 @@ function(build_openblas_from_source CPU_VENDOR CPU_CONFIG)
             GIT_SHALLOW TRUE
             SOURCE_DIR ${OPENBLAS_SOURCE_DIR}
             CONFIGURE_COMMAND ""
-            BUILD_COMMAND powershell -ExecutionPolicy Bypass -File "${BUILD_SCRIPT}"
+            BUILD_COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File "${BUILD_WRAPPER_SCRIPT}"
+                -BuildScript "${BUILD_SCRIPT}"
                 -SourceDir "${OPENBLAS_SOURCE_DIR}"
                 -InstallDir "${OPENBLAS_INSTALL_DIR}"
                 -Target "${OPENBLAS_TARGET}"

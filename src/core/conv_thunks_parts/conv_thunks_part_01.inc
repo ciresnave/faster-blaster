@@ -1001,6 +1001,7 @@ static void thunk_##OP##_cblas_to_fortran(char *compz, int *n, TYPE *d,      \
 DEFINE_STEQR_REAL_THUNKS(ssteqr, float, FB_OP_SSTEQR)
 DEFINE_STEQR_REAL_THUNKS(dsteqr, double, FB_OP_DSTEQR)
 DEFINE_STEQR_REAL_THUNKS(spteqr, float, FB_OP_SPTEQR)
+DEFINE_STEQR_REAL_THUNKS(dpteqr, double, FB_OP_DPTEQR)
 
 #undef DEFINE_STEQR_REAL_THUNKS
 
@@ -1095,6 +1096,8 @@ static void thunk_##OP##_cblas_to_fortran(char *compz, int *n, RTYPE *d,      \
 
 DEFINE_STEQR_COMPLEX_THUNKS(csteqr, fb_complex_float_t, float, FB_OP_CSTEQR)
 DEFINE_STEQR_COMPLEX_THUNKS(zsteqr, fb_complex_double_t, double, FB_OP_ZSTEQR)
+DEFINE_STEQR_COMPLEX_THUNKS(cpteqr, fb_complex_float_t, float, FB_OP_CPTEQR)
+DEFINE_STEQR_COMPLEX_THUNKS(zpteqr, fb_complex_double_t, double, FB_OP_ZPTEQR)
 
 #undef DEFINE_STEQR_COMPLEX_THUNKS
 
@@ -1208,84 +1211,1627 @@ static void thunk_dgees_cblas_to_fortran(int layout, char jobvs, char sort,
                                                work, &lwork_, bwork, info);
 }
 
+static void thunk_cgees_fortran_to_cblas(char *jobvs, char *sort, void *select,
+                                         int *n, fb_complex_float_t *a,
+                                         int *lda, int *sdim,
+                                         fb_complex_float_t *w,
+                                         fb_complex_float_t *vs, int *ldvs,
+                                         fb_complex_float_t *work, int *lwork,
+                                         float *rwork, int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_CGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, int, fb_complex_float_t *, int, int *,
+             fb_complex_float_t *, fb_complex_float_t *, int,
+             fb_complex_float_t *, int, float *, int *,
+             int *))g_cblas_fn[FB_OP_CGEES])(102, *jobvs, *sort, select, *n, a,
+                                             *lda, sdim, w, vs, *ldvs, work,
+                                             *lwork, rwork, bwork, info);
+}
+
+static void thunk_cgees_cblas_to_fortran(
+    int layout, char jobvs, char sort, void *select, int n,
+    fb_complex_float_t *a, int lda, int *sdim, fb_complex_float_t *w,
+    fb_complex_float_t *vs, int ldvs, fb_complex_float_t *work, int lwork,
+    float *rwork, int *bwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info))
+    return;
+  if (!g_fortran_fn[FB_OP_CGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = lwork;
+  ((void (*)(char *, char *, void *, int *, fb_complex_float_t *, int *, int *,
+             fb_complex_float_t *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, float *, int *,
+             int *))g_fortran_fn[FB_OP_CGEES])(&jobvs, &sort, select, &n, a,
+                                               &lda_, sdim, w, vs, &ldvs_,
+                                               work, &lwork_, rwork, bwork,
+                                               info);
+}
+
+static void thunk_zgees_fortran_to_cblas(
+    char *jobvs, char *sort, void *select, int *n, fb_complex_double_t *a,
+    int *lda, int *sdim, fb_complex_double_t *w, fb_complex_double_t *vs,
+    int *ldvs, fb_complex_double_t *work, int *lwork, double *rwork,
+    int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_ZGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, int, fb_complex_double_t *, int, int *,
+             fb_complex_double_t *, fb_complex_double_t *, int,
+             fb_complex_double_t *, int, double *, int *,
+             int *))g_cblas_fn[FB_OP_ZGEES])(102, *jobvs, *sort, select, *n, a,
+                                             *lda, sdim, w, vs, *ldvs, work,
+                                             *lwork, rwork, bwork, info);
+}
+
+static void thunk_zgees_cblas_to_fortran(
+    int layout, char jobvs, char sort, void *select, int n,
+    fb_complex_double_t *a, int lda, int *sdim, fb_complex_double_t *w,
+    fb_complex_double_t *vs, int ldvs, fb_complex_double_t *work, int lwork,
+    double *rwork, int *bwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info))
+    return;
+  if (!g_fortran_fn[FB_OP_ZGEES]) {
+    if (info)
+      *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = lwork;
+  ((void (*)(char *, char *, void *, int *, fb_complex_double_t *, int *,
+             int *, fb_complex_double_t *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, double *, int *,
+             int *))g_fortran_fn[FB_OP_ZGEES])(&jobvs, &sort, select, &n, a,
+                                               &lda_, sdim, w, vs, &ldvs_,
+                                               work, &lwork_, rwork, bwork,
+                                               info);
+}
+
+static void thunk_sgeesx_fortran_to_cblas(char *jobvs, char *sort,
+                                          void *select, char *sense, int *n,
+                                          float *a, int *lda, int *sdim,
+                                          float *wr, float *wi, float *vs,
+                                          int *ldvs, float *rconde,
+                                          float *rcondv, float *work,
+                                          int *lwork, int *iwork, int *liwork,
+                                          int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_SGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, char, int, float *, int, int *, float *,
+             float *, float *, int, float *, float *))g_cblas_fn[FB_OP_SGEESX])(
+      102, *jobvs, *sort, select, *sense, *n, a, *lda, sdim, wr, wi, vs,
+      *ldvs, rconde, rcondv);
+}
+
+static void thunk_sgeesx_cblas_to_fortran(int layout, char jobvs, char sort,
+                                          void *select, char sense, int n,
+                                          float *a, int lda, int *sdim,
+                                          float *wr, float *wi, float *vs,
+                                          int ldvs, float *rconde,
+                                          float *rcondv, float *work,
+                                          int lwork, int *iwork, int liwork,
+                                          int *bwork, int *info) {
+  (void)work;
+  (void)lwork;
+  (void)iwork;
+  (void)liwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = -1, liwork_ = -1, info_ = 0;
+  float work_query = 0.0f;
+  int iwork_query = 0;
+  int *bwork_ = bwork;
+  int *alloc_bwork = NULL;
+  if (bwork_ == NULL) {
+    alloc_bwork = (int *)calloc((size_t)((n > 1) ? n : 1), sizeof(int));
+    if (alloc_bwork == NULL) {
+      if (info) *info = -101;
+      return;
+    }
+    bwork_ = alloc_bwork;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, float *, int *, int *,
+             float *, float *, float *, int *, float *, float *, float *,
+             int *, int *, int *, int *, int *))g_fortran_fn[FB_OP_SGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, wr, wi, vs, &ldvs_,
+      rconde, rcondv, &work_query, &lwork_, &iwork_query, &liwork_, bwork_,
+      &info_);
+  if (info_) {
+    if (info) *info = info_;
+    free(alloc_bwork);
+    return;
+  }
+  lwork_ = (lwork_ > 0) ? lwork_ : 1;
+  liwork_ = (liwork_ > 0) ? liwork_ : 1;
+  float *work_ = (float *)malloc((size_t)lwork_ * sizeof(float));
+  int *iwork_ = (int *)malloc((size_t)liwork_ * sizeof(int));
+  if (!work_ || !iwork_) {
+    free(work_);
+    free(iwork_);
+    free(alloc_bwork);
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, float *, int *, int *,
+             float *, float *, float *, int *, float *, float *, float *,
+             int *, int *, int *, int *, int *))g_fortran_fn[FB_OP_SGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, wr, wi, vs, &ldvs_,
+      rconde, rcondv, work_, &lwork_, iwork_, &liwork_, bwork_, &info_);
+  if (info) *info = info_;
+  free(work_);
+  free(iwork_);
+  free(alloc_bwork);
+}
+
+static void thunk_dgeesx_fortran_to_cblas(char *jobvs, char *sort,
+                                          void *select, char *sense, int *n,
+                                          double *a, int *lda, int *sdim,
+                                          double *wr, double *wi, double *vs,
+                                          int *ldvs, double *rconde,
+                                          double *rcondv, double *work,
+                                          int *lwork, int *iwork,
+                                          int *liwork, int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, char, int, double *, int, int *,
+             double *, double *, double *, int, double *, double *))
+      g_cblas_fn[FB_OP_DGEESX])(102, *jobvs, *sort, select, *sense, *n, a,
+                                *lda, sdim, wr, wi, vs, *ldvs, rconde,
+                                rcondv);
+}
+
+static void thunk_dgeesx_cblas_to_fortran(int layout, char jobvs, char sort,
+                                          void *select, char sense, int n,
+                                          double *a, int lda, int *sdim,
+                                          double *wr, double *wi, double *vs,
+                                          int ldvs, double *rconde,
+                                          double *rcondv, double *work,
+                                          int lwork, int *iwork, int liwork,
+                                          int *bwork, int *info) {
+  (void)work;
+  (void)lwork;
+  (void)iwork;
+  (void)liwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_DGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = -1, liwork_ = -1, info_ = 0;
+  double work_query = 0.0;
+  int iwork_query = 0;
+  int *bwork_ = bwork;
+  int *alloc_bwork = NULL;
+  if (bwork_ == NULL) {
+    alloc_bwork = (int *)calloc((size_t)((n > 1) ? n : 1), sizeof(int));
+    if (alloc_bwork == NULL) {
+      if (info) *info = -101;
+      return;
+    }
+    bwork_ = alloc_bwork;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, double *, int *, int *,
+             double *, double *, double *, int *, double *, double *,
+             double *, int *, int *, int *, int *, int *))g_fortran_fn[FB_OP_DGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, wr, wi, vs, &ldvs_,
+      rconde, rcondv, &work_query, &lwork_, &iwork_query, &liwork_, bwork_,
+      &info_);
+  if (info_) {
+    if (info) *info = info_;
+    free(alloc_bwork);
+    return;
+  }
+  lwork_ = (lwork_ > 0) ? lwork_ : 1;
+  liwork_ = (liwork_ > 0) ? liwork_ : 1;
+  double *work_ = (double *)malloc((size_t)lwork_ * sizeof(double));
+  int *iwork_ = (int *)malloc((size_t)liwork_ * sizeof(int));
+  if (!work_ || !iwork_) {
+    free(work_);
+    free(iwork_);
+    free(alloc_bwork);
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, double *, int *, int *,
+             double *, double *, double *, int *, double *, double *,
+             double *, int *, int *, int *, int *, int *))g_fortran_fn[FB_OP_DGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, wr, wi, vs, &ldvs_,
+      rconde, rcondv, work_, &lwork_, iwork_, &liwork_, bwork_, &info_);
+  if (info) *info = info_;
+  free(work_);
+  free(iwork_);
+  free(alloc_bwork);
+}
+
+static void thunk_cgeesx_fortran_to_cblas(char *jobvs, char *sort,
+                                          void *select, char *sense, int *n,
+                                          fb_complex_float_t *a, int *lda,
+                                          int *sdim, fb_complex_float_t *w,
+                                          fb_complex_float_t *vs, int *ldvs,
+                                          float *rconde, float *rcondv,
+                                          fb_complex_float_t *work,
+                                          int *lwork, float *rwork,
+                                          int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_CGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, char, int, fb_complex_float_t *, int,
+             int *, fb_complex_float_t *, fb_complex_float_t *, int, float *,
+             float *))g_cblas_fn[FB_OP_CGEESX])(102, *jobvs, *sort, select,
+                                                *sense, *n, a, *lda, sdim, w,
+                                                vs, *ldvs, rconde, rcondv);
+}
+
+static void thunk_cgeesx_cblas_to_fortran(int layout, char jobvs, char sort,
+                                          void *select, char sense, int n,
+                                          fb_complex_float_t *a, int lda,
+                                          int *sdim, fb_complex_float_t *w,
+                                          fb_complex_float_t *vs, int ldvs,
+                                          float *rconde, float *rcondv,
+                                          fb_complex_float_t *work,
+                                          int lwork, float *rwork,
+                                          int *bwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_CGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = -1, info_ = 0;
+  float *rwork_ = rwork;
+  int *bwork_ = bwork;
+  int *alloc_bwork = NULL;
+  float *alloc_rwork = NULL;
+  if (rwork_ == NULL) {
+    alloc_rwork = (float *)calloc((size_t)((n > 1) ? n : 1), sizeof(float));
+    if (alloc_rwork == NULL) {
+      if (info) *info = -101;
+      return;
+    }
+    rwork_ = alloc_rwork;
+  }
+  if (bwork_ == NULL) {
+    alloc_bwork = (int *)calloc((size_t)((n > 1) ? n : 1), sizeof(int));
+    if (alloc_bwork == NULL) {
+      free(alloc_rwork);
+      if (info) *info = -101;
+      return;
+    }
+    bwork_ = alloc_bwork;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, fb_complex_float_t *,
+             int *, int *, fb_complex_float_t *, fb_complex_float_t *, int *,
+             float *, float *, fb_complex_float_t *, int *, float *, int *,
+             int *))g_fortran_fn[FB_OP_CGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, w, vs, &ldvs_,
+      rconde, rcondv, work, &lwork_, rwork_, bwork_, &info_);
+  if (info) *info = info_;
+  free(alloc_rwork);
+  free(alloc_bwork);
+}
+
+static void thunk_zgeesx_fortran_to_cblas(char *jobvs, char *sort,
+                                          void *select, char *sense, int *n,
+                                          fb_complex_double_t *a, int *lda,
+                                          int *sdim, fb_complex_double_t *w,
+                                          fb_complex_double_t *vs, int *ldvs,
+                                          double *rconde, double *rcondv,
+                                          fb_complex_double_t *work,
+                                          int *lwork, double *rwork,
+                                          int *bwork, int *info) {
+  if (!g_cblas_fn[FB_OP_ZGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  ((void (*)(int, char, char, void *, char, int, fb_complex_double_t *, int,
+             int *, fb_complex_double_t *, fb_complex_double_t *, int,
+             double *, double *))g_cblas_fn[FB_OP_ZGEESX])(102, *jobvs,
+                                                            *sort, select,
+                                                            *sense, *n, a,
+                                                            *lda, sdim, w,
+                                                            vs, *ldvs,
+                                                            rconde, rcondv);
+}
+
+static void thunk_zgeesx_cblas_to_fortran(int layout, char jobvs, char sort,
+                                          void *select, char sense, int n,
+                                          fb_complex_double_t *a, int lda,
+                                          int *sdim, fb_complex_double_t *w,
+                                          fb_complex_double_t *vs, int ldvs,
+                                          double *rconde, double *rcondv,
+                                          fb_complex_double_t *work,
+                                          int lwork, double *rwork,
+                                          int *bwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_ZGEESX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvs_ = ldvs, lwork_ = -1, info_ = 0;
+  double *rwork_ = rwork;
+  int *bwork_ = bwork;
+  int *alloc_bwork = NULL;
+  double *alloc_rwork = NULL;
+  if (rwork_ == NULL) {
+    alloc_rwork = (double *)calloc((size_t)((n > 1) ? n : 1), sizeof(double));
+    if (alloc_rwork == NULL) {
+      if (info) *info = -101;
+      return;
+    }
+    rwork_ = alloc_rwork;
+  }
+  if (bwork_ == NULL) {
+    alloc_bwork = (int *)calloc((size_t)((n > 1) ? n : 1), sizeof(int));
+    if (alloc_bwork == NULL) {
+      free(alloc_rwork);
+      if (info) *info = -101;
+      return;
+    }
+    bwork_ = alloc_bwork;
+  }
+  ((void (*)(char *, char *, void *, char *, int *, fb_complex_double_t *,
+             int *, int *, fb_complex_double_t *, fb_complex_double_t *, int *,
+             double *, double *, fb_complex_double_t *, int *, double *, int *,
+             int *))g_fortran_fn[FB_OP_ZGEESX])(
+      &jobvs, &sort, select, &sense, &n, a, &lda_, sdim, w, vs, &ldvs_,
+      rconde, rcondv, work, &lwork_, rwork_, bwork_, &info_);
+  if (info) *info = info_;
+  free(alloc_rwork);
+  free(alloc_bwork);
+}
+
+static void thunk_sbdsdc_fortran_to_cblas(char *uplo, char *compq, int *n,
+                                          float *d, float *e, float *u,
+                                          int *ldu, float *vt, int *ldvt,
+                                          float *q, int *iq, float *work,
+                                          int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_SBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, int, float *, float *, float *, int,
+                     float *, int, float *, int *))g_cblas_fn[FB_OP_SBDSDC])(
+      102, *uplo, *compq, *n, d, e, u, *ldu, vt, *ldvt, q, iq);
+  if (info) *info = rc;
+}
+
+static void thunk_dbdsdc_fortran_to_cblas(char *uplo, char *compq, int *n,
+                                          double *d, double *e, double *u,
+                                          int *ldu, double *vt, int *ldvt,
+                                          double *q, int *iq, double *work,
+                                          int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, int, double *, double *, double *, int,
+                     double *, int, double *, int *))g_cblas_fn[FB_OP_DBDSDC])(
+      102, *uplo, *compq, *n, d, e, u, *ldu, vt, *ldvt, q, iq);
+  if (info) *info = rc;
+}
+
+static void thunk_cbdsdc_fortran_to_cblas(char *uplo, char *compq, int *n,
+                                          float *d, float *e,
+                                          fb_complex_float_t *u, int *ldu,
+                                          fb_complex_float_t *vt, int *ldvt,
+                                          float *q, int *iq, float *work,
+                                          int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_CBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, int, float *, float *,
+                     fb_complex_float_t *, int, fb_complex_float_t *, int,
+                     float *, int *))g_cblas_fn[FB_OP_CBDSDC])(
+      102, *uplo, *compq, *n, d, e, u, *ldu, vt, *ldvt, q, iq);
+  if (info) *info = rc;
+}
+
+static void thunk_zbdsdc_fortran_to_cblas(char *uplo, char *compq, int *n,
+                                          double *d, double *e,
+                                          fb_complex_double_t *u, int *ldu,
+                                          fb_complex_double_t *vt, int *ldvt,
+                                          double *q, int *iq, double *work,
+                                          int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_ZBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, int, double *, double *,
+                     fb_complex_double_t *, int, fb_complex_double_t *, int,
+                     double *, int *))g_cblas_fn[FB_OP_ZBDSDC])(
+      102, *uplo, *compq, *n, d, e, u, *ldu, vt, *ldvt, q, iq);
+  if (info) *info = rc;
+}
+
+static void thunk_sbdsdc_cblas_to_fortran(int layout, char uplo, char compq,
+                                          int n, float *d, float *e, float *u,
+                                          int ldu, float *vt, int ldvt,
+                                          float *q, int *iq, float *work,
+                                          int *iwork, int *info) {
+  (void)work;
+  (void)iwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldu_ = ldu, ldvt_ = ldvt;
+  ((void (*)(char *, char *, int *, float *, float *, float *, int *, float *,
+             int *, float *, int *, float *, int *, int *))g_fortran_fn[FB_OP_SBDSDC])(
+      &uplo, &compq, &n, d, e, u, &ldu_, vt, &ldvt_, q, iq, work, iwork, info);
+}
+
+static void thunk_dbdsdc_cblas_to_fortran(int layout, char uplo, char compq,
+                                          int n, double *d, double *e,
+                                          double *u, int ldu, double *vt,
+                                          int ldvt, double *q, int *iq,
+                                          double *work, int *iwork, int *info) {
+  (void)work;
+  (void)iwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_DBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldu_ = ldu, ldvt_ = ldvt;
+  ((void (*)(char *, char *, int *, double *, double *, double *, int *,
+             double *, int *, double *, int *, double *, int *, int *))g_fortran_fn[FB_OP_DBDSDC])(
+      &uplo, &compq, &n, d, e, u, &ldu_, vt, &ldvt_, q, iq, work, iwork, info);
+}
+
+static void thunk_cbdsdc_cblas_to_fortran(int layout, char uplo, char compq,
+                                          int n, float *d, float *e,
+                                          fb_complex_float_t *u, int ldu,
+                                          fb_complex_float_t *vt, int ldvt,
+                                          float *q, int *iq, float *work,
+                                          int *iwork, int *info) {
+  (void)work;
+  (void)iwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_CBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldu_ = ldu, ldvt_ = ldvt;
+  ((void (*)(char *, char *, int *, float *, float *, fb_complex_float_t *,
+             int *, fb_complex_float_t *, int *, float *, int *, float *,
+             int *, int *))g_fortran_fn[FB_OP_CBDSDC])(&uplo, &compq, &n, d,
+                                                        e, u, &ldu_, vt,
+                                                        &ldvt_, q, iq, work,
+                                                        iwork, info);
+}
+
+static void thunk_zbdsdc_cblas_to_fortran(int layout, char uplo, char compq,
+                                          int n, double *d, double *e,
+                                          fb_complex_double_t *u, int ldu,
+                                          fb_complex_double_t *vt, int ldvt,
+                                          double *q, int *iq, double *work,
+                                          int *iwork, int *info) {
+  (void)work;
+  (void)iwork;
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_ZBDSDC]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldu_ = ldu, ldvt_ = ldvt;
+  ((void (*)(char *, char *, int *, double *, double *, fb_complex_double_t *,
+             int *, fb_complex_double_t *, int *, double *, int *, double *,
+             int *, int *))g_fortran_fn[FB_OP_ZBDSDC])(&uplo, &compq, &n, d,
+                                                        e, u, &ldu_, vt,
+                                                        &ldvt_, q, iq, work,
+                                                        iwork, info);
+}
+
+static void thunk_sbdsqr_fortran_to_cblas(char *uplo, int *n, int *ncvt,
+                                          int *nru, int *ncc, float *d,
+                                          float *e, float *vt, int *ldvt,
+                                          float *u, int *ldu, float *c,
+                                          int *ldc, float *work, int *info) {
+  if (!g_cblas_fn[FB_OP_SBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, int, int, int, int, float *, float *, float *,
+                     int, float *, int, float *, int))g_cblas_fn[FB_OP_SBDSQR])(
+      102, *uplo, *n, *ncvt, *nru, *ncc, d, e, vt, *ldvt, u, *ldu, c, *ldc);
+  if (info) *info = rc;
+}
+
+static void thunk_dbdsqr_fortran_to_cblas(char *uplo, int *n, int *ncvt,
+                                          int *nru, int *ncc, double *d,
+                                          double *e, double *vt, int *ldvt,
+                                          double *u, int *ldu, double *c,
+                                          int *ldc, double *work, int *info) {
+  if (!g_cblas_fn[FB_OP_DBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, int, int, int, int, double *, double *,
+                     double *, int, double *, int, double *, int))
+      g_cblas_fn[FB_OP_DBDSQR])(102, *uplo, *n, *ncvt, *nru, *ncc, d, e, vt,
+                                *ldvt, u, *ldu, c, *ldc);
+  if (info) *info = rc;
+}
+
+static void thunk_cbdsqr_fortran_to_cblas(char *uplo, int *n, int *ncvt,
+                                          int *nru, int *ncc, float *d,
+                                          float *e, fb_complex_float_t *vt,
+                                          int *ldvt, fb_complex_float_t *u,
+                                          int *ldu, fb_complex_float_t *c,
+                                          int *ldc, float *rwork, int *info) {
+  if (!g_cblas_fn[FB_OP_CBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, int, int, int, int, float *, float *,
+                     fb_complex_float_t *, int, fb_complex_float_t *, int,
+                     fb_complex_float_t *, int))g_cblas_fn[FB_OP_CBDSQR])(
+      102, *uplo, *n, *ncvt, *nru, *ncc, d, e, vt, *ldvt, u, *ldu, c, *ldc);
+  if (info) *info = rc;
+}
+
+static void thunk_zbdsqr_fortran_to_cblas(char *uplo, int *n, int *ncvt,
+                                          int *nru, int *ncc, double *d,
+                                          double *e, fb_complex_double_t *vt,
+                                          int *ldvt, fb_complex_double_t *u,
+                                          int *ldu, fb_complex_double_t *c,
+                                          int *ldc, double *rwork, int *info) {
+  if (!g_cblas_fn[FB_OP_ZBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, int, int, int, int, double *, double *,
+                     fb_complex_double_t *, int, fb_complex_double_t *, int,
+                     fb_complex_double_t *, int))g_cblas_fn[FB_OP_ZBDSQR])(
+      102, *uplo, *n, *ncvt, *nru, *ncc, d, e, vt, *ldvt, u, *ldu, c, *ldc);
+  if (info) *info = rc;
+}
+
+static void thunk_sbdsqr_cblas_to_fortran(int layout, char uplo, int n,
+                                          int ncvt, int nru, int ncc, float *d,
+                                          float *e, float *vt, int ldvt,
+                                          float *u, int ldu, float *c, int ldc,
+                                          float *work, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldvt_ = ldvt, ldu_ = ldu, ldc_ = ldc;
+  ((void (*)(char *, int *, int *, int *, int *, float *, float *, float *,
+             int *, float *, int *, float *, int *, float *, int *))
+      g_fortran_fn[FB_OP_SBDSQR])(&uplo, &n, &ncvt, &nru, &ncc, d, e, vt,
+                                  &ldvt_, u, &ldu_, c, &ldc_, work, info);
+}
+
+static void thunk_dbdsqr_cblas_to_fortran(int layout, char uplo, int n,
+                                          int ncvt, int nru, int ncc,
+                                          double *d, double *e, double *vt,
+                                          int ldvt, double *u, int ldu,
+                                          double *c, int ldc, double *work,
+                                          int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_DBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldvt_ = ldvt, ldu_ = ldu, ldc_ = ldc;
+  ((void (*)(char *, int *, int *, int *, int *, double *, double *, double *,
+             int *, double *, int *, double *, int *, double *, int *))
+      g_fortran_fn[FB_OP_DBDSQR])(&uplo, &n, &ncvt, &nru, &ncc, d, e, vt,
+                                  &ldvt_, u, &ldu_, c, &ldc_, work, info);
+}
+
+static void thunk_cbdsqr_cblas_to_fortran(int layout, char uplo, int n,
+                                          int ncvt, int nru, int ncc, float *d,
+                                          float *e, fb_complex_float_t *vt,
+                                          int ldvt, fb_complex_float_t *u,
+                                          int ldu, fb_complex_float_t *c,
+                                          int ldc, float *rwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_CBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldvt_ = ldvt, ldu_ = ldu, ldc_ = ldc;
+  ((void (*)(char *, int *, int *, int *, int *, float *, float *,
+             fb_complex_float_t *, int *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, float *, int *))
+      g_fortran_fn[FB_OP_CBDSQR])(&uplo, &n, &ncvt, &nru, &ncc, d, e, vt,
+                                  &ldvt_, u, &ldu_, c, &ldc_, rwork, info);
+}
+
+static void thunk_zbdsqr_cblas_to_fortran(int layout, char uplo, int n,
+                                          int ncvt, int nru, int ncc,
+                                          double *d, double *e,
+                                          fb_complex_double_t *vt, int ldvt,
+                                          fb_complex_double_t *u, int ldu,
+                                          fb_complex_double_t *c, int ldc,
+                                          double *rwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_ZBDSQR]) {
+    if (info) *info = -1;
+    return;
+  }
+  int ldvt_ = ldvt, ldu_ = ldu, ldc_ = ldc;
+  ((void (*)(char *, int *, int *, int *, int *, double *, double *,
+             fb_complex_double_t *, int *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, double *, int *))
+      g_fortran_fn[FB_OP_ZBDSQR])(&uplo, &n, &ncvt, &nru, &ncc, d, e, vt,
+                                  &ldvt_, u, &ldu_, c, &ldc_, rwork, info);
+}
+
+static void thunk_sgeevx_fortran_to_cblas(char *balanc, char *jobvl,
+                                          char *jobvr, char *sense, int *n,
+                                          float *a, int *lda, float *wr,
+                                          float *wi, float *vl, int *ldvl,
+                                          float *vr, int *ldvr, int *ilo,
+                                          int *ihi, float *scale,
+                                          float *abnrm, float *rconde,
+                                          float *rcondv, float *work,
+                                          int *lwork, int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_SGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, char, char, int, float *, int, float *,
+                     float *, float *, int, float *, int, int *, int *,
+                     float *, float *, float *, float *))g_cblas_fn[FB_OP_SGEEVX])(
+      102, *balanc, *jobvl, *jobvr, *sense, *n, a, *lda, wr, wi, vl, *ldvl, vr,
+      *ldvr, ilo, ihi, scale, abnrm, rconde, rcondv);
+  if (info) *info = rc;
+}
+
+static void thunk_dgeevx_fortran_to_cblas(char *balanc, char *jobvl,
+                                          char *jobvr, char *sense, int *n,
+                                          double *a, int *lda, double *wr,
+                                          double *wi, double *vl, int *ldvl,
+                                          double *vr, int *ldvr, int *ilo,
+                                          int *ihi, double *scale,
+                                          double *abnrm, double *rconde,
+                                          double *rcondv, double *work,
+                                          int *lwork, int *iwork, int *info) {
+  if (!g_cblas_fn[FB_OP_DGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, char, char, int, double *, int, double *,
+                     double *, double *, int, double *, int, int *, int *,
+                     double *, double *, double *, double *))
+      g_cblas_fn[FB_OP_DGEEVX])(102, *balanc, *jobvl, *jobvr, *sense, *n, a,
+                                *lda, wr, wi, vl, *ldvl, vr, *ldvr, ilo, ihi,
+                                scale, abnrm, rconde, rcondv);
+  if (info) *info = rc;
+}
+
+static void thunk_cgeevx_fortran_to_cblas(char *balanc, char *jobvl,
+                                          char *jobvr, char *sense, int *n,
+                                          fb_complex_float_t *a, int *lda,
+                                          fb_complex_float_t *w,
+                                          fb_complex_float_t *vl, int *ldvl,
+                                          fb_complex_float_t *vr, int *ldvr,
+                                          int *ilo, int *ihi, float *scale,
+                                          float *abnrm, float *rconde,
+                                          float *rcondv,
+                                          fb_complex_float_t *work,
+                                          int *lwork, float *rwork,
+                                          int *info) {
+  if (!g_cblas_fn[FB_OP_CGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, char, char, int, fb_complex_float_t *,
+                     int, fb_complex_float_t *, fb_complex_float_t *, int,
+                     fb_complex_float_t *, int, int *, int *, float *, float *,
+                     float *, float *))g_cblas_fn[FB_OP_CGEEVX])(
+      102, *balanc, *jobvl, *jobvr, *sense, *n, a, *lda, w, vl, *ldvl, vr,
+      *ldvr, ilo, ihi, scale, abnrm, rconde, rcondv);
+  if (info) *info = rc;
+}
+
+static void thunk_zgeevx_fortran_to_cblas(char *balanc, char *jobvl,
+                                          char *jobvr, char *sense, int *n,
+                                          fb_complex_double_t *a, int *lda,
+                                          fb_complex_double_t *w,
+                                          fb_complex_double_t *vl, int *ldvl,
+                                          fb_complex_double_t *vr, int *ldvr,
+                                          int *ilo, int *ihi, double *scale,
+                                          double *abnrm, double *rconde,
+                                          double *rcondv,
+                                          fb_complex_double_t *work,
+                                          int *lwork, double *rwork,
+                                          int *info) {
+  if (!g_cblas_fn[FB_OP_ZGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, char, char, char, char, int, fb_complex_double_t *,
+                     int, fb_complex_double_t *, fb_complex_double_t *, int,
+                     fb_complex_double_t *, int, int *, int *, double *,
+                     double *, double *, double *))g_cblas_fn[FB_OP_ZGEEVX])(
+      102, *balanc, *jobvl, *jobvr, *sense, *n, a, *lda, w, vl, *ldvl, vr,
+      *ldvr, ilo, ihi, scale, abnrm, rconde, rcondv);
+  if (info) *info = rc;
+}
+
+static void thunk_sgeevx_cblas_to_fortran(int layout, char balanc, char jobvl,
+                                          char jobvr, char sense, int n,
+                                          float *a, int lda, float *wr,
+                                          float *wi, float *vl, int ldvl,
+                                          float *vr, int ldvr, int *ilo,
+                                          int *ihi, float *scale,
+                                          float *abnrm, float *rconde,
+                                          float *rcondv, float *work,
+                                          int lwork, int *iwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvl_ = ldvl, ldvr_ = ldvr, lwork_ = lwork;
+  ((void (*)(char *, char *, char *, char *, int *, float *, int *, float *,
+             float *, float *, int *, float *, int *, int *, int *, float *,
+             float *, float *, float *, float *, int *, int *, int *))
+      g_fortran_fn[FB_OP_SGEEVX])(&balanc, &jobvl, &jobvr, &sense, &n, a,
+                                  &lda_, wr, wi, vl, &ldvl_, vr, &ldvr_, ilo,
+                                  ihi, scale, abnrm, rconde, rcondv, work,
+                                  &lwork_, iwork, info);
+}
+
+static void thunk_dgeevx_cblas_to_fortran(int layout, char balanc, char jobvl,
+                                          char jobvr, char sense, int n,
+                                          double *a, int lda, double *wr,
+                                          double *wi, double *vl, int ldvl,
+                                          double *vr, int ldvr, int *ilo,
+                                          int *ihi, double *scale,
+                                          double *abnrm, double *rconde,
+                                          double *rcondv, double *work,
+                                          int lwork, int *iwork, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_DGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvl_ = ldvl, ldvr_ = ldvr, lwork_ = lwork;
+  ((void (*)(char *, char *, char *, char *, int *, double *, int *, double *,
+             double *, double *, int *, double *, int *, int *, int *,
+             double *, double *, double *, double *, double *, int *, int *,
+             int *))g_fortran_fn[FB_OP_DGEEVX])(&balanc, &jobvl, &jobvr,
+                                                &sense, &n, a, &lda_, wr, wi,
+                                                vl, &ldvl_, vr, &ldvr_, ilo,
+                                                ihi, scale, abnrm, rconde,
+                                                rcondv, work, &lwork_, iwork,
+                                                info);
+}
+
+static void thunk_cgeevx_cblas_to_fortran(
+    int layout, char balanc, char jobvl, char jobvr, char sense, int n,
+    fb_complex_float_t *a, int lda, fb_complex_float_t *w,
+    fb_complex_float_t *vl, int ldvl, fb_complex_float_t *vr, int ldvr,
+    int *ilo, int *ihi, float *scale, float *abnrm, float *rconde,
+    float *rcondv, fb_complex_float_t *work, int lwork, float *rwork,
+    int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_CGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvl_ = ldvl, ldvr_ = ldvr, lwork_ = lwork;
+  ((void (*)(char *, char *, char *, char *, int *, fb_complex_float_t *,
+             int *, fb_complex_float_t *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, int *, int *, float *, float *,
+             float *, float *, fb_complex_float_t *, int *, float *, int *))
+      g_fortran_fn[FB_OP_CGEEVX])(&balanc, &jobvl, &jobvr, &sense, &n, a,
+                                  &lda_, w, vl, &ldvl_, vr, &ldvr_, ilo, ihi,
+                                  scale, abnrm, rconde, rcondv, work, &lwork_,
+                                  rwork, info);
+}
+
+static void thunk_zgeevx_cblas_to_fortran(
+    int layout, char balanc, char jobvl, char jobvr, char sense, int n,
+    fb_complex_double_t *a, int lda, fb_complex_double_t *w,
+    fb_complex_double_t *vl, int ldvl, fb_complex_double_t *vr, int ldvr,
+    int *ilo, int *ihi, double *scale, double *abnrm, double *rconde,
+    double *rcondv, fb_complex_double_t *work, int lwork, double *rwork,
+    int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_ZGEEVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldvl_ = ldvl, ldvr_ = ldvr, lwork_ = lwork;
+  ((void (*)(char *, char *, char *, char *, int *, fb_complex_double_t *,
+             int *, fb_complex_double_t *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, int *, int *, double *, double *,
+             double *, double *, fb_complex_double_t *, int *, double *,
+             int *))g_fortran_fn[FB_OP_ZGEEVX])(&balanc, &jobvl, &jobvr,
+                                                &sense, &n, a, &lda_, w, vl,
+                                                &ldvl_, vr, &ldvr_, ilo, ihi,
+                                                scale, abnrm, rconde, rcondv,
+                                                work, &lwork_, rwork, info);
+}
+
+static void thunk_sgelsd_fortran_to_cblas(int *m, int *n, int *nrhs,
+                                          float *a, int *lda, float *b,
+                                          int *ldb, float *s, float *rcond,
+                                          int *rank, float *work, int *lwork,
+                                          int *iwork, int *info) {
+  (void)work;
+  (void)lwork;
+  (void)iwork;
+  if (!g_cblas_fn[FB_OP_SGELSD]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, int, int, int, float *, int, float *, int, float *,
+                     float, int *))g_cblas_fn[FB_OP_SGELSD])(
+      102, *m, *n, *nrhs, a, *lda, b, *ldb, s, *rcond, rank);
+  if (info) *info = rc;
+}
+
+static void thunk_sgelsd_cblas_to_fortran(int layout, int m, int n, int nrhs,
+                                          float *a, int lda, float *b, int ldb,
+                                          float *s, float rcond, int *rank,
+                                          int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SGELSD]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, lwork_ = -1, info_ = 0;
+  float rcond_ = rcond;
+  float work_query = 0.0f;
+  int iwork_query = 0;
+  ((void (*)(int *, int *, int *, float *, int *, float *, int *, float *,
+             float *, int *, float *, int *, int *, int *))
+      g_fortran_fn[FB_OP_SGELSD])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, &work_query, &lwork_,
+                                  &iwork_query, &info_);
+  if (info_ != 0) {
+    if (info) *info = info_;
+    return;
+  }
+  lwork_ = (work_query > 1.0f) ? (int)work_query : 1;
+  int iwork_n = (iwork_query > 1) ? iwork_query : 1;
+  float *work = (float *)malloc((size_t)lwork_ * sizeof(float));
+  int *iwork = (int *)malloc((size_t)iwork_n * sizeof(int));
+  if (!work || !iwork) {
+    free(work);
+    free(iwork);
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, float *, int *, float *, int *, float *,
+             float *, int *, float *, int *, int *, int *))
+      g_fortran_fn[FB_OP_SGELSD])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, work, &lwork_, iwork,
+                                  &info_);
+  free(work);
+  free(iwork);
+  if (info) *info = info_;
+}
+
+static void thunk_sgelss_fortran_to_cblas(int *m, int *n, int *nrhs,
+                                          float *a, int *lda, float *b,
+                                          int *ldb, float *s, float *rcond,
+                                          int *rank, float *work, int *lwork,
+                                          int *info) {
+  (void)work;
+  (void)lwork;
+  if (!g_cblas_fn[FB_OP_SGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, int, int, int, float *, int, float *, int, float *,
+                     float, int *))g_cblas_fn[FB_OP_SGELSS])(
+      102, *m, *n, *nrhs, a, *lda, b, *ldb, s, *rcond, rank);
+  if (info) *info = rc;
+}
+
+static void thunk_dgelss_fortran_to_cblas(int *m, int *n, int *nrhs,
+                                          double *a, int *lda, double *b,
+                                          int *ldb, double *s, double *rcond,
+                                          int *rank, double *work, int *lwork,
+                                          int *info) {
+  (void)work;
+  (void)lwork;
+  if (!g_cblas_fn[FB_OP_DGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, int, int, int, double *, int, double *, int,
+                     double *, double, int *))g_cblas_fn[FB_OP_DGELSS])(
+      102, *m, *n, *nrhs, a, *lda, b, *ldb, s, *rcond, rank);
+  if (info) *info = rc;
+}
+
+static void thunk_cgelss_fortran_to_cblas(int *m, int *n, int *nrhs,
+                                          fb_complex_float_t *a, int *lda,
+                                          fb_complex_float_t *b, int *ldb,
+                                          float *s, float *rcond, int *rank,
+                                          fb_complex_float_t *work,
+                                          int *lwork, float *rwork, int *info) {
+  (void)work;
+  (void)lwork;
+  (void)rwork;
+  if (!g_cblas_fn[FB_OP_CGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, int, int, int, fb_complex_float_t *, int,
+                     fb_complex_float_t *, int, float *, float, int *))
+      g_cblas_fn[FB_OP_CGELSS])(102, *m, *n, *nrhs, a, *lda, b, *ldb, s,
+                                *rcond, rank);
+  if (info) *info = rc;
+}
+
+static void thunk_zgelss_fortran_to_cblas(int *m, int *n, int *nrhs,
+                                          fb_complex_double_t *a, int *lda,
+                                          fb_complex_double_t *b, int *ldb,
+                                          double *s, double *rcond, int *rank,
+                                          fb_complex_double_t *work,
+                                          int *lwork, double *rwork,
+                                          int *info) {
+  (void)work;
+  (void)lwork;
+  (void)rwork;
+  if (!g_cblas_fn[FB_OP_ZGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int rc = ((int (*)(int, int, int, int, fb_complex_double_t *, int,
+                     fb_complex_double_t *, int, double *, double, int *))
+      g_cblas_fn[FB_OP_ZGELSS])(102, *m, *n, *nrhs, a, *lda, b, *ldb, s,
+                                *rcond, rank);
+  if (info) *info = rc;
+}
+
+static void thunk_sgelss_cblas_to_fortran(int layout, int m, int n, int nrhs,
+                                          float *a, int lda, float *b, int ldb,
+                                          float *s, float rcond, int *rank,
+                                          int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_SGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, lwork_ = -1, info_ = 0;
+  float rcond_ = rcond;
+  float work_query = 0.0f;
+  ((void (*)(int *, int *, int *, float *, int *, float *, int *, float *,
+             float *, int *, float *, int *, int *))g_fortran_fn[FB_OP_SGELSS])(
+      &m, &n, &nrhs, a, &lda_, b, &ldb_, s, &rcond_, rank, &work_query,
+      &lwork_, &info_);
+  if (info_ != 0) {
+    if (info) *info = info_;
+    return;
+  }
+  lwork_ = (work_query > 1.0f) ? (int)work_query : 1;
+  float *work = (float *)malloc((size_t)lwork_ * sizeof(float));
+  if (!work) {
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, float *, int *, float *, int *, float *,
+             float *, int *, float *, int *, int *))g_fortran_fn[FB_OP_SGELSS])(
+      &m, &n, &nrhs, a, &lda_, b, &ldb_, s, &rcond_, rank, work, &lwork_,
+      &info_);
+  free(work);
+  if (info) *info = info_;
+}
+
+static void thunk_dgelss_cblas_to_fortran(int layout, int m, int n, int nrhs,
+                                          double *a, int lda, double *b,
+                                          int ldb, double *s, double rcond,
+                                          int *rank, int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_DGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, lwork_ = -1, info_ = 0;
+  double rcond_ = rcond;
+  double work_query = 0.0;
+  ((void (*)(int *, int *, int *, double *, int *, double *, int *, double *,
+             double *, int *, double *, int *, int *))g_fortran_fn[FB_OP_DGELSS])(
+      &m, &n, &nrhs, a, &lda_, b, &ldb_, s, &rcond_, rank, &work_query,
+      &lwork_, &info_);
+  if (info_ != 0) {
+    if (info) *info = info_;
+    return;
+  }
+  lwork_ = (work_query > 1.0) ? (int)work_query : 1;
+  double *work = (double *)malloc((size_t)lwork_ * sizeof(double));
+  if (!work) {
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, double *, int *, double *, int *, double *,
+             double *, int *, double *, int *, int *))g_fortran_fn[FB_OP_DGELSS])(
+      &m, &n, &nrhs, a, &lda_, b, &ldb_, s, &rcond_, rank, work, &lwork_,
+      &info_);
+  free(work);
+  if (info) *info = info_;
+}
+
+static void thunk_cgelss_cblas_to_fortran(int layout, int m, int n, int nrhs,
+                                          fb_complex_float_t *a, int lda,
+                                          fb_complex_float_t *b, int ldb,
+                                          float *s, float rcond, int *rank,
+                                          int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_CGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, lwork_ = -1, info_ = 0;
+  float rcond_ = rcond;
+  fb_complex_float_t work_query = 0.0f;
+  float *rwork = (float *)calloc((size_t)((m < n ? m : n) > 0 ? (m < n ? m : n) : 1), sizeof(float));
+  if (!rwork) {
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, float *, float *, int *,
+             fb_complex_float_t *, int *, float *, int *))
+      g_fortran_fn[FB_OP_CGELSS])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, &work_query, &lwork_, rwork,
+                                  &info_);
+  if (info_ != 0) {
+    free(rwork);
+    if (info) *info = info_;
+    return;
+  }
+  lwork_ = fb_query_size_from_cfloat(work_query);
+  fb_complex_float_t *work = (fb_complex_float_t *)malloc((size_t)lwork_ * sizeof(fb_complex_float_t));
+  if (!work) {
+    free(rwork);
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, float *, float *, int *,
+             fb_complex_float_t *, int *, float *, int *))
+      g_fortran_fn[FB_OP_CGELSS])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, work, &lwork_, rwork, &info_);
+  free(work);
+  free(rwork);
+  if (info) *info = info_;
+}
+
+static void thunk_zgelss_cblas_to_fortran(int layout, int m, int n, int nrhs,
+                                          fb_complex_double_t *a, int lda,
+                                          fb_complex_double_t *b, int ldb,
+                                          double *s, double rcond, int *rank,
+                                          int *info) {
+  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info)) return;
+  if (!g_fortran_fn[FB_OP_ZGELSS]) {
+    if (info) *info = -1;
+    return;
+  }
+  int lda_ = lda, ldb_ = ldb, lwork_ = -1, info_ = 0;
+  double rcond_ = rcond;
+  fb_complex_double_t work_query = 0.0;
+  double *rwork = (double *)calloc((size_t)((m < n ? m : n) > 0 ? (m < n ? m : n) : 1), sizeof(double));
+  if (!rwork) {
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, double *, double *, int *,
+             fb_complex_double_t *, int *, double *, int *))
+      g_fortran_fn[FB_OP_ZGELSS])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, &work_query, &lwork_, rwork,
+                                  &info_);
+  if (info_ != 0) {
+    free(rwork);
+    if (info) *info = info_;
+    return;
+  }
+  lwork_ = fb_query_size_from_cdouble(work_query);
+  fb_complex_double_t *work = (fb_complex_double_t *)malloc((size_t)lwork_ * sizeof(fb_complex_double_t));
+  if (!work) {
+    free(rwork);
+    if (info) *info = -101;
+    return;
+  }
+  ((void (*)(int *, int *, int *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, double *, double *, int *,
+             fb_complex_double_t *, int *, double *, int *))
+      g_fortran_fn[FB_OP_ZGELSS])(&m, &n, &nrhs, a, &lda_, b, &ldb_, s,
+                                  &rcond_, rank, work, &lwork_, rwork, &info_);
+  free(work);
+  free(rwork);
+  if (info) *info = info_;
+}
+
 /* ---- SGTSVX / DGTSVX  (FB_OP_SGTSVX=397, FB_OP_DGTSVX=398) ------------ */
 
-static void thunk_sgtsvx_fortran_to_cblas(
+static int thunk_sgtsvx_fortran_to_cblas(
+    const fb_layout_t layout, const char fact, const char trans, const int n,
+    const int nrhs, const float *dl, const float *d, const float *du,
+    float *dlf, float *df, float *duf, float *du2, int *ipiv, const float *b,
+    const int ldb, float *x, const int ldx, float *rcond, float *ferr,
+    float *berr) {
+  int n_ = n;
+  int nrhs_ = nrhs;
+  int ldb_ = (n > 0) ? n : 1;
+  int ldx_ = (n > 0) ? n : 1;
+  int info = 0;
+  int work_len = (n > 0) ? (3 * n) : 1;
+  int iwork_len = (n > 0) ? n : 1;
+  size_t b_elems = (size_t)ldb_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t x_elems = (size_t)ldx_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  float *b_col = NULL;
+  float *x_col = NULL;
+  float *work = NULL;
+  int *iwork = NULL;
+
+  if (!g_fortran_fn[FB_OP_SGTSVX]) return -1;
+  if (!dl || !d || !du || !dlf || !df || !duf || !du2 || !ipiv || !b || !x ||
+      !rcond || !ferr || !berr) {
+    return -1;
+  }
+
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    if (ldb < nrhs || ldx < nrhs) return -15;
+    b_col = (float *)malloc(b_elems * sizeof(float));
+    x_col = (float *)malloc(x_elems * sizeof(float));
+    if (!b_col || !x_col) {
+      free(b_col);
+      free(x_col);
+      return -101;
+    }
+    if (fb_copy_matrix_to_col_major(b, layout, n, nrhs, ldb, b_col, ldb_,
+                                    sizeof(float)) != 0) {
+      free(b_col);
+      free(x_col);
+      return -1;
+    }
+  } else if (fb_lapack_layout_is_col_major(layout)) {
+    ldb_ = ldb;
+    ldx_ = ldx;
+    b_col = (float *)b;
+    x_col = x;
+  } else {
+    return -1;
+  }
+
+  work = (float *)calloc((size_t)work_len, sizeof(float));
+  iwork = (int *)calloc((size_t)iwork_len, sizeof(int));
+  if (!work || !iwork) {
+    free(work);
+    free(iwork);
+    if (layout == FB_LAYOUT_ROW_MAJOR) {
+      free(b_col);
+      free(x_col);
+    }
+    return -101;
+  }
+
+  ((void (*)(char *, char *, int *, int *, const float *, const float *,
+             const float *, float *, float *, float *, float *, int *, float *,
+             int *, float *, int *, float *, float *, float *, float *, int *,
+             int *))g_fortran_fn[FB_OP_SGTSVX])((char *)&fact, (char *)&trans,
+                                                &n_, &nrhs_, dl, d, du, dlf,
+                                                df, duf, du2, ipiv, b_col,
+                                                &ldb_, x_col, &ldx_, rcond,
+                                                ferr, berr, work, iwork,
+                                                &info);
+
+  if (info == 0 && layout == FB_LAYOUT_ROW_MAJOR &&
+      fb_copy_matrix_from_col_major(x_col, n, nrhs, ldx_, layout, x, ldx,
+                                    sizeof(float)) != 0) {
+    info = -1;
+  }
+
+  free(work);
+  free(iwork);
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    free(b_col);
+    free(x_col);
+  }
+  return info;
+}
+
+static void thunk_sgtsvx_cblas_to_fortran(
     char *fact, char *trans, int *n, int *nrhs, float *dl, float *d, float *du,
     float *dlf, float *df, float *duf, float *du2, int *ipiv, float *b,
     int *ldb, float *x, int *ldx, float *rcond, float *ferr, float *berr,
     float *work, int *iwork, int *info) {
+  int rc;
+  (void)work;
+  (void)iwork;
+  if (!fact || !trans || !n || !nrhs || !dl || !d || !du || !dlf || !df ||
+      !duf || !du2 || !ipiv || !b || !ldb || !x || !ldx || !rcond || !ferr ||
+      !berr) {
+    if (info) *info = -1;
+    return;
+  }
   if (!g_cblas_fn[FB_OP_SGTSVX]) {
-    if (info)
-      *info = -1;
+    if (info) *info = -1;
     return;
   }
-  ((void (*)(int, char, char, int, int, float *, float *, float *, float *,
-             float *, float *, float *, int *, float *, int, float *, int,
-             float *, float *, float *, float *, int *,
-             int *))g_cblas_fn[FB_OP_SGTSVX])(
-      102, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
-      *ldb, x, *ldx, rcond, ferr, berr, work, iwork, info);
+  rc = ((int (*)(fb_layout_t, char, char, int, int, const float *,
+                 const float *, const float *, float *, float *, float *,
+                 float *, int *, const float *, int, float *, int, float *,
+                 float *, float *))g_cblas_fn[FB_OP_SGTSVX])(
+      FB_LAYOUT_COL_MAJOR, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf,
+      du2, ipiv, b, *ldb, x, *ldx, rcond, ferr, berr);
+  if (info) *info = rc;
 }
 
-static void thunk_sgtsvx_cblas_to_fortran(
-    int layout, char fact, char trans, int n, int nrhs, float *dl, float *d,
-    float *du, float *dlf, float *df, float *duf, float *du2, int *ipiv,
-    float *b, int ldb, float *x, int ldx, float *rcond, float *ferr,
-    float *berr, float *work, int *iwork, int *info) {
-  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info))
-    return;
-  if (!g_fortran_fn[FB_OP_SGTSVX]) {
-    if (info)
-      *info = -1;
-    return;
+static int thunk_dgtsvx_fortran_to_cblas(
+    const fb_layout_t layout, const char fact, const char trans, const int n,
+    const int nrhs, const double *dl, const double *d, const double *du,
+    double *dlf, double *df, double *duf, double *du2, int *ipiv,
+    const double *b, const int ldb, double *x, const int ldx, double *rcond,
+    double *ferr, double *berr) {
+  int n_ = n;
+  int nrhs_ = nrhs;
+  int ldb_ = (n > 0) ? n : 1;
+  int ldx_ = (n > 0) ? n : 1;
+  int info = 0;
+  int work_len = (n > 0) ? (3 * n) : 1;
+  int iwork_len = (n > 0) ? n : 1;
+  size_t b_elems = (size_t)ldb_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t x_elems = (size_t)ldx_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  double *b_col = NULL;
+  double *x_col = NULL;
+  double *work = NULL;
+  int *iwork = NULL;
+
+  if (!g_fortran_fn[FB_OP_DGTSVX]) return -1;
+  if (!dl || !d || !du || !dlf || !df || !duf || !du2 || !ipiv || !b || !x ||
+      !rcond || !ferr || !berr) {
+    return -1;
   }
-  int ldb_ = ldb, ldx_ = ldx;
-  ((void (*)(char *, char *, int *, int *, float *, float *, float *, float *,
-             float *, float *, float *, int *, float *, int *, float *, int *,
-             float *, float *, float *, float *, int *,
-             int *))g_fortran_fn[FB_OP_SGTSVX])(
-      &fact, &trans, &n, &nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b, &ldb_, x,
-      &ldx_, rcond, ferr, berr, work, iwork, info);
+
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    if (ldb < nrhs || ldx < nrhs) return -15;
+    b_col = (double *)malloc(b_elems * sizeof(double));
+    x_col = (double *)malloc(x_elems * sizeof(double));
+    if (!b_col || !x_col) {
+      free(b_col);
+      free(x_col);
+      return -101;
+    }
+    if (fb_copy_matrix_to_col_major(b, layout, n, nrhs, ldb, b_col, ldb_,
+                                    sizeof(double)) != 0) {
+      free(b_col);
+      free(x_col);
+      return -1;
+    }
+  } else if (fb_lapack_layout_is_col_major(layout)) {
+    ldb_ = ldb;
+    ldx_ = ldx;
+    b_col = (double *)b;
+    x_col = x;
+  } else {
+    return -1;
+  }
+
+  work = (double *)calloc((size_t)work_len, sizeof(double));
+  iwork = (int *)calloc((size_t)iwork_len, sizeof(int));
+  if (!work || !iwork) {
+    free(work);
+    free(iwork);
+    if (layout == FB_LAYOUT_ROW_MAJOR) {
+      free(b_col);
+      free(x_col);
+    }
+    return -101;
+  }
+
+  ((void (*)(char *, char *, int *, int *, const double *, const double *,
+             const double *, double *, double *, double *, double *, int *,
+             double *, int *, double *, int *, double *, double *, double *,
+             double *, int *, int *))g_fortran_fn[FB_OP_DGTSVX])(
+      (char *)&fact, (char *)&trans, &n_, &nrhs_, dl, d, du, dlf, df, duf,
+      du2, ipiv, b_col, &ldb_, x_col, &ldx_, rcond, ferr, berr, work, iwork,
+      &info);
+
+  if (info == 0 && layout == FB_LAYOUT_ROW_MAJOR &&
+      fb_copy_matrix_from_col_major(x_col, n, nrhs, ldx_, layout, x, ldx,
+                                    sizeof(double)) != 0) {
+    info = -1;
+  }
+
+  free(work);
+  free(iwork);
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    free(b_col);
+    free(x_col);
+  }
+  return info;
 }
 
-static void thunk_dgtsvx_fortran_to_cblas(
+static void thunk_dgtsvx_cblas_to_fortran(
     char *fact, char *trans, int *n, int *nrhs, double *dl, double *d,
     double *du, double *dlf, double *df, double *duf, double *du2, int *ipiv,
     double *b, int *ldb, double *x, int *ldx, double *rcond, double *ferr,
     double *berr, double *work, int *iwork, int *info) {
-  if (!g_cblas_fn[FB_OP_DGTSVX]) {
-    if (info)
-      *info = -1;
+  int rc;
+  (void)work;
+  (void)iwork;
+  if (!fact || !trans || !n || !nrhs || !dl || !d || !du || !dlf || !df ||
+      !duf || !du2 || !ipiv || !b || !ldb || !x || !ldx || !rcond || !ferr ||
+      !berr) {
+    if (info) *info = -1;
     return;
   }
-  ((void (*)(int, char, char, int, int, double *, double *, double *, double *,
-             double *, double *, double *, int *, double *, int, double *, int,
-             double *, double *, double *, double *, int *,
-             int *))g_cblas_fn[FB_OP_DGTSVX])(
-      102, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b,
-      *ldb, x, *ldx, rcond, ferr, berr, work, iwork, info);
+  if (!g_cblas_fn[FB_OP_DGTSVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  rc = ((int (*)(fb_layout_t, char, char, int, int, const double *,
+                 const double *, const double *, double *, double *, double *,
+                 double *, int *, const double *, int, double *, int, double *,
+                 double *, double *))g_cblas_fn[FB_OP_DGTSVX])(
+      FB_LAYOUT_COL_MAJOR, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf,
+      du2, ipiv, b, *ldb, x, *ldx, rcond, ferr, berr);
+  if (info) *info = rc;
 }
 
-static void thunk_dgtsvx_cblas_to_fortran(
-    int layout, char fact, char trans, int n, int nrhs, double *dl, double *d,
-    double *du, double *dlf, double *df, double *duf, double *du2, int *ipiv,
-    double *b, int ldb, double *x, int ldx, double *rcond, double *ferr,
-    double *berr, double *work, int *iwork, int *info) {
-  if (fb_lapack_reject_non_col_major_cblas_layout(layout, info))
-    return;
-  if (!g_fortran_fn[FB_OP_DGTSVX]) {
-    if (info)
-      *info = -1;
+static int thunk_cgtsvx_fortran_to_cblas(
+    const fb_layout_t layout, const char fact, const char trans, const int n,
+    const int nrhs, const fb_complex_float_t *dl,
+    const fb_complex_float_t *d, const fb_complex_float_t *du,
+    fb_complex_float_t *dlf, fb_complex_float_t *df, fb_complex_float_t *duf,
+    fb_complex_float_t *du2, int *ipiv, const fb_complex_float_t *b,
+    const int ldb, fb_complex_float_t *x, const int ldx, float *rcond,
+    float *ferr, float *berr) {
+  int n_ = n;
+  int nrhs_ = nrhs;
+  int ldb_ = (n > 0) ? n : 1;
+  int ldx_ = (n > 0) ? n : 1;
+  int info = 0;
+  int work_len = (n > 0) ? (2 * n) : 1;
+  int rwork_len = (n > 1) ? n : 2;
+  size_t b_elems = (size_t)ldb_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t x_elems = (size_t)ldx_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_float_t *b_col = NULL;
+  fb_complex_float_t *x_col = NULL;
+  fb_complex_float_t *work = NULL;
+  float *rwork = NULL;
+
+  if (!g_fortran_fn[FB_OP_CGTSVX]) return -1;
+  if (!dl || !d || !du || !dlf || !df || !duf || !du2 || !ipiv || !b || !x ||
+      !rcond || !ferr || !berr) {
+    return -1;
+  }
+
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    if (ldb < nrhs || ldx < nrhs) return -15;
+    b_col = (fb_complex_float_t *)malloc(b_elems * sizeof(fb_complex_float_t));
+    x_col = (fb_complex_float_t *)malloc(x_elems * sizeof(fb_complex_float_t));
+    if (!b_col || !x_col) {
+      free(b_col);
+      free(x_col);
+      return -101;
+    }
+    if (fb_copy_matrix_to_col_major(b, layout, n, nrhs, ldb, b_col, ldb_,
+                                    sizeof(fb_complex_float_t)) != 0) {
+      free(b_col);
+      free(x_col);
+      return -1;
+    }
+  } else if (fb_lapack_layout_is_col_major(layout)) {
+    ldb_ = ldb;
+    ldx_ = ldx;
+    b_col = (fb_complex_float_t *)b;
+    x_col = x;
+  } else {
+    return -1;
+  }
+
+  work = (fb_complex_float_t *)calloc((size_t)work_len,
+                                      sizeof(fb_complex_float_t));
+  rwork = (float *)calloc((size_t)rwork_len, sizeof(float));
+  if (!work || !rwork) {
+    free(work);
+    free(rwork);
+    if (layout == FB_LAYOUT_ROW_MAJOR) {
+      free(b_col);
+      free(x_col);
+    }
+    return -101;
+  }
+
+  ((void (*)(char *, char *, int *, int *, const fb_complex_float_t *,
+             const fb_complex_float_t *, const fb_complex_float_t *,
+             fb_complex_float_t *, fb_complex_float_t *, fb_complex_float_t *,
+             fb_complex_float_t *, int *, fb_complex_float_t *, int *,
+             fb_complex_float_t *, int *, float *, float *, float *,
+             fb_complex_float_t *, float *, int *))g_fortran_fn[FB_OP_CGTSVX])(
+      (char *)&fact, (char *)&trans, &n_, &nrhs_, dl, d, du, dlf, df, duf,
+      du2, ipiv, b_col, &ldb_, x_col, &ldx_, rcond, ferr, berr, work, rwork,
+      &info);
+
+  if (info == 0 && layout == FB_LAYOUT_ROW_MAJOR &&
+      fb_copy_matrix_from_col_major(x_col, n, nrhs, ldx_, layout, x, ldx,
+                                    sizeof(fb_complex_float_t)) != 0) {
+    info = -1;
+  }
+
+  free(work);
+  free(rwork);
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    free(b_col);
+    free(x_col);
+  }
+  return info;
+}
+
+static void thunk_cgtsvx_cblas_to_fortran(
+    char *fact, char *trans, int *n, int *nrhs, fb_complex_float_t *dl,
+    fb_complex_float_t *d, fb_complex_float_t *du, fb_complex_float_t *dlf,
+    fb_complex_float_t *df, fb_complex_float_t *duf, fb_complex_float_t *du2,
+    int *ipiv, fb_complex_float_t *b, int *ldb, fb_complex_float_t *x,
+    int *ldx, float *rcond, float *ferr, float *berr,
+    fb_complex_float_t *work, float *rwork, int *info) {
+  int rc;
+  (void)work;
+  (void)rwork;
+  if (!fact || !trans || !n || !nrhs || !dl || !d || !du || !dlf || !df ||
+      !duf || !du2 || !ipiv || !b || !ldb || !x || !ldx || !rcond || !ferr ||
+      !berr) {
+    if (info) *info = -1;
     return;
   }
-  int ldb_ = ldb, ldx_ = ldx;
-  ((void (*)(char *, char *, int *, int *, double *, double *, double *,
-             double *, double *, double *, double *, int *, double *, int *,
-             double *, int *, double *, double *, double *, double *, int *,
-             int *))g_fortran_fn[FB_OP_DGTSVX])(
-      &fact, &trans, &n, &nrhs, dl, d, du, dlf, df, duf, du2, ipiv, b, &ldb_, x,
-      &ldx_, rcond, ferr, berr, work, iwork, info);
+  if (!g_cblas_fn[FB_OP_CGTSVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  rc = ((int (*)(fb_layout_t, char, char, int, int,
+                 const fb_complex_float_t *, const fb_complex_float_t *,
+                 const fb_complex_float_t *, fb_complex_float_t *,
+                 fb_complex_float_t *, fb_complex_float_t *,
+                 fb_complex_float_t *, int *, const fb_complex_float_t *, int,
+                 fb_complex_float_t *, int, float *, float *, float *))
+            g_cblas_fn[FB_OP_CGTSVX])(
+      FB_LAYOUT_COL_MAJOR, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf,
+      du2, ipiv, b, *ldb, x, *ldx, rcond, ferr, berr);
+  if (info) *info = rc;
+}
+
+static int thunk_zgtsvx_fortran_to_cblas(
+    const fb_layout_t layout, const char fact, const char trans, const int n,
+    const int nrhs, const fb_complex_double_t *dl,
+    const fb_complex_double_t *d, const fb_complex_double_t *du,
+    fb_complex_double_t *dlf, fb_complex_double_t *df,
+    fb_complex_double_t *duf, fb_complex_double_t *du2, int *ipiv,
+    const fb_complex_double_t *b, const int ldb, fb_complex_double_t *x,
+    const int ldx, double *rcond, double *ferr, double *berr) {
+  int n_ = n;
+  int nrhs_ = nrhs;
+  int ldb_ = (n > 0) ? n : 1;
+  int ldx_ = (n > 0) ? n : 1;
+  int info = 0;
+  int work_len = (n > 0) ? (2 * n) : 1;
+  int rwork_len = (n > 1) ? n : 2;
+  size_t b_elems = (size_t)ldb_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  size_t x_elems = (size_t)ldx_ * (size_t)((nrhs > 0) ? nrhs : 1);
+  fb_complex_double_t *b_col = NULL;
+  fb_complex_double_t *x_col = NULL;
+  fb_complex_double_t *work = NULL;
+  double *rwork = NULL;
+
+  if (!g_fortran_fn[FB_OP_ZGTSVX]) return -1;
+  if (!dl || !d || !du || !dlf || !df || !duf || !du2 || !ipiv || !b || !x ||
+      !rcond || !ferr || !berr) {
+    return -1;
+  }
+
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    if (ldb < nrhs || ldx < nrhs) return -15;
+    b_col = (fb_complex_double_t *)malloc(b_elems * sizeof(fb_complex_double_t));
+    x_col = (fb_complex_double_t *)malloc(x_elems * sizeof(fb_complex_double_t));
+    if (!b_col || !x_col) {
+      free(b_col);
+      free(x_col);
+      return -101;
+    }
+    if (fb_copy_matrix_to_col_major(b, layout, n, nrhs, ldb, b_col, ldb_,
+                                    sizeof(fb_complex_double_t)) != 0) {
+      free(b_col);
+      free(x_col);
+      return -1;
+    }
+  } else if (fb_lapack_layout_is_col_major(layout)) {
+    ldb_ = ldb;
+    ldx_ = ldx;
+    b_col = (fb_complex_double_t *)b;
+    x_col = x;
+  } else {
+    return -1;
+  }
+
+  work = (fb_complex_double_t *)calloc((size_t)work_len,
+                                       sizeof(fb_complex_double_t));
+  rwork = (double *)calloc((size_t)rwork_len, sizeof(double));
+  if (!work || !rwork) {
+    free(work);
+    free(rwork);
+    if (layout == FB_LAYOUT_ROW_MAJOR) {
+      free(b_col);
+      free(x_col);
+    }
+    return -101;
+  }
+
+  ((void (*)(char *, char *, int *, int *, const fb_complex_double_t *,
+             const fb_complex_double_t *, const fb_complex_double_t *,
+             fb_complex_double_t *, fb_complex_double_t *,
+             fb_complex_double_t *, fb_complex_double_t *, int *,
+             fb_complex_double_t *, int *, fb_complex_double_t *, int *,
+             double *, double *, double *, fb_complex_double_t *, double *,
+             int *))g_fortran_fn[FB_OP_ZGTSVX])(
+      (char *)&fact, (char *)&trans, &n_, &nrhs_, dl, d, du, dlf, df, duf,
+      du2, ipiv, b_col, &ldb_, x_col, &ldx_, rcond, ferr, berr, work, rwork,
+      &info);
+
+  if (info == 0 && layout == FB_LAYOUT_ROW_MAJOR &&
+      fb_copy_matrix_from_col_major(x_col, n, nrhs, ldx_, layout, x, ldx,
+                                    sizeof(fb_complex_double_t)) != 0) {
+    info = -1;
+  }
+
+  free(work);
+  free(rwork);
+  if (layout == FB_LAYOUT_ROW_MAJOR) {
+    free(b_col);
+    free(x_col);
+  }
+  return info;
+}
+
+static void thunk_zgtsvx_cblas_to_fortran(
+    char *fact, char *trans, int *n, int *nrhs, fb_complex_double_t *dl,
+    fb_complex_double_t *d, fb_complex_double_t *du, fb_complex_double_t *dlf,
+    fb_complex_double_t *df, fb_complex_double_t *duf,
+    fb_complex_double_t *du2, int *ipiv, fb_complex_double_t *b, int *ldb,
+    fb_complex_double_t *x, int *ldx, double *rcond, double *ferr,
+    double *berr, fb_complex_double_t *work, double *rwork, int *info) {
+  int rc;
+  (void)work;
+  (void)rwork;
+  if (!fact || !trans || !n || !nrhs || !dl || !d || !du || !dlf || !df ||
+      !duf || !du2 || !ipiv || !b || !ldb || !x || !ldx || !rcond || !ferr ||
+      !berr) {
+    if (info) *info = -1;
+    return;
+  }
+  if (!g_cblas_fn[FB_OP_ZGTSVX]) {
+    if (info) *info = -1;
+    return;
+  }
+  rc = ((int (*)(fb_layout_t, char, char, int, int,
+                 const fb_complex_double_t *, const fb_complex_double_t *,
+                 const fb_complex_double_t *, fb_complex_double_t *,
+                 fb_complex_double_t *, fb_complex_double_t *,
+                 fb_complex_double_t *, int *, const fb_complex_double_t *,
+                 int, fb_complex_double_t *, int, double *, double *,
+                 double *))g_cblas_fn[FB_OP_ZGTSVX])(
+      FB_LAYOUT_COL_MAJOR, *fact, *trans, *n, *nrhs, dl, d, du, dlf, df, duf,
+      du2, ipiv, b, *ldb, x, *ldx, rcond, ferr, berr);
+  if (info) *info = rc;
 }
 
 /* ---- ORG2L/UNG2L  unblocked Q-generator -------------------------------- */

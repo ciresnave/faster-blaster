@@ -14,8 +14,33 @@
 #include <string.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "../src/backends/openblas_backend.h"
+#include "../src/backends/backend_auto_detect.h"
+
+/*
+ * Test-only stubs for optional auto-population paths used by openblas_backend.
+ * The backend unit tests exercise core BLAS calls directly and do not require
+ * LAPACKE table auto-fill.
+ */
+const fb_sym_entry_t k_lapacke_symbols[] = {0};
+const size_t k_lapacke_symbols_count = 0;
+
+void fb_auto_populate_ext_ops(fb_backend_vtable_t *vtable,
+                              void *lib_handle,
+                              const fb_sym_entry_t *syms,
+                              size_t count) {
+    (void)vtable;
+    (void)lib_handle;
+    (void)syms;
+    (void)count;
+}
+
+uint32_t fb_stem_to_op_id(const char *stem) {
+    (void)stem;
+    return UINT32_MAX;
+}
 
 #define TOLERANCE_SINGLE 1e-5f
 #define TOLERANCE_DOUBLE 1e-12

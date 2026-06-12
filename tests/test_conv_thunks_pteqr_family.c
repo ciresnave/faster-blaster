@@ -192,6 +192,70 @@ static int check_spteqr_cblas_to_fortran(void)
     return 0;
 }
 
+static void stub_noop(void) {}
+
+static int check_extended_pteqr_thunk_installation(void)
+{
+    fb_backend_vtable_t vtable;
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_DPTEQR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_DPTEQR);
+    if (!vtable.ext_ops[FB_OP_DPTEQR][FB_CONV_CBLAS]) {
+        fprintf(stderr, "[FAIL] DPTEQR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_DPTEQR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_DPTEQR);
+    if (!vtable.ext_ops[FB_OP_DPTEQR][FB_CONV_FORTRAN]) {
+        fprintf(stderr, "[FAIL] DPTEQR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_CPTEQR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_CPTEQR);
+    if (!vtable.ext_ops[FB_OP_CPTEQR][FB_CONV_CBLAS]) {
+        fprintf(stderr, "[FAIL] CPTEQR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_CPTEQR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_CPTEQR);
+    if (!vtable.ext_ops[FB_OP_CPTEQR][FB_CONV_FORTRAN]) {
+        fprintf(stderr, "[FAIL] CPTEQR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_ZPTEQR][FB_CONV_FORTRAN] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPTEQR);
+    if (!vtable.ext_ops[FB_OP_ZPTEQR][FB_CONV_CBLAS]) {
+        fprintf(stderr, "[FAIL] ZPTEQR Fortran->CBLAS thunk was not installed\n");
+        return 1;
+    }
+
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.ext_ops[FB_OP_ZPTEQR][FB_CONV_CBLAS] =
+        (fb_generic_fn)(void (*)(void))stub_noop;
+    fb_install_conv_thunks(&vtable, FB_OP_ZPTEQR);
+    if (!vtable.ext_ops[FB_OP_ZPTEQR][FB_CONV_FORTRAN]) {
+        fprintf(stderr, "[FAIL] ZPTEQR CBLAS->Fortran thunk was not installed\n");
+        return 1;
+    }
+
+    printf("[PASS] DPTEQR/CPTEQR/ZPTEQR thunk slots install in both directions\n");
+    return 0;
+}
+
 int main(void)
 {
     int status = 0;
@@ -199,6 +263,7 @@ int main(void)
     status |= check_spteqr_fortran_to_cblas_vectors();
     status |= check_spteqr_fortran_to_cblas_identity_vectors();
     status |= check_spteqr_cblas_to_fortran();
+    status |= check_extended_pteqr_thunk_installation();
 
     if (status != 0) {
         fprintf(stderr, "Result: FAIL\n");

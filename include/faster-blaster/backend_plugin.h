@@ -66,7 +66,10 @@ typedef void* fb_lib_handle_t;
  * Plugin probe result
  */
 typedef struct {
-    int score;                  /**< Compatibility score (0-100), 0 = incompatible */
+    int score;                  /**< Compatibility indicator (0 = incompatible, >0 = compatible).
+                                     Scores are not used for global backend ordering; they
+                                     are intended for diagnostics and as a local quality hint.
+                                  */
     const char* library_path;   /**< Full path to library if found, NULL otherwise */
     const char* reason;         /**< Explanation of score (for diagnostics) */
 } fb_plugin_probe_result_t;
@@ -81,8 +84,10 @@ typedef struct {
     /**
      * Probe for compatible library
      * 
-     * Searches for a compatible library and returns compatibility score.
-     * Higher score = better match. Plugin with highest score wins.
+     * Searches for a compatible library and returns a compatibility score.
+     * Scores are interpreted as compatibility indicators: 0 means incompatible,
+     * positive values mean compatible. Backend selection uses compatibility only
+     * and does not globally rank plugins by score.
      * 
      * @param lib_handle If non-NULL, probe this specific library handle.
      *                   If NULL, search system for compatible library.
@@ -162,7 +167,10 @@ int fb_register_plugin(const fb_backend_plugin_t* plugin);
 /**
  * Discover and load best matching plugin for a backend type
  * 
- * Probes all registered plugins and selects the one with highest score.
+ * Probes all registered plugins and selects the first compatible plugin in
+ * registry order. Plugins return a compatibility score, but backend selection
+ * is driven by compatibility and explicit backend preference, not global score
+ * ranking.
  * 
  * @param backend_name Preferred backend name (e.g., "blis", "openblas"), NULL for auto
  * @param search_paths Array of paths to search (NULL-terminated), may be NULL

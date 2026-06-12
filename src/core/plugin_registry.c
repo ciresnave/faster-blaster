@@ -152,17 +152,16 @@ const fb_backend_plugin_t *fb_load_best_plugin(const char *backend_name,
     printf("[DEBUG] Probed %s: score=%d, reason=%s\n", plugin->metadata->name,
            result.score, result.reason ? result.reason : "");
 
-    /* Skip if incompatible */
+    /* Use score only as availability/compatibility indicator. */
     if (result.score <= 0) {
       continue;
     }
 
-    /* Check if this is the best so far */
-    if (result.score > best_result.score) {
-      /* Plugin will load library in init() */
-      best_plugin = plugin;
-      best_result = result;
-    }
+    /* Select the first compatible plugin in registration order.
+     * Operation-level scheduling is handled elsewhere. */
+    best_plugin = plugin;
+    best_result = result;
+    break;
   }
 
   /* Initialize the best plugin */

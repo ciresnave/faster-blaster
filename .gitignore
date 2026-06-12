@@ -28,3 +28,9 @@ __pycache__/
 
 # Windows reserved-name artifact
 NUL.obj
+
+# Throwaway upstream LAPACK clone (re-downloadable, nested git repo)
+/_tmp/lapack-upstream/
+
+# Stray empty file from a mistyped redirect
+nulmcd

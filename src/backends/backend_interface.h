@@ -2689,6 +2689,9 @@ typedef struct fb_backend_vtable {
   fb_generic_fn cptcon;  /* FB_OP_CPTCON = 1010 */
   fb_generic_fn zptcon;  /* FB_OP_ZPTCON = 1011 */
   fb_generic_fn spteqr;  /* FB_OP_SPTEQR = 1012 */
+  fb_generic_fn dpteqr;  /* FB_OP_DPTEQR = 3054 */
+  fb_generic_fn cpteqr;  /* FB_OP_CPTEQR = 3055 */
+  fb_generic_fn zpteqr;  /* FB_OP_ZPTEQR = 3056 */
   fb_generic_fn sptrfs;  /* FB_OP_SPTRFS = 1013 */
   fb_generic_fn dptrfs;  /* FB_OP_DPTRFS = 1014 */
   fb_generic_fn cptrfs;  /* FB_OP_CPTRFS = 1015 */

@@ -396,6 +396,149 @@ static void thunk_##OP##_cblas_to_fortran(                                     \
   if (info) *info = rc;                                                         \
 }
 
+#define DEFINE_POCON_REAL_FORTRAN_TO_CBLAS(OP, TYPE, OP_ID)                    \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const fb_uplo_t uplo, const int n,               \
+    const TYPE *a, const int lda, const TYPE anorm, TYPE *rcond,               \
+    TYPE *work, int *iwork, int *info) {                                        \
+  char uplo_char = 'U';                                                         \
+  int n_ = n, lda_ = lda, info_local = 0;                                       \
+  TYPE anorm_local = anorm;                                                     \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  if (fb_lapack_uplo_to_char(uplo, &uplo_char) != 0) return -1;                \
+  ((void (*)(char *, int *, const TYPE *, int *, TYPE *, TYPE *, TYPE *,       \
+             int *, int *))g_fortran_fn[OP_ID])(                               \
+      &uplo_char, &n_, a, &lda_, &anorm_local, rcond, work, iwork,             \
+      (info != NULL) ? info : &info_local);                                     \
+  return (info != NULL) ? *info : info_local;                                   \
+}
+
+#define DEFINE_POCON_REAL_CBLAS_TO_FORTRAN(OP, TYPE, OP_ID)                    \
+static void thunk_##OP##_cblas_to_fortran(                                     \
+    char *uplo, int *n, TYPE *a, int *lda, TYPE *anorm, TYPE *rcond,           \
+    TYPE *work, int *iwork, int *info) {                                        \
+  fb_uplo_t uplo_ = FB_UPPER;                                                   \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!uplo || !n || !anorm || !rcond ||                                        \
+      fb_lapack_char_to_uplo(*uplo, &uplo_) != 0) {                            \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, fb_uplo_t, int, const TYPE *, int, TYPE,     \
+                     TYPE *, TYPE *, int *, int *))g_cblas_fn[OP_ID])(         \
+      FB_LAYOUT_COL_MAJOR, uplo_, *n, a, *lda, *anorm, rcond, work, iwork,     \
+      info);                                                                    \
+  if (info) *info = rc;                                                         \
+}
+
+#define DEFINE_POCON_COMPLEX_FORTRAN_TO_CBLAS(OP, CTYPE, RTYPE, OP_ID)        \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const fb_uplo_t uplo, const int n,               \
+    const CTYPE *a, const int lda, const RTYPE anorm, RTYPE *rcond,            \
+    RTYPE *rwork, int *info) {                                                  \
+  char uplo_char = 'U';                                                         \
+  int n_ = n, lda_ = lda, info_local = 0;                                       \
+  RTYPE anorm_local = anorm;                                                    \
+  int work_size = (n > 0) ? (2 * n) : 1;                                        \
+  CTYPE *work = NULL;                                                           \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  if (fb_lapack_uplo_to_char(uplo, &uplo_char) != 0) return -1;                \
+  work = (CTYPE *)malloc((size_t)work_size * sizeof(CTYPE));                   \
+  if (!work) return -101;                                                       \
+  ((void (*)(char *, int *, const CTYPE *, int *, RTYPE *, RTYPE *, CTYPE *,   \
+             RTYPE *, int *))g_fortran_fn[OP_ID])(                             \
+      &uplo_char, &n_, a, &lda_, &anorm_local, rcond, work, rwork,             \
+      (info != NULL) ? info : &info_local);                                     \
+  free(work);                                                                   \
+  return (info != NULL) ? *info : info_local;                                   \
+}
+
+#define DEFINE_POCON_COMPLEX_CBLAS_TO_FORTRAN(OP, CTYPE, RTYPE, OP_ID)        \
+static void thunk_##OP##_cblas_to_fortran(                                     \
+    char *uplo, int *n, CTYPE *a, int *lda, RTYPE *anorm, RTYPE *rcond,        \
+    CTYPE *work, RTYPE *rwork, int *info) {                                     \
+  fb_uplo_t uplo_ = FB_UPPER;                                                   \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!uplo || !n || !anorm || !rcond ||                                        \
+      fb_lapack_char_to_uplo(*uplo, &uplo_) != 0) {                            \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, fb_uplo_t, int, const CTYPE *, int, RTYPE,   \
+                     RTYPE *, RTYPE *, int *))g_cblas_fn[OP_ID])(              \
+      FB_LAYOUT_COL_MAJOR, uplo_, *n, a, *lda, *anorm, rcond, rwork, info);    \
+  if (info) *info = rc;                                                         \
+  (void)work;                                                                   \
+}
+
+#define DEFINE_POEQU_REAL_FORTRAN_TO_CBLAS(OP, TYPE, OP_ID)                    \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const int n, const TYPE *a, const int lda,       \
+    TYPE *s, TYPE *scond, TYPE *amax, int *info) {                              \
+  int n_ = n, lda_ = lda, info_local = 0;                                       \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  ((void (*)(int *, const TYPE *, int *, TYPE *, TYPE *, TYPE *, int *))       \
+      g_fortran_fn[OP_ID])(&n_, a, &lda_, s, scond, amax,                      \
+                           (info != NULL) ? info : &info_local);               \
+  return (info != NULL) ? *info : info_local;                                   \
+}
+
+#define DEFINE_POEQU_REAL_CBLAS_TO_FORTRAN(OP, TYPE, OP_ID)                    \
+static void thunk_##OP##_cblas_to_fortran(                                     \
+    int *n, TYPE *a, int *lda, TYPE *s, TYPE *scond, TYPE *amax, int *info) {  \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!n || !s || !scond || !amax) {                                            \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, int, const TYPE *, int, TYPE *, TYPE *,      \
+                     TYPE *, int *))g_cblas_fn[OP_ID])(                        \
+      FB_LAYOUT_COL_MAJOR, *n, a, *lda, s, scond, amax, info);                 \
+  if (info) *info = rc;                                                         \
+}
+
+#define DEFINE_POEQU_COMPLEX_FORTRAN_TO_CBLAS(OP, CTYPE, RTYPE, OP_ID)        \
+static int thunk_##OP##_fortran_to_cblas(                                      \
+    const fb_layout_t layout, const int n, const CTYPE *a, const int lda,      \
+    RTYPE *s, RTYPE *scond, RTYPE *amax, int *info) {                           \
+  int n_ = n, lda_ = lda, info_local = 0;                                       \
+  if (!fb_lapack_layout_is_col_major(layout)) return -1;                       \
+  if (!g_fortran_fn[OP_ID]) return -1;                                          \
+  ((void (*)(int *, const CTYPE *, int *, RTYPE *, RTYPE *, RTYPE *, int *))   \
+      g_fortran_fn[OP_ID])(&n_, a, &lda_, s, scond, amax,                      \
+                           (info != NULL) ? info : &info_local);               \
+  return (info != NULL) ? *info : info_local;                                   \
+}
+
+#define DEFINE_POEQU_COMPLEX_CBLAS_TO_FORTRAN(OP, CTYPE, RTYPE, OP_ID)        \
+static void thunk_##OP##_cblas_to_fortran(                                     \
+    int *n, CTYPE *a, int *lda, RTYPE *s, RTYPE *scond, RTYPE *amax, int *info) { \
+  if (!g_cblas_fn[OP_ID]) {                                                     \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  if (!n || !s || !scond || !amax) {                                            \
+    if (info) *info = -1;                                                       \
+    return;                                                                     \
+  }                                                                             \
+  int rc = ((int (*)(fb_layout_t, int, const CTYPE *, int, RTYPE *, RTYPE *,   \
+                     RTYPE *, int *))g_cblas_fn[OP_ID])(                       \
+      FB_LAYOUT_COL_MAJOR, *n, a, *lda, s, scond, amax, info);                 \
+  if (info) *info = rc;                                                         \
+}
+
 #define DEFINE_GEBAK_REAL_FORTRAN_TO_CBLAS(OP, TYPE, OP_ID)                    \
 static int thunk_##OP##_fortran_to_cblas(                                      \
     const fb_layout_t layout, char job, char side, const int n,                \
@@ -1956,6 +2099,12 @@ DEFINE_LAPACK_GB_SVX_COMPLEX_THUNKS(cgbsvx, fb_complex_float_t, float,
                                     FB_OP_CGBSVX)
 DEFINE_LAPACK_GB_SVX_COMPLEX_THUNKS(zgbsvx, fb_complex_double_t, double,
                                     FB_OP_ZGBSVX)
+DEFINE_LAPACK_GB_REFINE_REAL_THUNKS(sgbrfs, float, FB_OP_SGBRFS)
+DEFINE_LAPACK_GB_REFINE_REAL_THUNKS(dgbrfs, double, FB_OP_DGBRFS)
+DEFINE_LAPACK_GB_REFINE_COMPLEX_THUNKS(cgbrfs, fb_complex_float_t, float,
+                                       FB_OP_CGBRFS)
+DEFINE_LAPACK_GB_REFINE_COMPLEX_THUNKS(zgbrfs, fb_complex_double_t, double,
+                                       FB_OP_ZGBRFS)
 
 DEFINE_LAPACK_PB_FACTOR_THUNKS(spbtrf, float, FB_OP_SPBTRF)
 DEFINE_LAPACK_PB_FACTOR_THUNKS(dpbtrf, double, FB_OP_DPBTRF)
@@ -2367,6 +2516,8 @@ DEFINE_LAPACK_LATRS_COMPLEX_THUNKS(zlatrs, fb_complex_double_t, double,
 #undef DEFINE_LAPACK_PT_FACTOR_COMPLEX_THUNKS
 #undef DEFINE_LAPACK_PT_FACTORED_SOLVE_REAL_THUNKS
 #undef DEFINE_LAPACK_PT_FACTORED_SOLVE_COMPLEX_THUNKS
+#undef DEFINE_LAPACK_GB_REFINE_REAL_THUNKS
+#undef DEFINE_LAPACK_GB_REFINE_COMPLEX_THUNKS
 
 DEFINE_GEBRD_REAL_FORTRAN_TO_CBLAS(sgebrd, float, FB_OP_SGEBRD,
                                    fb_query_size_from_float)

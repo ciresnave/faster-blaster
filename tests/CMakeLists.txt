@@ -20,6 +20,15 @@ include_directories(
 # Enable testing framework
 enable_testing()
 
+option(FB_BUILD_CONVENTION_THUNK_TESTS
+    "Build the convention-thunk test families" OFF)
+option(FB_BUILD_CONVENTION_THUNK_SOLVER_FAMILIES
+    "Build solver-style thunk families (GESV, LU, Cholesky, SYSV)" ${FB_BUILD_CONVENTION_THUNK_TESTS})
+option(FB_BUILD_CONVENTION_THUNK_FACTORIZATION_FAMILIES
+    "Build factorization-style thunk families (QR, Q, apply-Q, bidiag, Hessenberg, tridiagonal)" ${FB_BUILD_CONVENTION_THUNK_TESTS})
+option(FB_BUILD_CONVENTION_THUNK_SPECIAL_FAMILIES
+    "Build packed and special thunk families" ${FB_BUILD_CONVENTION_THUNK_TESTS})
+
 # ============================================================================
 # Plugin Architecture Test
 # ============================================================================
@@ -30,6 +39,17 @@ add_executable(test_plugin_architecture
 target_link_libraries(test_plugin_architecture faster-blaster)
 
 add_test(NAME plugin_architecture COMMAND test_plugin_architecture)
+
+# ============================================================================
+# Plugin Selection Order Regression Test
+# ============================================================================
+add_executable(test_plugin_selection_order
+    test_plugin_selection_order.c
+)
+
+target_link_libraries(test_plugin_selection_order faster-blaster)
+
+add_test(NAME plugin_selection_order COMMAND test_plugin_selection_order)
 
 # ============================================================================
 # Benchmark System Test (Phase 3.0)
@@ -59,6 +79,12 @@ add_executable(test_device_api
 target_link_libraries(test_device_api faster-blaster)
 
 add_test(NAME device_api COMMAND test_device_api)
+
+if(WIN32)
+    set_tests_properties(device_api PROPERTIES
+        ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:faster-blaster>;PATH=path_list_prepend:${CMAKE_BINARY_DIR}/backends-install/openblas/bin")
+endif()
 
 # ============================================================================
 # Device Memory Manager Test (No GPU Hardware Required)
@@ -353,6 +379,17 @@ add_test(NAME reference_loader_alias_regression COMMAND test_reference_loader_al
 message(STATUS "Reference loader alias regression test enabled")
 
 # ============================================================================
+# Convention Thunks — opt-in synthetic coverage for thunk-heavy delegation
+# paths. The umbrella switch seeds the subgroup defaults; individual groups can
+# still be toggled independently for narrower profiling.
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Solver families
+# ----------------------------------------------------------------------------
+if(FB_BUILD_CONVENTION_THUNK_SOLVER_FAMILIES)
+
+# ============================================================================
 # GESV Convention Thunks — direct synthetic coverage for both Fortran->CBLAS
 # and CBLAS->Fortran delegation paths.
 # ============================================================================
@@ -463,6 +500,13 @@ endif()
 add_test(NAME conv_thunks_sysv_family COMMAND test_conv_thunks_sysv_family)
 
 message(STATUS "SYSV/HESV convention thunk test enabled")
+
+endif()
+
+# ----------------------------------------------------------------------------
+# Factorization families
+# ----------------------------------------------------------------------------
+if(FB_BUILD_CONVENTION_THUNK_FACTORIZATION_FAMILIES)
 
 # ============================================================================
 # QR-Like Factorization Convention Thunks — direct synthetic coverage for
@@ -717,6 +761,13 @@ endif()
 add_test(NAME conv_thunks_unblocked_matrix_tau_factor_family COMMAND test_conv_thunks_unblocked_matrix_tau_factor_family)
 
 message(STATUS "Unblocked matrix+tau factorization convention thunk test enabled")
+
+endif()
+
+# ----------------------------------------------------------------------------
+# Special families
+# ----------------------------------------------------------------------------
+if(FB_BUILD_CONVENTION_THUNK_SPECIAL_FAMILIES)
 
 # ============================================================================
 # LAPACK LATRZ Convention Thunks — direct synthetic coverage for
@@ -2066,6 +2117,8 @@ endif()
 add_test(NAME conv_thunks_larrr_family COMMAND test_conv_thunks_larrr_family)
 
 message(STATUS "LAPACK LARRR convention thunk test enabled")
+
+endif()
 
 # ============================================================================
 # LAPACK LARRV Convention Thunks — focused synthetic coverage for
@@ -5050,6 +5103,35 @@ add_test(NAME conv_thunks_gbsvx_family COMMAND test_conv_thunks_gbsvx_family)
 message(STATUS "General band expert-driver convention thunk test enabled")
 
 # ============================================================================
+# Tridiagonal Expert Driver Convention Thunks — synthetic coverage for GTSVX
+# bridges with compact LAPACKE ABI, hidden workspace allocation, and complex
+# WORK/RWORK handling.
+# ============================================================================
+add_executable(test_conv_thunks_gtsvx_family
+    test_conv_thunks_gtsvx_family.c
+)
+
+target_include_directories(test_conv_thunks_gtsvx_family PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_conv_thunks_gtsvx_family faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_conv_thunks_gtsvx_family POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_conv_thunks_gtsvx_family>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME conv_thunks_gtsvx_family COMMAND test_conv_thunks_gtsvx_family)
+
+message(STATUS "Tridiagonal expert-driver convention thunk test enabled")
+
+# ============================================================================
 # Positive Band Factor/Factored-Solve Convention Thunks — synthetic coverage
 # for PBTRF/PBTRS bridges with band-storage translation and selective copy-back.
 # ============================================================================
@@ -6269,6 +6351,9 @@ if(ENABLE_OPENBLAS)
     # OpenBLAS backend library
     add_library(openblas_backend_lib STATIC
         ${CMAKE_SOURCE_DIR}/src/backends/openblas_backend.c
+        ${CMAKE_SOURCE_DIR}/src/core/backend_auto_detect.c
+        ${CMAKE_SOURCE_DIR}/src/core/op_vtable_map.c
+        ${CMAKE_SOURCE_DIR}/src/backends/sym_tables/lapacke_sym_table.c
     )
 
     target_include_directories(openblas_backend_lib PRIVATE
@@ -6277,7 +6362,10 @@ if(ENABLE_OPENBLAS)
     )
 
     # OpenBLAS test executable
-    add_executable(test_openblas_backend test_openblas_backend.c)
+    add_executable(test_openblas_backend
+        test_openblas_backend.c
+        ${CMAKE_SOURCE_DIR}/src/core/op_vtable_map.c
+    )
 
     target_link_libraries(test_openblas_backend openblas_backend_lib)
 
@@ -6286,6 +6374,13 @@ if(ENABLE_OPENBLAS)
     endif()
 
     add_test(NAME OpenBLAS_Backend_Tests COMMAND test_openblas_backend)
+
+    if(WIN32)
+        set_tests_properties(OpenBLAS_Backend_Tests PROPERTIES
+            ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:faster-blaster>;PATH=path_list_prepend:${CMAKE_BINARY_DIR}/backends-install/openblas/bin")
+    endif()
+
     message(STATUS "OpenBLAS CPU tests enabled")
 endif()
 
@@ -6411,6 +6506,34 @@ endif()
 add_test(NAME op_sequence_executor COMMAND test_op_sequence)
 
 message(STATUS "Operation sequence executor tests enabled")
+
+# ============================================================================
+# Cross-Op Convention Thunk Coverage — verifies fb_install_conv_thunks wiring
+# against the global thunk tables for every operation id in both directions.
+# ============================================================================
+add_executable(test_conv_thunks_cross_op_coverage
+    test_conv_thunks_cross_op_coverage.c
+)
+
+target_include_directories(test_conv_thunks_cross_op_coverage PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_conv_thunks_cross_op_coverage faster-blaster)
+
+if(WIN32)
+    add_custom_command(TARGET test_conv_thunks_cross_op_coverage POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:faster-blaster>
+            $<TARGET_FILE_DIR:test_conv_thunks_cross_op_coverage>
+        COMMENT "Copying faster-blaster.dll to test directory"
+    )
+endif()
+
+add_test(NAME conv_thunks_cross_op_coverage COMMAND test_conv_thunks_cross_op_coverage)
+
+message(STATUS "Cross-op convention thunk coverage test enabled")
 
 # ============================================================================
 # Test Summary

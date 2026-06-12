@@ -74,7 +74,7 @@ static int check_##SUFFIX##_fortran_to_cblas(void)                              
     TYPE expected_ap[6] = { (TYPE)11, (TYPE)12, (TYPE)13, 0, 0, 0 };             \
     TYPE b_row[4] = { (TYPE)1, (TYPE)2, (TYPE)3, (TYPE)4 };                      \
     TYPE expected_b[4] = { (TYPE)1, (TYPE)3, (TYPE)2, (TYPE)4 };                 \
-    TYPE expected_ap_after[6] = { (TYPE)((BASE) + 1), (TYPE)((BASE) + 2), (TYPE)((BASE) + 3), 0, 0, 0 }; \
+    TYPE expected_ap_after[6] = { (TYPE)((BASE) + 1), (TYPE)((BASE) + 2), (TYPE)((BASE) + 3), (TYPE)22, (TYPE)23, (TYPE)33 }; \
     TYPE expected_b_after[4] = { (TYPE)((BASE) + 4), (TYPE)((BASE) + 6), (TYPE)((BASE) + 5), (TYPE)((BASE) + 7) }; \
     int info = 0;                                                                 \
     memset(&vtable, 0, sizeof(vtable));                                           \

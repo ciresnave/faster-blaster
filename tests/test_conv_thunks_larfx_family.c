@@ -221,6 +221,7 @@ static struct {                                                                 
     int m;                                                                       \
     int n;                                                                       \
     const CTYPE *v;                                                              \
+    CTYPE v_snapshot[2];                                                         \
     CTYPE tau_value;                                                             \
     CTYPE *c;                                                                    \
     int ldc;                                                                     \
@@ -261,6 +262,8 @@ static int stub_##SUFFIX##_cblas(fb_layout_t layout, char side, int m, int n,  \
     g_##SUFFIX##_cblas_call.m = m;                                               \
     g_##SUFFIX##_cblas_call.n = n;                                               \
     g_##SUFFIX##_cblas_call.v = v;                                               \
+    g_##SUFFIX##_cblas_call.v_snapshot[0] = v ? v[0] : MAKE_FN(0, 0);           \
+    g_##SUFFIX##_cblas_call.v_snapshot[1] = v ? v[1] : MAKE_FN(0, 0);           \
     g_##SUFFIX##_cblas_call.tau_value = tau;                                     \
     g_##SUFFIX##_cblas_call.c = c;                                               \
     g_##SUFFIX##_cblas_call.ldc = ldc;                                           \
@@ -348,8 +351,8 @@ static int check_##SUFFIX##_cblas_to_fortran(void)                              
         g_##SUFFIX##_cblas_call.m != 2 ||                                        \
         g_##SUFFIX##_cblas_call.n != 2 ||                                        \
         g_##SUFFIX##_cblas_call.v == v_storage ||                                \
-        !EQ_FN(g_##SUFFIX##_cblas_call.v[0], MAKE_FN(21, 31)) ||                \
-        !EQ_FN(g_##SUFFIX##_cblas_call.v[1], MAKE_FN(22, 32)) ||                \
+        !EQ_FN(g_##SUFFIX##_cblas_call.v_snapshot[0], MAKE_FN(21, 31)) ||       \
+        !EQ_FN(g_##SUFFIX##_cblas_call.v_snapshot[1], MAKE_FN(22, 32)) ||       \
         !EQ_FN(g_##SUFFIX##_cblas_call.tau_value, MAKE_FN(23, -33)) ||          \
         g_##SUFFIX##_cblas_call.c != c ||                                        \
         g_##SUFFIX##_cblas_call.ldc != 2 ||                                      \

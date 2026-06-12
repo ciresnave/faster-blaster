@@ -5,6 +5,15 @@ Remove-Item Env:FB_JUDGE_TRACE_OP_START -ErrorAction SilentlyContinue
 Remove-Item Env:FB_JUDGE_TRACE_OP_RETURN -ErrorAction SilentlyContinue
 Remove-Item Env:FB_JUDGE_VALIDATE_HEAP -ErrorAction SilentlyContinue
 
+$env:CMAKE_BUILD_PARALLEL_LEVEL = '1'
+$env:CTEST_PARALLEL_LEVEL = '1'
+$env:NINJAFLAGS = '-j1'
+$env:OMP_NUM_THREADS = '1'
+$env:OPENBLAS_NUM_THREADS = '1'
+$env:BLIS_NUM_THREADS = '1'
+$env:MKL_NUM_THREADS = '1'
+$env:VECLIB_MAXIMUM_THREADS = '1'
+
 function Write-AuditMetadata {
     param(
         [string]$Path,
